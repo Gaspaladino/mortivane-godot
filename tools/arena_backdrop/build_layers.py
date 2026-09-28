@@ -10,7 +10,8 @@ Rodar a partir da raiz do projeto (ferramenta de desenvolvimento, não roda no j
 
 Gera em assets/art/arena_layers/:
     arena.png           chão de pedra, desenho roxo central e muro de ruínas (ArenaLayer)
-    sides.png           pilares, arco, árvores secas, lápide e pedras laterais (SideElementsLayer),
+    architecture_left.png / architecture_right.png
+                        pilares, arco, árvores secas, lápide e pedras de cada lado (recortes justos),
                         com a área atrás dos estandartes reconstruída (inpaint)
     banner_left.png     estandartes recortados (balançam por cima)
     banner_right.png
@@ -96,7 +97,7 @@ def near_mask(img):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    for old in ("scenery.png", "masks.png", "scenery.png.import", "masks.png.import"):
+    for old in ("scenery.png", "masks.png", "scenery.png.import", "masks.png.import", "sides.png", "sides.png.import"):
         p = os.path.join(OUT, old)
         if os.path.exists(p):
             os.remove(p)
@@ -122,9 +123,14 @@ def main():
     sides = near & ((xx < SIDE_LEFT_X) | (xx > SIDE_RIGHT_X)) & (yy < GROUND_Y + 16)
     arena = near & ~sides
     save("arena.png", rgba(img, feather(arena, 0.6) * near))
-    save("sides.png", rgba(base, feather(sides, 0.6) * near))
+    info = {"size": [w, h], "horizon_y": GROUND_Y, "architecture": {}, "banners": {}, "candles": {}}
+    side_rgba = rgba(base, feather(sides, 0.6) * near)
+    for side, part in (("left", xx < w / 2), ("right", xx >= w / 2)):
+        ys, xs = np.where(sides & part)
+        x0, y0, x1, y1 = xs.min(), ys.min(), xs.max() + 1, ys.max() + 1
+        save("architecture_%s.png" % side, side_rgba[y0:y1, x0:x1])
+        info["architecture"][side] = {"pos": [int(x0), int(y0)], "size": [int(x1 - x0), int(y1 - y0)]}
 
-    info = {"size": [w, h], "horizon_y": GROUND_Y, "banners": {}, "candles": {}}
     for side, m in banners.items():
         ys, xs = np.where(m)
         x0, y0, x1, y1 = xs.min() - PAD, ys.min() - PAD, xs.max() + 1 + PAD, ys.max() + 1 + PAD

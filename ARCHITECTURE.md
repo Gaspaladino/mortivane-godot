@@ -61,6 +61,7 @@ res://
   assets/art/novocenario.png         # arte da arena (1672×941); substituiu a arte extraída do HTML
   assets/art/arena_layers/           # primeiro plano extraído da arte (chão, laterais, estandartes, velas)
   tools/arena_backdrop/build_layers.py  # extrai o primeiro plano (Python, só desenvolvimento)
+  tools/arena_backdrop/generate_backdrop_scene.gd  # gera arena_backdrop.tscn UMA vez (depois: editar no editor)
   data/
     units/u_warrior.tres             # UnitDef — Guerreiro Morto-Vivo (aliado)
     units/warrior.tres               # UnitDef — Guerreiro (inimigo)
@@ -70,8 +71,10 @@ res://
     main/main.tscn                   # raiz do jogo: troca de tela + avisos
     menu/main_menu.tscn              # menu inicial (Jogar / Sandbox)
     sandbox/sandbox.tscn             # Sandbox: Arena + SandboxUI + SandboxController
+    sandbox/sandbox_ui.tscn          # interface do Sandbox (faixa inferior, Controls editáveis)
+    sandbox/sandbox_theme.tres       # tema da interface do Sandbox
     arena/arena.tscn                 # arena: camadas + Battle + debug
-    arena/arena_backdrop.tscn        # fundo da arena reconstruído (13 camadas)
+    arena/arena_backdrop.tscn        # fundo da arena: ~190 nós editáveis em 21 camadas
   scripts/
     core/world_config.gd             # class_name WorldConfig — constantes do mundo
     arena/arena.gd                   # enquadramento (câmera + fundo cover)
@@ -91,7 +94,8 @@ res://
     visuals/projectiles/projectile_view.gd  # class_name ProjectileView — orbe/lâmina em voo + impacto
     visuals/backdrop/arena_backdrop.gd      # class_name ArenaBackdrop — orquestra camadas, tempo, parallax, ajustes
     visuals/backdrop/arena_layers_data.gd   # class_name ArenaLayersData — GERADO: posições do primeiro plano
-    visuals/backdrop/layers/*.gd            # BackdropSilhouette, MountainLayer, CastleLayer, CastleLights, RuinsLayer, CandleFlames
+    visuals/backdrop/nodes/*.gd             # nós do fundo: BackdropCloud, BackdropDrift, BackdropFog, BackdropMoon,
+                                            # CastleWindow, CastleLights, CandleFlame, CandleGlow, BannerSway, BackdropShaderRect
     visuals/backdrop/shaders/*.gdshader     # céu, lua, nuvens, neblina, estandarte, velas (+ noise.gdshaderinc)
     visuals/units/warrior_visual.gd         # class_name WarriorVisual — Guerreiro por código (rig + animação)
     visuals/units/undead_warrior_visual.gd  # class_name UndeadWarriorVisual — herda o Guerreiro
@@ -100,7 +104,7 @@ res://
     data/unit_catalog.gd             # class_name UnitCatalog — carrega data/units/*.tres
     menu/main_menu.gd                # class_name MainMenu — só emite sinais
     sandbox/sandbox_controller.gd    # class_name SandboxController — montagem, ações, seleção
-    sandbox/sandbox_ui.gd            # class_name SandboxUI — painéis e botões; só sinais
+    sandbox/sandbox_ui.gd            # class_name SandboxUI — liga os Controls da cena a sinais
     main/main.gd                     # troca de tela + atalhos globais (F3/F4/F9/F11) + avisos
   tests/
     combat_test.gd                   # teste headless do combate (SceneTree)
@@ -128,12 +132,12 @@ MainMenu (Control)               main_menu.gd — título + Jogar / Sandbox; sin
 
 Sandbox (Node)                   sandbox_controller.gd — montagem, ações, seleção; sinal exit_requested
 ├─ Arena                         a MESMA arena.tscn (instância), sem nada específico de Sandbox
-└─ SandboxUI (CanvasLayer 50)    sandbox_ui.gd — painéis montados em código
+└─ SandboxUI (sandbox_ui.tscn)    faixa inferior com Controls editáveis (ver "Sandbox")
 
 Arena (Node2D)                   arena.gd — enquadramento; set_debug_visible()
    ├─ Camera2D                   posicionada pelo enquadramento
    ├─ Background (Node2D)        fundo; nunca treme nem recebe efeitos de gameplay
-   │   └─ Backdrop (ArenaBackdrop, arena_backdrop.tscn) — camadas animadas (ver "Fundo animado")
+   │   └─ Backdrop (ArenaBackdrop, arena_backdrop.tscn) — fundo editável (ver "Fundo da arena")
    ├─ Stage (Node2D)             ← futuro tremor de tela aplicado aqui
    │   ├─ World (Node2D)
    │   │   ├─ Ground             áreas no chão, cadáveres (futuro)
@@ -141,14 +145,22 @@ Arena (Node2D)                   arena.gd — enquadramento; set_debug_visible()
    │   └─ Effects (Node2D)       efeitos visuais do gameplay (futuro)
    ├─ Battle (Node)              battle.gd — executor do combate; entities_path → Stage/World/Entities
    └─ Debug (Node2D)             debug_overlay.gd — DebugOverlay.set_shown()
-       └─ InfoLayer (CanvasLayer 100) / InfoLabel   janela, mundo visível, escala (rodapé esquerdo)
+       └─ InfoLayer (CanvasLayer 100) / InfoLabel   janela, mundo visível, escala (topo esquerdo)
 ```
 
 **Troca de tela.** `Main._switch_to()` tira a tela antiga da árvore na hora (a Arena antiga não disputa a
 câmera) e a libera no fim do quadro, depois instancia a nova. Não há `change_scene`: `Main` e o `NoticeLayer`
 continuam vivos entre telas.
 
-O painel do F3 (`InfoLabel`) foi para o **rodapé esquerdo**, porque o topo agora é do Sandbox.
+O painel do F3 (`InfoLabel`) e o aviso do `Main` ficam no **topo**: a faixa de baixo é da interface do Sandbox.
+
+**Reserva para a interface.** `Arena.set_bottom_inset(px)` enquadra o mundo na área acima de uma faixa de
+interface:
+- se a área útil ficar mais baixa que 490 unidades, a câmera afasta (`zoom < 1`);
+- o fundo continua cobrindo a tela toda, inclusive por trás da faixa.
+
+O Sandbox chama `set_bottom_inset` com a altura da sua faixa sempre que ela muda. Em 1600×896 a faixa ocupa
+22%, o zoom fica em 0,89 e o campo inteiro (y de 210 a 534) aparece acima dela.
 
 `Ground` e `Effects` estão vazios e servem só para fixar a ordem de desenho. `Entities` recebe os `UnitView`.
 
@@ -370,86 +382,72 @@ porta 1:1 de `drawArcaneSentinel`.
 | Hit | 0,2 s: recuo, compressão, clarão, ponta do chapéu treme, lâminas desestabilizam | clarão lilás, o corpo tremula (translúcido) e a fumaça explode |
 | Morte | perde a sustentação, a magia se apaga, o manto colapsa com peso, o chapéu cai ao lado; as lâminas caem girando e se desfazem em faíscas; o monte fica no chão | sobe e se agita, colapsa se desfazendo (fica translúcida), fumaça sobe e as lâminas se partem em fragmentos |
 
-## Fundo da arena (`ArenaBackdrop`) — reconstruído do zero
+## Fundo da arena (`ArenaBackdrop`) — cena de nós editáveis
 
-Tudo o que fica **atrás do campo** foi recriado no Godot, sem nenhum pixel da arte antiga: céu, lua, nuvens,
-montanhas, neblina, castelo, torres, ruínas e arcos. Da arte antiga (`novocenario.png`) sobrou apenas o primeiro
-plano, que foi pedido para preservar:
-- o chão de pedra com o desenho roxo e o muro de ruínas (`arena.png`);
-- os elementos laterais: pilares, arco, árvores secas, lápide (`sides.png`), estandartes e velas.
+`scenes/arena/arena_backdrop.tscn` é uma **árvore de nós** (cerca de 190), em que cada parte visual é um nó que se
+seleciona, move e ajusta no editor.
+- O fundo distante é 100% Godot, sem nada da arte antiga: céu, lua, nuvens, montanhas, névoa, castelo e ruínas.
+- Do `novocenario.png` vêm só o chão e a arquitetura lateral, extraídos por `build_layers.py`:
+  `arena.png`, `architecture_left/right.png`, estandartes e velas.
 
-Essas partes são extraídas por `tools/arena_backdrop/build_layers.py`. Nenhuma cena usa mais `novocenario.png`;
-ele só serve de fonte para a ferramenta. O menu inicial também usa o fundo novo, escurecido.
+```
+ArenaBackdrop (arena_backdrop.gd)            profundidade de parallax (metadado parallax_depth)
+├─ Sky (Node2D)          └─ Gradient (ColorRect + sky.gdshader)                        0
+├─ Moon (BackdropMoon)   └─ Disc (ColorRect + moon.gdshader) — disco + halo            0,02
+├─ FarClouds (BackdropDrift) └─ Cloud1…7 (BackdropCloud)                               0,05
+├─ MidClouds (BackdropDrift) └─ Cloud1…6                                               0,09
+├─ NearClouds (BackdropDrift) └─ Cloud1…4                                              0,14
+├─ FarMountains  └─ Peak1…10 (Polygon2D, cor por vértice) └─ Rim (Line2D, luz da lua)  0,2
+├─ FarFog        └─ Band (BackdropFog: ColorRect + fog.gdshader)                        0,25
+├─ MidMountains  └─ Peak1…11                                                            0,32
+├─ MidFog        └─ Band                                                                0,38
+├─ CastleBack    ├─ MainCastle └─ Cliff, Wall, Tower1…9 (Polygon2D) └─ Rim, Finial      0,45
+│                └─ EastKeep   └─ Hill, Wall, Tower1…3
+├─ CastleLights (CastleLights) └─ Window1…24 (CastleWindow)                             0,45
+├─ Ruins         └─ BridgeWest, BridgeEast, BridgeEastEnd, BrokenTower1…3 (Polygon2D)    0,5
+├─ NearMountains └─ Peak1…6                                                             0,58
+├─ NearFog       └─ Band                                                                0,68
+├─ LeftArchitecture / RightArchitecture (Sprite2D)                                      0,95
+├─ LeftBanner / RightBanner (BannerSway: Sprite2D + banner_sway.gdshader)               0,95
+├─ LeftCandles / RightCandles └─ Glow (CandleGlow) + Flame1…n (CandleFlame)             0,95
+└─ ArenaFloor (Sprite2D) — chão, desenho roxo e muro                                    1
+```
 
-**Camadas** (`arena_backdrop.tscn`; espaço local = pixels da arte, 1672×941; a Arena escala em cover)
+**O que cada nó faz** (`scripts/visuals/backdrop/nodes/`)
 
-| Camada | Profundidade | Como é feita | Animação |
-|---|---|---|---|
-| `SkyLayer` | 0 | shader `sky`: gradiente frio (escuro no alto, mais claro no horizonte), variação larga, poucas estrelas | estrelas cintilam devagar |
-| `MoonLayer` | 0,03 | shader `moon`: disco branco-azulado com mares e borda escurecida, halo atmosférico | brilho pulsa ±3,5% num ciclo de 6,5 s |
-| `FarCloudLayer` | 0,06 | shader `clouds`: bancos pequenos e ralos, 3 fileiras | 2 px/s → direita |
-| `MidCloudLayer` | 0,12 | shader `clouds`: bancos maiores, 2 fileiras; passam na frente da lua | 4,5 px/s → direita |
-| `MountainBackLayer` | 0,2 | `MountainLayer` (código): picos claros e enevoados | — |
-| `FogLayerFar` | 0,25 | shader `fog`: véu no horizonte | 1,4 px/s → direita |
-| `MountainFrontLayer` | 0,35 | `MountainLayer`: picos agudos mais escuros, luz de borda da lua, vincos | — |
-| `CastleLayer` | 0,45 | `CastleLayer` (código): castelo principal no penhasco e forte menor | janelas (`CastleLights`) |
-| `RuinsLayer` | 0,5 | `RuinsLayer` (código): pontes em arco quebradas e torres partidas | — |
-| `FogLayerMid` | 0,55 | shader `fog`: entre montanhas e castelo | 2,4 px/s ← **esquerda** |
-| `FogLayerNear` | 0,7 | shader `fog`: faixa baixa atrás do muro | 3,2 px/s → direita |
-| `SideElementsLayer` | 0,95 | laterais extraídas + estandartes + velas + `CandleFlames` | estandartes e chamas |
-| `ArenaLayer` | 1 | chão e muro extraídos | nenhuma |
+| Nó | Editável no Inspector | No jogo |
+|---|---|---|
+| `BackdropMoon` (@tool) | posição, `radius`, pulsação, halo | brilho pulsa ±3,5% em 6,5 s; oscila < 1 px |
+| `BackdropCloud` (@tool, desenhada por código e visível no editor) | `length`, `height`, `lumps`, `seed`, 4 cores | corpo, faixa iluminada no topo e barriga escura; borda prateada perto da lua |
+| `BackdropDrift` (grupo de nuvens) | `speed`, faixa de volta `wrap_left/right`, `bob` | desliza os filhos → direita; reaparecem do outro lado fora da tela; oscilação vertical de 1,5 px |
+| `BackdropFog` (@tool) | posição/tamanho, `speed` (negativo = ←), `opacity`, `breath`; forma e cor no material | desliza e "respira" (opacidade ±18%, ~11 s) |
+| `Polygon2D` de montanha, torre, penhasco e ponte | vértices (ferramenta de polígono), cores por vértice, posição | estático (a névoa passa na frente) |
+| `Line2D` `Rim` | pontos, largura, gradiente | luz de borda da lua |
+| `CastleLights` + `CastleWindow` (@tool) | posição de cada janela, tamanho, cores, `can_light`; `lit_share`, `speed`, `intensity` no grupo | cada janela acende e apaga devagar no seu ritmo; em média de 4 a 7 acesas de 24 |
+| `BannerSway` | `amplitude`, `speed`, `phase`, `top_px` | balanço pendular a partir da haste |
+| `CandleFlame` (@tool) + `CandleGlow` | posição, `flame_height`, cores, força | chama calma (altura ±10%, largura ±8%), brilho que respira |
+| `BackdropShaderRect` (@tool) | posição/tamanho | mantém `rect_origin/rect_size` do shader iguais ao nó |
 
-**Silhuetas por código** (`scripts/visuals/backdrop/layers/`)
-- Base `BackdropSilhouette`:
-  - monta a geometria **uma vez**, como triângulos com cor por vértice (gradiente vertical, a base clareia na
-    neblina);
-  - desenha tudo num único `canvas_item_add_triangle_array`;
-  - por cima, linhas antialiasadas: contorno e **luz de borda**, que clareia só as arestas cuja normal aponta
-    para a lua;
-  - nada é refeito por quadro.
-- `MountainLayer`:
-  - picos definidos como `Vector4(x, altura, meia-largura, agudeza)`; agudeza > 1 dá encostas côncavas e ponta
-    de agulha;
-  - ruído em duas escalas (ombros e serrilhado);
-  - vincos que descem dos picos altos.
-  - As duas cordilheiras são a mesma classe com parâmetros diferentes na cena.
-- `CastleLayer`:
-  - rochas com borda irregular, torres com beiral e pináculo fino côncavo;
-  - a menagem tem telhado baixo e agulha central; torrinhas, muralhas com ameias;
-  - janelas góticas;
-  - luz de borda nas arestas voltadas para a lua.
-- `CastleLights` (aditivo): cada janela tem dois senos lentos, com períodos de dezenas de segundos, e um viés
-  próprio. Parte das janelas nunca acende; as outras acendem e apagam suavemente, **nunca todas juntas**, com
-  cintilação mínima.
-- `RuinsLayer`: pontes com vãos em arco, pilares e pontas quebradas; torres partidas com topo irregular.
-- `CandleFlames` (aditivo): língua de fogo por vela, com altura ±10%, largura ±8%, ponta balançando < 0,5 px e
-  brilho local pequeno.
+No editor nada se move (as animações só rodam no jogo). As nuvens, a lua, as janelas e as chamas aparecem
+desenhadas.
 
-**Shaders** (`scripts/visuals/backdrop/shaders/`, com `noise.gdshaderinc`)
-- **Nuvens:** bancos numa grade que desliza.
-  - Cada banco tem pontas longas e finas, topo em "escamas" e base quase reta.
-  - Três tons: corpo, borda de cima clara e barriga escura. Perto da lua, a borda fica prateada.
-  - Como a grade é contínua, nada salta; cada banco entra e sai pelas bordas.
-- **Neblina:** véu constante mais massas que deslizam, numa faixa vertical com pico de densidade.
-- **Estandarte:** balanço **pendular** lento a partir da haste, mais uma onda pequena que desce até a ponta
-  (pano pesado).
-- **Velas:** o recorte das chamas pintadas respira de leve.
+**`ArenaBackdrop`** (script da raiz) só coordena:
+- `animated` e `master_intensity` (repassados a todos os nós do grupo `backdrop_animated`);
+- a posição da lua para as nuvens;
+- o parallax: cada filho com `parallax_depth` desloca `view_offset × (1 − profundidade)` a partir da posição do
+  editor. `parallax_preview` faz um vaivém só para visualizar.
 
-**Parallax.** `view_offset` (px da arte) desloca cada camada por `offset × (1 − profundidade)`: o céu acompanha
-tudo e a arena não se move. Está pronto para uma câmera futura. `parallax_preview` faz um vaivém só para
-visualizar.
-
-**Ajustes** (propriedades exportadas do `ArenaBackdrop`)
-- `animated`, `master_intensity` (0 = nada se mexe nem pulsa).
-- Lua: posição, raio, pulsação e halo.
-- Estrelas.
-- Nuvens e neblina: velocidade e opacidade.
-- Janelas do castelo: intensidade e velocidade.
-- Estandartes e velas: força e velocidade.
-- Forma das silhuetas: picos, cores e força da luz de borda, nos próprios nós da cena.
-
-**Custo.** Céu e lua (simples), duas camadas de nuvem (até 9 bancos avaliados por pixel, só na faixa do céu) e
-três de neblina (fbm de 5 oitavas numa faixa de cerca de 220 px). As silhuetas são geometria estática.
+**Como editar**
+- **Mover ou redimensionar:** selecione o nó na árvore e arraste.
+  - Montanhas, torres e pontes são `Polygon2D`: a ferramenta de polígono edita os vértices.
+  - O **nó fica na base da peça**, então arrastar move o pico ou a torre inteira.
+- **Nova nuvem:** duplique uma `Cloud` (Ctrl+D) dentro do grupo e mude `seed`, `length` e `height`.
+- **Nova janela ou chama:** duplique `WindowN` ou `FlameN` e posicione.
+- **Nova montanha:** duplique um `PeakN`. A luz de borda (`Rim`) é gerada para a silhueta original e pode ser
+  editada ou apagada à mão.
+- **Velocidades e intensidades:** ficam no nó animado (ou no grupo, para nuvens e janelas).
+- **Recomeçar do zero:** `tools/arena_backdrop/generate_backdrop_scene.gd` gera a cena de novo, **sobrescrevendo
+  as edições**.
 
 ## Dados de unidade (`UnitDef` + `UnitCatalog`)
 
@@ -514,10 +512,28 @@ y = 380, 330, 430, 280, 480.
   - A edição grava em `Placement.overrides` e recria a montagem, então vale desde o início da luta.
   - A `UnitDef` não muda.
 
-**Layout.** Os painéis ficam no céu da arte, acima de y=210, para não cobrir o campo:
-- ALIADOS no topo esquerdo;
-- controles, estado e unidade selecionada no topo centro;
-- INIMIGOS no topo direito.
+**Layout** (`scenes/sandbox/sandbox_ui.tscn`, tudo em Controls editáveis). Há uma faixa inferior ancorada ao
+rodapé (`anchor_top = 0,78`, 22% da altura), e o resto da tela fica livre para a arena e o fundo:
+
+```
+SandboxUI (CanvasLayer 50)
+└─ Root (Control, tela toda, ignora o mouse; tema sandbox_theme.tres)
+   └─ %BottomBar (PanelContainer, variação de tema "BottomBar")
+      └─ Columns (HBoxContainer)
+         ├─ AlliesPanel   └─ VBox: %AlliesHeader, Hint, Scroll/%AlliesList  (botões gerados do catálogo)
+         ├─ ControlsPanel └─ VBox: Buttons (Grid 2×2: %StartButton %ResetButton %ClearButton %MenuButton), %StatusLabel
+         ├─ SelectedPanel └─ VBox: %SelectedTitle, %SelectedInfo, %EditRow (HpSpin, DmgSpin, RangeSpin, CdSpin, SpeedSpin)
+         └─ EnemiesPanel  └─ VBox: %EnemiesHeader, Hint, Scroll/%EnemiesList
+```
+
+- Os nós com `%` são nomes únicos: o script os encontra pelo nome, então dá para **mover para outro pai** sem
+  mudar código.
+- Largura das colunas: `size_flags_stretch_ratio` (1 · 1,3 · 2 · 1).
+- Altura da faixa: `anchor_top` da `BottomBar`. A Arena se reenquadra sozinha pelo sinal `layout_changed`.
+- Campos de edição: cada `SpinBox` de `EditRow` tem o metadado `stat_key` (hp, dmg, range, cd, speed); mínimo,
+  máximo, passo e prefixo ficam no Inspector.
+- Cores, bordas e fonte: `sandbox_theme.tres`.
+- Gerados por código: só os botões das listas (um por `UnitDef`).
 
 ---
 
@@ -558,6 +574,9 @@ Cada teste sai com código 0 se passar e 1 se falhar.
   da 2ª lâmina e nada fora de 115;
 - visual das duas versões: idle, movimento, preparação/disparo/retorno, antecipação/partida/recarga/reforma
   da lâmina, hit, morte e permanência no chão; e que o visual não altera stats.
+
+`sandbox_test` também verifica que a UI está na faixa inferior (15–30% da altura) e que o campo inteiro aparece
+acima dela.
 
 `sandbox_test` também cobre as Sentinelas no fluxo real:
 - visual próprio;

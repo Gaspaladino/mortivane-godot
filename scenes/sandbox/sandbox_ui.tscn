@@ -1,0 +1,236 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/sandbox/sandbox_ui.gd" id="1_ui"]
+[ext_resource type="Theme" path="res://scenes/sandbox/sandbox_theme.tres" id="2_theme"]
+
+[node name="SandboxUI" type="CanvasLayer"]
+layer = 50
+script = ExtResource("1_ui")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("2_theme")
+
+[node name="BottomBar" type="PanelContainer" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.78
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_type_variation = &"BottomBar"
+
+[node name="Columns" type="HBoxContainer" parent="Root/BottomBar"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="AlliesPanel" type="PanelContainer" parent="Root/BottomBar/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VBox" type="VBoxContainer" parent="Root/BottomBar/Columns/AlliesPanel"]
+layout_mode = 2
+theme_override_constants/separation = 1
+
+[node name="AlliesHeader" type="Label" parent="Root/BottomBar/Columns/AlliesPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+text = "ALIADOS"
+
+[node name="Hint" type="Label" parent="Root/BottomBar/Columns/AlliesPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.66, 0.78, 1)
+theme_override_font_sizes/font_size = 9
+text = "Clique para criar à esquerda"
+
+[node name="Scroll" type="ScrollContainer" parent="Root/BottomBar/Columns/AlliesPanel/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="AlliesList" type="VBoxContainer" parent="Root/BottomBar/Columns/AlliesPanel/VBox/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 1
+
+[node name="ControlsPanel" type="PanelContainer" parent="Root/BottomBar/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.3
+
+[node name="VBox" type="VBoxContainer" parent="Root/BottomBar/Columns/ControlsPanel"]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="Buttons" type="GridContainer" parent="Root/BottomBar/Columns/ControlsPanel/VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 3
+theme_override_constants/v_separation = 3
+columns = 2
+
+[node name="StartButton" type="Button" parent="Root/BottomBar/Columns/ControlsPanel/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Iniciar combate"
+
+[node name="ResetButton" type="Button" parent="Root/BottomBar/Columns/ControlsPanel/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Reiniciar combate"
+tooltip_text = "Restaura a montagem ao estado inicial (atalho: F9)."
+
+[node name="ClearButton" type="Button" parent="Root/BottomBar/Columns/ControlsPanel/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Limpar arena"
+
+[node name="MenuButton" type="Button" parent="Root/BottomBar/Columns/ControlsPanel/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Voltar ao menu"
+
+[node name="StatusLabel" type="Label" parent="Root/BottomBar/Columns/ControlsPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="SelectedPanel" type="PanelContainer" parent="Root/BottomBar/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.0
+
+[node name="VBox" type="VBoxContainer" parent="Root/BottomBar/Columns/SelectedPanel"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="SelectedTitle" type="Label" parent="Root/BottomBar/Columns/SelectedPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+clip_text = true
+
+[node name="SelectedInfo" type="Label" parent="Root/BottomBar/Columns/SelectedPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 9
+autowrap_mode = 3
+
+[node name="EditRow" type="HFlowContainer" parent="Root/BottomBar/Columns/SelectedPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 3
+theme_override_constants/v_separation = 2
+
+[node name="HpSpin" type="SpinBox" parent="Root/BottomBar/Columns/SelectedPanel/VBox/EditRow"]
+custom_minimum_size = Vector2(66, 0)
+theme_override_font_sizes/font_size = 9
+layout_mode = 2
+tooltip_text = "Edita HP desta instância (só na preparação)"
+min_value = 1.0
+max_value = 9999.0
+step = 1.0
+prefix = "HP"
+select_all_on_focus = true
+metadata/stat_key = "hp"
+
+[node name="DmgSpin" type="SpinBox" parent="Root/BottomBar/Columns/SelectedPanel/VBox/EditRow"]
+custom_minimum_size = Vector2(66, 0)
+theme_override_font_sizes/font_size = 9
+layout_mode = 2
+tooltip_text = "Edita Dano desta instância (só na preparação)"
+min_value = 0.0
+max_value = 999.0
+step = 1.0
+prefix = "Dano"
+select_all_on_focus = true
+metadata/stat_key = "dmg"
+
+[node name="RangeSpin" type="SpinBox" parent="Root/BottomBar/Columns/SelectedPanel/VBox/EditRow"]
+custom_minimum_size = Vector2(66, 0)
+theme_override_font_sizes/font_size = 9
+layout_mode = 2
+tooltip_text = "Edita Alc. desta instância (só na preparação)"
+min_value = 1.0
+max_value = 600.0
+step = 1.0
+prefix = "Alc."
+select_all_on_focus = true
+metadata/stat_key = "range"
+
+[node name="CdSpin" type="SpinBox" parent="Root/BottomBar/Columns/SelectedPanel/VBox/EditRow"]
+custom_minimum_size = Vector2(66, 0)
+theme_override_font_sizes/font_size = 9
+layout_mode = 2
+tooltip_text = "Edita Int. desta instância (só na preparação)"
+min_value = 0.05
+max_value = 10.0
+step = 0.05
+prefix = "Int."
+select_all_on_focus = true
+metadata/stat_key = "cd"
+
+[node name="SpeedSpin" type="SpinBox" parent="Root/BottomBar/Columns/SelectedPanel/VBox/EditRow"]
+custom_minimum_size = Vector2(66, 0)
+theme_override_font_sizes/font_size = 9
+layout_mode = 2
+tooltip_text = "Edita Vel. desta instância (só na preparação)"
+min_value = 0.0
+max_value = 400.0
+step = 1.0
+prefix = "Vel."
+select_all_on_focus = true
+metadata/stat_key = "speed"
+
+[node name="EnemiesPanel" type="PanelContainer" parent="Root/BottomBar/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VBox" type="VBoxContainer" parent="Root/BottomBar/Columns/EnemiesPanel"]
+layout_mode = 2
+theme_override_constants/separation = 1
+
+[node name="EnemiesHeader" type="Label" parent="Root/BottomBar/Columns/EnemiesPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.66, 0.55, 1)
+theme_override_font_sizes/font_size = 11
+text = "INIMIGOS"
+
+[node name="Hint" type="Label" parent="Root/BottomBar/Columns/EnemiesPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.66, 0.78, 1)
+theme_override_font_sizes/font_size = 9
+text = "Clique para criar à direita"
+
+[node name="Scroll" type="ScrollContainer" parent="Root/BottomBar/Columns/EnemiesPanel/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="EnemiesList" type="VBoxContainer" parent="Root/BottomBar/Columns/EnemiesPanel/VBox/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 1

@@ -567,3 +567,52 @@ Limitações:
 - As árvores secas laterais são as da arte e ficam paradas.
 - Castelo, montanhas e ruínas têm formas fixas no código (listas de picos e peças). Mudar a composição = editar
   essas listas ou os parâmetros das cordilheiras na cena.
+
+### Fundo em nós editáveis + interface do Sandbox na faixa inferior ✔
+Pedido: reconstruir o fundo distante e deixar cenário e interface **editáveis no editor do Godot** (nós
+separados, Controls reais em `.tscn`), com a UI do Sandbox numa faixa inferior.
+
+Feito:
+- **Fundo** (`arena_backdrop.tscn`): antes eram 4 scripts que desenhavam camadas inteiras; agora é uma árvore de
+  cerca de 190 nós (ver `ARCHITECTURE.md`, "Fundo da arena").
+  - Montanhas (3 profundidades), castelo (penhasco e torres), forte leste e ruínas: um `Polygon2D` por peça, com
+    gradiente por vértice e luz de borda em `Line2D`.
+  - Nuvens: 3 grupos (Far/Mid/Near) de nuvens individuais `@tool`, mais volumosas, deslizando para a direita
+    com velocidades 1,6 · 3,2 · 5 px/s.
+  - Névoa: 3 faixas (a do meio em sentido contrário) que respiram.
+  - Lua `@tool` com pulsação lenta.
+  - Castelo: 24 janelas `CastleWindow` (poucas acesas por vez).
+  - Chamas `CandleFlame` como nós.
+- Um **gerador** (`tools/arena_backdrop/generate_backdrop_scene.gd`) montou a cena uma vez; a partir de agora a
+  `.tscn` é a fonte de verdade.
+- **Arquitetura lateral** separada em `LeftArchitecture` e `RightArchitecture` (sai `sides.png`).
+- **Interface do Sandbox** em `sandbox_ui.tscn` + `sandbox_theme.tres`:
+  - faixa inferior (22%) com Aliados · Controles · Unidade selecionada · Inimigos;
+  - o script só liga os nós aos sinais; a API do `SandboxUI` não mudou.
+- **`Arena.set_bottom_inset`:** o mundo é enquadrado acima da faixa, com zoom 0,89 em 1600×896, e o campo inteiro
+  fica visível.
+- F3 (painel) e avisos do `Main` voltaram para o topo.
+
+Validado:
+- `backdrop_test` (reescrito):
+  - estrutura: ordem das 21 camadas; nada criado em runtime (todo nó pertence à cena); montanhas como
+    `Polygon2D` com gradiente, as distantes mais claras;
+  - nuvens: individuais, com velocidades crescentes e volta fora da tela;
+  - névoa em sentidos opostos, fora do campo;
+  - lua; janelas com poucas acesas;
+  - intensidade 0 e parallax.
+- `sandbox_test`: +3 verificações da faixa inferior e do campo visível acima dela.
+- As outras 3 suítes seguem OK. Nenhum erro nem vazamento.
+- Cena real em 1600×896: menu, Sandbox vazio e com seleção, combate, F3+F4, mapa de movimento (cerca de 6% dos
+  pixels mudam em 20 s, **0% no chão**) e parallax.
+
+Limitações:
+- **Não foi possível abrir o editor do Godot neste ambiente** (sem Vulkan). As cenas foram validadas no jogo e
+  nos testes, mas não visualmente dentro do editor.
+- Os scripts `@tool` (nuvem, lua, janela, chama, névoa) só desenham e sincronizam; as animações não rodam no
+  editor.
+- A luz de borda (`Rim`) é calculada para a composição gerada. Depois de mover muito um pico, ela pode aparecer
+  por dentro de outro pico; ajuste ou apague a `Line2D`.
+- A interface é pensada para o viewport de 1000 unidades de largura; em janelas muito estreitas os painéis
+  apertam (os textos longos quebram linha).
+- A imagem de referência mencionada não veio anexada; a composição seguiu a das etapas anteriores.

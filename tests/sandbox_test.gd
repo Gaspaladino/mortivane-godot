@@ -34,6 +34,15 @@ func _run() -> void:
 	var ui := sandbox.ui
 	_check(battle.sim.units.is_empty() and not battle.is_running(), "Sandbox começa vazio e parado")
 	_check(ui.start_button.disabled, "Iniciar desabilitado sem tropas")
+	# UI numa faixa inferior (cena editável) e o campo inteiro visível acima dela
+	_check(ui.bottom_bar.anchor_top >= 0.7 and ui.bottom_bar.anchor_bottom == 1.0, "UI na faixa inferior")
+	var bar_h := ui.bottom_inset() / ui.get_viewport().get_visible_rect().size.y
+	_check(bar_h > 0.15 and bar_h < 0.3, "faixa ocupa 15–30%% da altura (%.0f%%)" % (bar_h * 100.0))
+	_check(sandbox.arena.bottom_inset == ui.bottom_inset(), "a Arena reserva a faixa da UI")
+	var ct := sandbox.arena.get_viewport().get_canvas_transform()
+	var field_bottom := (ct * Vector2(500, WorldConfig.BATTLEFIELD_RECT.end.y)).y
+	var field_top := (ct * Vector2(500, WorldConfig.BATTLEFIELD_TOP_Y)).y
+	_check(field_top >= 0.0 and field_bottom <= ui.bottom_bar.global_position.y + 0.5, "campo inteiro acima da faixa (y %.0f–%.0f, faixa em %.0f)" % [field_top, field_bottom, ui.bottom_bar.global_position.y])
 
 	# 3–5. criar aliados e inimigos (botões gerados pelo catálogo)
 	var ally_button: Button = ui.find_child("Spawn_u_warrior", true, false)

@@ -18,6 +18,9 @@ extends Node2D
 
 ## Parte do mundo visível na janela atual (coordenadas do mundo).
 var visible_world_rect := Rect2(Vector2.ZERO, WorldConfig.SIZE)
+## Faixa inferior da tela ocupada por interface (unidades do viewport). O mundo é enquadrado
+## na área acima dela (com zoom < 1 se preciso); o fundo continua cobrindo a tela toda.
+var bottom_inset := 0.0
 
 
 func _ready() -> void:
@@ -33,15 +36,27 @@ func is_debug_visible() -> bool:
 	return debug_overlay.visible
 
 
+func set_bottom_inset(value: float) -> void:
+	bottom_inset = maxf(0.0, value)
+	_update_framing()
+
+
 func _update_framing() -> void:
 	var view_size := get_viewport().get_visible_rect().size
+	# Área útil acima da interface; se ela ficar mais baixa que o mínimo (490), afasta a câmera.
+	var usable_h := maxf(1.0, view_size.y - bottom_inset)
+	var zoom := minf(1.0, usable_h / WorldConfig.MIN_VISIBLE_HEIGHT)
+	camera.zoom = Vector2(zoom, zoom)
+	var usable_world_h := usable_h / zoom
 
-	# Centraliza o mundo; se a janela for larga demais, corta 80% do céu e 20% do rodapé.
+	# Centraliza o mundo na área útil; se ela for baixa demais, corta 80% do céu e 20% do rodapé.
 	var center_y := WorldConfig.HEIGHT / 2.0
-	if view_size.y < WorldConfig.HEIGHT:
-		center_y = (WorldConfig.HEIGHT - view_size.y) * WorldConfig.TOP_CROP_SHARE + view_size.y / 2.0
-	camera.position = Vector2(WorldConfig.WIDTH / 2.0, center_y)
-	visible_world_rect = Rect2(camera.position - view_size / 2.0, view_size)
+	if usable_world_h < WorldConfig.HEIGHT:
+		center_y = (WorldConfig.HEIGHT - usable_world_h) * WorldConfig.TOP_CROP_SHARE + usable_world_h / 2.0
+	# o centro da área útil fica bottom_inset/2 acima do centro da tela
+	camera.position = Vector2(WorldConfig.WIDTH / 2.0, center_y + bottom_inset / 2.0 / zoom)
+	var world_view := view_size / zoom
+	visible_world_rect = Rect2(camera.position - world_view / 2.0, world_view)
 
 	_fit_background(visible_world_rect)
 	debug_overlay.set_frame(visible_world_rect, get_window().size)

@@ -54,7 +54,14 @@ func _ready() -> void:
 	ui.menu_pressed.connect(func() -> void: exit_requested.emit())
 	ui.stat_edited.connect(edit_selected_stat)
 	ui.set_catalog(UnitCatalog.for_side(CombatUnit.Team.PLAYER), UnitCatalog.for_side(CombatUnit.Team.ENEMY))
+	# a faixa inferior da UI não cobre o campo: a Arena reenquadra o mundo acima dela
+	ui.layout_changed.connect(_fit_arena_to_ui)
+	_fit_arena_to_ui.call_deferred()
 	_refresh_ui()
+
+
+func _fit_arena_to_ui() -> void:
+	arena.set_bottom_inset(ui.bottom_inset())
 
 
 func get_arena() -> Arena:

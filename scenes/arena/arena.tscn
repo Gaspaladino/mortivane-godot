@@ -38,16 +38,11 @@ script = ExtResource("3_debug")
 layer = 100
 
 [node name="InfoLabel" type="Label" parent="Debug/InfoLayer"]
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
 offset_left = 8.0
-offset_top = -40.0
+offset_top = 6.0
 offset_right = 700.0
-offset_bottom = -6.0
-grow_vertical = 0
+offset_bottom = 40.0
 theme_override_colors/font_color = Color(0.9, 0.87, 0.96, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 10
-vertical_alignment = 2

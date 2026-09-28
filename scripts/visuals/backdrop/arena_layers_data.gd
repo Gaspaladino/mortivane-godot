@@ -9,6 +9,28 @@ const DATA := {
 		941
 	],
 	"horizon_y": 356,
+	"architecture": {
+		"left": {
+			"pos": [
+				0,
+				0
+			],
+			"size": [
+				300,
+				372
+			]
+		},
+		"right": {
+			"pos": [
+				1381,
+				0
+			],
+			"size": [
+				291,
+				372
+			]
+		}
+	},
 	"banners": {
 		"left": {
 			"pos": [
