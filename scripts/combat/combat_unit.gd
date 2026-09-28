@@ -3,12 +3,14 @@ extends RefCounted
 ## Estado de uma unidade em combate. Dado puro: nenhum nó, nenhum desenho.
 ## Posições em coordenadas do mundo 1000×560 (WorldConfig).
 ##
-## Stats portados de UNIT_DEFS do HTML (hp, dmg, range, cd, speed, r).
+## Stats no formato de UnitDef.to_stats(): {id, name, hp, dmg, range, cd, speed, r}.
 
 enum Team { PLAYER, ENEMY }
 enum State { IDLE, MOVING, ATTACKING, DEAD }
 
 var id: int
+## Id da UnitDef de origem (vazio se criada direto de um dicionário).
+var def_id: StringName
 var display_name: String
 var team: Team
 var position: Vector2
@@ -32,6 +34,7 @@ var state := State.IDLE
 func _init(p_id: int, p_team: Team, stats: Dictionary, p_position: Vector2) -> void:
 	id = p_id
 	team = p_team
+	def_id = stats.get("id", &"")
 	display_name = stats.name
 	max_hp = stats.hp
 	hp = max_hp

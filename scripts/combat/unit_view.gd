@@ -1,14 +1,11 @@
 class_name UnitView
 extends Node2D
-## Visual TEMPORÁRIO de uma CombatUnit: círculo colorido + barra de HP.
+## Visual TEMPORÁRIO de uma CombatUnit: círculo nas cores da UnitDef + barra de HP.
 ## Só lê o estado da unidade; nunca altera a simulação.
 ##
 ## Debug de combate (F4): alcance, linha até o alvo atual, HP e estado.
 
-const COLOR_PLAYER := Color(0.29, 0.36, 0.29)      # u_warrior body #4a5c4a
-const COLOR_PLAYER_TRIM := Color(0.87, 0.9, 0.78)  # accent #dfe6c8
-const COLOR_ENEMY := Color(0.56, 0.25, 0.2)        # warrior body #8f3f33
-const COLOR_ENEMY_TRIM := Color(0.85, 0.75, 0.54)  # accent #d9c08a
+const COLOR_SELECTED := Color(1.0, 0.92, 0.55)
 const COLOR_HP_BACK := Color(0.05, 0.03, 0.06, 0.85)
 const COLOR_HP_FULL := Color(0.49, 0.88, 0.54)
 const COLOR_HP_LOW := Color(0.9, 0.3, 0.25)
@@ -27,14 +24,24 @@ var debug_visible := false:
 	set(value):
 		debug_visible = value
 		queue_redraw()
+## Destaque de seleção (Sandbox).
+var selected := false:
+	set(value):
+		selected = value
+		queue_redraw()
+
+var _body_color: Color
+var _trim_color: Color
 
 var _flash := 0.0
 var _body_alpha := 1.0
 var _font: Font
 
 
-func _init(p_unit: CombatUnit) -> void:
+func _init(p_unit: CombatUnit, def: UnitDef) -> void:
 	unit = p_unit
+	_body_color = def.body_color
+	_trim_color = def.trim_color
 	name = "Unit%d" % unit.id
 
 
@@ -56,6 +63,8 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	if selected:
+		draw_arc(Vector2.ZERO, unit.radius + 5.0, 0.0, TAU, 40, COLOR_SELECTED, 2.0, true)
 	if debug_visible:
 		_draw_debug_under()
 	if _body_alpha > 0.0:
@@ -68,8 +77,8 @@ func _draw() -> void:
 
 func _draw_body() -> void:
 	var is_player := unit.team == CombatUnit.Team.PLAYER
-	var body := COLOR_PLAYER if is_player else COLOR_ENEMY
-	var trim := COLOR_PLAYER_TRIM if is_player else COLOR_ENEMY_TRIM
+	var body := _body_color
+	var trim := _trim_color
 	if _flash > 0.0:
 		body = body.lerp(Color.WHITE, 0.7)
 	body.a *= _body_alpha

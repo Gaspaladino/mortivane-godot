@@ -5,11 +5,16 @@ extends SceneTree
 ## Sai com código 0 se tudo passar, 1 se alguma verificação falhar.
 
 const MAX_SECONDS := 60.0
+## Luta de referência: as mesmas UnitDef do jogo (data/units), mesma semente.
+const SEED := 97
+const ALLY_START := Vector2(150, 380)
+const ENEMY_START := Vector2(850, 380)
 
 var _failures := 0
 
 
 func _initialize() -> void:
+	_test_catalog()
 	_test_full_fight()
 	_test_dead_unit_is_not_a_target()
 	_test_damage_clamps_at_zero()
@@ -17,10 +22,30 @@ func _initialize() -> void:
 	quit(1 if _failures > 0 else 0)
 
 
+func _ally_stats() -> Dictionary:
+	return UnitCatalog.get_def(&"u_warrior").to_stats()
+
+
+func _enemy_stats() -> Dictionary:
+	return UnitCatalog.get_def(&"warrior").to_stats()
+
+
+func _test_catalog() -> void:
+	var ally := UnitCatalog.get_def(&"u_warrior")
+	var enemy := UnitCatalog.get_def(&"warrior")
+	_check(ally != null and enemy != null, "catálogo carrega u_warrior e warrior de data/units")
+	if ally == null or enemy == null:
+		return
+	_check(ally.side == CombatUnit.Team.PLAYER and enemy.side == CombatUnit.Team.ENEMY, "lados das UnitDef")
+	_check(ally.max_hp == 74.0 and ally.damage == 10.0 and enemy.max_hp == 70.0 and enemy.damage == 9.0, "stats do HTML")
+	var stats := enemy.to_stats({dmg = 20.0})
+	_check(stats.dmg == 20.0 and stats.hp == 70.0 and enemy.damage == 9.0, "overrides por instância não alteram a UnitDef")
+
+
 func _test_full_fight() -> void:
-	var sim := Battle.build_test_sim(97)
-	var ally := sim.units[0]
-	var enemy := sim.units[1]
+	var sim := CombatSim.new(SEED)
+	var ally := sim.add_unit(CombatUnit.Team.PLAYER, _ally_stats(), ALLY_START)
+	var enemy := sim.add_unit(CombatUnit.Team.ENEMY, _enemy_stats(), ENEMY_START)
 	_check(ally.team == CombatUnit.Team.PLAYER and ally.position.x < WorldConfig.DEPLOY_X, "aliado começa à esquerda")
 	_check(enemy.team == CombatUnit.Team.ENEMY and enemy.position.x > WorldConfig.DEPLOY_X, "inimigo começa à direita")
 
@@ -63,9 +88,9 @@ func _test_full_fight() -> void:
 
 func _test_dead_unit_is_not_a_target() -> void:
 	var sim := CombatSim.new(1)
-	var ally := sim.add_unit(CombatUnit.Team.PLAYER, Battle.ALLY_STATS, Vector2(200, 380))
-	var near := sim.add_unit(CombatUnit.Team.ENEMY, Battle.ENEMY_STATS, Vector2(300, 380))
-	var far := sim.add_unit(CombatUnit.Team.ENEMY, Battle.ENEMY_STATS, Vector2(700, 380))
+	var ally := sim.add_unit(CombatUnit.Team.PLAYER, _ally_stats(), Vector2(200, 380))
+	var near := sim.add_unit(CombatUnit.Team.ENEMY, _enemy_stats(), Vector2(300, 380))
+	var far := sim.add_unit(CombatUnit.Team.ENEMY, _enemy_stats(), Vector2(700, 380))
 	_check(sim.nearest_foe(ally) == near, "alvo = inimigo mais próximo")
 	near.take_damage(near.max_hp)
 	_check(not near.is_valid_target(), "morto não é alvo válido")
@@ -77,7 +102,7 @@ func _test_dead_unit_is_not_a_target() -> void:
 
 
 func _test_damage_clamps_at_zero() -> void:
-	var unit := CombatUnit.new(1, CombatUnit.Team.ENEMY, Battle.ENEMY_STATS, Vector2(600, 380))
+	var unit := CombatUnit.new(1, CombatUnit.Team.ENEMY, _enemy_stats(), Vector2(600, 380))
 	_check(is_equal_approx(unit.take_damage(25.0), 25.0) and is_equal_approx(unit.hp, 45.0), "dano parcial")
 	_check(is_equal_approx(unit.take_damage(100.0), 45.0), "dano excedente limitado ao HP restante")
 	_check(unit.hp == 0.0 and not unit.is_alive(), "HP 0 → morto")

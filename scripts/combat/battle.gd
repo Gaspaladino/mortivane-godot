@@ -1,68 +1,95 @@
 class_name Battle
 extends Node
-## Teste mínimo de combate: 1 aliado (esquerda) × 1 inimigo (direita).
-## Avança a CombatSim em passo fixo e cria os visuais temporários em Stage/World/Entities.
+## Executor de combate da Arena: dono da CombatSim, dos UnitView e do relógio de passo fixo.
 ##
-## Sem fases, ondas, formação nem HUD: a luta começa sozinha; quando um lado cai, `finished` avisa.
+## Não decide quem luta nem quando: quem usa a Arena (hoje, o Sandbox) chama
+## spawn() para posicionar, start() para começar e clear() para esvaziar.
+## Antes de start() as unidades ficam paradas (a simulação não avança).
 
-signal finished(winner: CombatUnit)
-
-## Stats do HTML (UNIT_DEFS.u_warrior e UNIT_DEFS.warrior). Sem scaling de onda.
-const ALLY_STATS := {name = "Guerreiro Morto-Vivo", hp = 74.0, dmg = 10.0, range = 32.0, cd = 1.0, speed = 56.0, r = 12.0}
-const ENEMY_STATS := {name = "Guerreiro", hp = 70.0, dmg = 9.0, range = 32.0, cd = 1.0, speed = 56.0, r = 12.0}
-
-## Posições iniciais: mesma linha, uma de cada lado da divisa (x=500).
-const ALLY_START := Vector2(150, 380)
-const ENEMY_START := Vector2(850, 380)
+## Um lado ficou sem ninguém vivo. `winner_team` é um CombatUnit.Team, ou -1 se ninguém sobrou.
+signal finished(winner_team: int)
 
 ## Limite do dt de um quadro (HTML: frame() limita dt a 0,05 s).
 const MAX_FRAME_DT := 0.05
+## Folga, em unidades do mundo, para acertar uma unidade com o mouse.
+const PICK_SLACK := 4.0
 
 @export var entities_path: NodePath
+## Semente da primeira recarga de cada unidade: a mesma montagem sempre produz a mesma luta.
 @export var rng_seed := 97
 
 var sim: CombatSim
-var _views: Dictionary = {}   # id → UnitView
+var _views: Dictionary = {}   # id da unidade → UnitView
 var _accumulator := 0.0
-var _debug_visible := false
+var _running := false
 var _finished := false
+var _debug_visible := false
 
 @onready var _entities: Node2D = get_node(entities_path)
 
 
 func _ready() -> void:
-	restart()
-
-
-## Monta a mesma luta de teste usada pelo teste headless (tests/combat_test.gd).
-static func build_test_sim(seed_value: int) -> CombatSim:
-	var s := CombatSim.new(seed_value)
-	s.add_unit(CombatUnit.Team.PLAYER, ALLY_STATS, ALLY_START)
-	s.add_unit(CombatUnit.Team.ENEMY, ENEMY_STATS, ENEMY_START)
-	return s
-
-
-func restart() -> void:
-	for view in _views.values():
-		view.queue_free()
-	_views.clear()
-	if sim:
-		sim.dispose()
-	_accumulator = 0.0
-	_finished = false
-
-	sim = build_test_sim(rng_seed)
-	sim.unit_attacked.connect(_on_unit_attacked)
-	for unit in sim.units:
-		var view := UnitView.new(unit)
-		view.debug_visible = _debug_visible
-		_entities.add_child(view)
-		_views[unit.id] = view
+	clear()
 
 
 func _exit_tree() -> void:
 	if sim:
 		sim.dispose()
+
+
+## Remove todas as unidades e começa uma simulação nova, parada.
+func clear() -> void:
+	for view in _views.values():
+		view.queue_free()
+	_views.clear()
+	if sim:
+		sim.dispose()
+	sim = CombatSim.new(rng_seed)
+	sim.unit_attacked.connect(_on_unit_attacked)
+	_accumulator = 0.0
+	_running = false
+	_finished = false
+
+
+## Cria uma unidade na simulação real e o visual dela. `overrides` troca stats desta instância.
+func spawn(def: UnitDef, team: CombatUnit.Team, position: Vector2, overrides := {}) -> CombatUnit:
+	var unit := sim.add_unit(team, def.to_stats(overrides), position)
+	var view := UnitView.new(unit, def)
+	view.debug_visible = _debug_visible
+	_entities.add_child(view)
+	_views[unit.id] = view
+	return unit
+
+
+func start() -> void:
+	_running = true
+
+
+func is_running() -> bool:
+	return _running
+
+
+func is_finished() -> bool:
+	return _finished
+
+
+func view_of(unit: CombatUnit) -> UnitView:
+	return _views.get(unit.id) if unit else null
+
+
+## Unidade sob o ponto (coordenadas do mundo); vivas têm prioridade sobre mortas.
+func unit_at(point: Vector2) -> CombatUnit:
+	var best: CombatUnit = null
+	var best_score := INF
+	for unit in sim.units:
+		var d := unit.position.distance_to(point)
+		if d > unit.radius + PICK_SLACK:
+			continue
+		var score := d + (0.0 if unit.is_alive() else 1000.0)
+		if score < best_score:
+			best_score = score
+			best = unit
+	return best
 
 
 func set_debug_visible(value: bool) -> void:
@@ -75,25 +102,28 @@ func is_debug_visible() -> bool:
 	return _debug_visible
 
 
-## A simulação continua depois do fim (o sobrevivente passa a IDLE); `finished` sai uma vez só.
+## Depois do fim a simulação continua (sobreviventes passam a IDLE); `finished` sai uma vez só.
 func _process(delta: float) -> void:
+	if not _running:
+		return
 	_accumulator += minf(delta, MAX_FRAME_DT)
 	while _accumulator >= CombatSim.STEP:
 		_accumulator -= CombatSim.STEP
 		sim.step(CombatSim.STEP)
 	if not _finished and sim.is_finished():
 		_finished = true
-		finished.emit(_first_alive())
+		finished.emit(_winner_team())
 
 
-func _first_alive() -> CombatUnit:
-	for unit in sim.units:
-		if unit.is_alive():
-			return unit
-	return null
+func _winner_team() -> int:
+	if sim.alive_count(CombatUnit.Team.PLAYER) > 0:
+		return CombatUnit.Team.PLAYER
+	if sim.alive_count(CombatUnit.Team.ENEMY) > 0:
+		return CombatUnit.Team.ENEMY
+	return -1
 
 
 func _on_unit_attacked(_attacker: CombatUnit, target: CombatUnit, _amount: float) -> void:
-	var view: UnitView = _views.get(target.id)
+	var view := view_of(target)
 	if view:
 		view.flash_hit()

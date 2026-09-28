@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UnitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_def.gd" id="1_unitdef"]
+
+[resource]
+script = ExtResource("1_unitdef")
+id = &"warrior"
+display_name = "Guerreiro"
+side = 1
+max_hp = 70.0
+damage = 9.0
+attack_range = 32.0
+attack_interval = 1.0
+move_speed = 56.0
+radius = 12.0
+body_color = Color(0.5608, 0.2471, 0.2, 1)
+trim_color = Color(0.851, 0.7529, 0.5412, 1)

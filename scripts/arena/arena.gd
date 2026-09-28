@@ -7,7 +7,8 @@ extends Node2D
 ##   Stage/World — gameplay (Ground, Entities com y-sort). Futuro tremor vai em Stage.
 ##   Stage/Effects — efeitos visuais do gameplay.
 ##   Debug — sobreposição de referência (atalho F3 tratado em Main).
-##   Battle — teste mínimo de combate; cria os visuais em Stage/World/Entities.
+##   Battle — executor do combate (CombatSim + UnitView em Stage/World/Entities).
+##            A Arena não decide quem luta: o modo que a usa (Sandbox) chama battle.spawn/start/clear.
 
 @onready var camera: Camera2D = $Camera2D
 @onready var arena_art: Sprite2D = $Background/ArenaArt

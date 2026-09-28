@@ -36,7 +36,7 @@ func set_shown(value: bool) -> void:
 ## Chamado pela Arena a cada resize.
 func set_frame(view: Rect2, window_size: Vector2i) -> void:
 	_view = view
-	info_label.text = "Janela: %d×%d   ·   Mundo visível: %.0f×%.0f a partir de (%.0f, %.0f)   ·   Escala: %.2f\nF3: debug   ·   F4: debug de combate   ·   F9: reiniciar luta   ·   F11: tela cheia" % [
+	info_label.text = "Janela: %d×%d   ·   Mundo visível: %.0f×%.0f a partir de (%.0f, %.0f)   ·   Escala: %.2f\nF3: debug   ·   F4: debug de combate   ·   F9: reiniciar combate (Sandbox)   ·   F11: tela cheia" % [
 		window_size.x, window_size.y, view.size.x, view.size.y,
 		view.position.x, view.position.y, window_size.x / view.size.x]
 	queue_redraw()

@@ -175,6 +175,9 @@ res://
       battle_clock.gd        # acumulador de passo fixo + velocidade
     combat/                  # núcleo de combate (implementado: ver seção 6)
       combat_unit.gd  combat_sim.gd  unit_view.gd  battle.gd
+    data/                    # unit_def.gd (Resource) + unit_catalog.gd (implementados)
+    sandbox/                 # sandbox_controller.gd + sandbox_ui.gd (implementados)
+    menu/                    # main_menu.gd (implementado)
     arena/
       battlefield.gd         # limites, clamp, point_inside, grids
       formation_grid.gd      # máscara, células, footprints
@@ -209,6 +212,8 @@ Sugestão: placeholders simples primeiro, decidir A/B quando o combate for migra
 1. **Esqueleto do projeto + arena**: config, fundo, escala/aspecto, limites do campo, debug overlay, grades. ✔ (ver seção 6)
    - **Núcleo mínimo de combate** (1 × 1: alvo, movimento, ataque, dano, HP, morte). ✔ Feito antes da etapa 2,
      a pedido; adianta parte da etapa 4 (ver seção 6).
+   - **Menu inicial + Sandbox** (monta lutas com o combate real) + `UnitDef`/`UnitCatalog`. ✔ Adianta parte das
+     etapas 3 e 8 (ver seção 6).
 2. Máquina de fases + menu mínimo + HUD vazia.
 3. Resources de dados (unidades/facções) + placeholder de unidade e posicionamento na grade.
 4. Simulação de batalha: ~~movimento, alvo, ataque e passo fixo~~ (núcleo feito) → falta velocidade 1x/2x/3x,
@@ -306,3 +311,61 @@ Diferenças conscientes em relação ao HTML (simplificações desta etapa):
 
 Fora do escopo: máquina de fases, menu, GameState/Events, cadáveres, Necromancia, Relíquias, ondas, HUD final,
 formação, drag-and-drop, footprint, IA avançada, projéteis, habilidades, Sandbox, Run Lab, velocidade 1x/2x/3x.
+
+### Menu inicial + Sandbox ✔
+Feito antes da máquina de fases, a pedido. Referência do HTML: Sandbox/Admin (linhas 13584–15030). Aqui só a
+parte mínima foi portada: montar uma luta e inspecionar ou editar unidades por instância.
+
+Feito:
+- **Menu inicial** (`scenes/menu/main_menu.tscn`): título MORTIVANE sobre a arte escurecida e dois botões.
+  - **Jogar** só mostra "fluxo principal em construção" e o jogo continua no menu.
+  - **Sandbox** abre o modo Sandbox.
+- **Main** agora troca de tela (Menu ↔ Sandbox). A Arena deixou de ser filha fixa de `main.tscn`.
+- **Sandbox** (`scenes/sandbox/sandbox.tscn`) = a **mesma** `arena.tscn` + `SandboxUI` + `SandboxController`.
+  - Não há cópia da Arena nem do combate.
+  - As tropas são `CombatUnit` da `CombatSim` da `Battle` da Arena, e o desenho é o mesmo `UnitView`.
+- **`Battle` virou executor genérico.** Nasce vazia e parada, com `spawn/start/clear`. A luta de teste automática
+  1 × 1 saiu do jogo; a mesma luta segue como referência em `tests/combat_test.gd`.
+- **Dados:** `UnitDef` (Resource) + `data/units/u_warrior.tres` e `warrior.tres` (stats e cores do HTML).
+  `UnitCatalog` lê a pasta. As listas do Sandbox são geradas daí: nova unidade = novo `.tres`.
+- **Painel do Sandbox**, no céu da arte, sem cobrir o campo:
+  - listas ALIADOS e INIMIGOS; um clique cria a unidade no lado certo, na próxima posição automática;
+  - botões Iniciar combate, Reiniciar combate, Limpar arena e Voltar ao menu;
+  - linha de estado (preparação, combate com tempo e vivos, resultado).
+- **Regras do Sandbox:**
+  - o combate **não** começa sozinho;
+  - Iniciar exige pelo menos 1 aliado e 1 inimigo;
+  - criar tropas e editar atributos só na preparação;
+  - Reiniciar recria a montagem no estado inicial, com a mesma semente, então a luta se repete igual.
+- **Unidade selecionada** (clique na arena):
+  - anel de destaque;
+  - painel com nome, lado, estado, HP atual/máx., dano, alcance, intervalo, velocidade e alvo, ao vivo;
+  - **edição por instância** de HP máx., dano, alcance, intervalo e velocidade, só na preparação. A edição
+    vale desde o início da luta, sobrevive a Reiniciar e não altera a `UnitDef`.
+- **Atalhos:**
+  - F3/F4/F11 preservados, e o estado de F3/F4 é lembrado entre entradas no Sandbox;
+  - F9 virou atalho secundário de "Reiniciar combate";
+  - o painel do F3 foi para o rodapé esquerdo.
+
+Validado:
+- `tests/sandbox_test.gd` (novo, ponta a ponta na cena real): os 14 itens pedidos.
+  - Inclui um clique real de mouse no viewport para a seleção.
+  - Inclui entrar e sair do Sandbox 3 vezes sem acumular nós.
+- `tests/combat_test.gd`: agora lê os stats de `data/units`; mesmo resultado de antes (20/74 HP, 12,03 s).
+- Cena real em 1600×896 (Xvfb): capturas do menu, da preparação com seleção, do combate 4 × 3 com F4 e do resultado.
+  - F11 entra e sai da tela cheia.
+  - Voltar ao menu funciona.
+  - Nenhum erro nem vazamento ao sair.
+
+Limitações atuais:
+- **Sem separação entre corpos.** Com várias unidades, todas convergem para o mesmo ponto e se sobrepõem.
+  O núcleo não tem colisão; a IA de formação do HTML (`TARGET_AI`) também faz falta aqui.
+- Posições só automáticas: sem arrastar, grade funcional ou footprint. Limite de 40 unidades por lado.
+- Só 2 unidades no catálogo, e o painel é só texto e campos numéricos.
+- Não dá para remover **uma** unidade (só Limpar tudo), nem trocar a semente pela interface.
+- Sem pausa/velocidade 1x/2x/3x e sem os presets em `localStorage` que o Admin do HTML tinha.
+- Edições por instância não são salvas entre sessões.
+
+Fora do escopo: campanha/Jogar, máquina de fases, GameState/Events, cadáveres, Necromancia, Relíquias, Rituais,
+Escolas, loja, ondas, capacidade, formação, footprints, drag-and-drop, rotação, swap, IA avançada, habilidades,
+projéteis, versões Sombra, Run Lab.

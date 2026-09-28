@@ -1,7 +1,7 @@
 # Mortivane (Godot 4) — Arquitetura
 
-Estado: **Etapa 1 (esqueleto + arena) + núcleo mínimo de combate** (1 aliado × 1 inimigo).
-Ainda não há fases, menu, HUD, ondas, formação nem Necromancia.
+Estado: **Etapa 1 (esqueleto + arena) + núcleo mínimo de combate + menu inicial + Sandbox.**
+Ainda não há campanha, fases, HUD de jogo, ondas, formação nem Necromancia.
 Referência funcional/visual: `MortivaneV97.html` (não é editado). Análise do HTML: `MIGRATION_NOTES.md`.
 
 Engine: **Godot 4.7** · renderer **Compatibility** (2D puro, roda em qualquer GPU) · GDScript.
@@ -58,9 +58,14 @@ Casos verificados com captura real da janela:
 res://
   project.godot
   assets/art/novocenario.png         # arte da arena (1672×941); substituiu a arte extraída do HTML
+  data/
+    units/u_warrior.tres             # UnitDef — Guerreiro Morto-Vivo (aliado)
+    units/warrior.tres               # UnitDef — Guerreiro (inimigo)
   scenes/
-    main/main.tscn                   # raiz do jogo
-    arena/arena.tscn                 # arena: camadas + debug
+    main/main.tscn                   # raiz do jogo: troca de tela + avisos
+    menu/main_menu.tscn              # menu inicial (Jogar / Sandbox)
+    sandbox/sandbox.tscn             # Sandbox: Arena + SandboxUI + SandboxController
+    arena/arena.tscn                 # arena: camadas + Battle + debug
   scripts/
     core/world_config.gd             # class_name WorldConfig — constantes do mundo
     arena/arena.gd                   # enquadramento (câmera + fundo cover)
@@ -69,10 +74,16 @@ res://
     combat/combat_unit.gd            # class_name CombatUnit — estado de uma unidade (dado puro)
     combat/combat_sim.gd             # class_name CombatSim — alvo, movimento, ataque, dano, morte (dado puro)
     combat/unit_view.gd              # class_name UnitView — visual temporário + barra de HP + debug
-    combat/battle.gd                 # class_name Battle — luta de teste, passo fixo, cria os UnitView
-    main/main.gd                     # atalhos globais (F3/F4/F9/F11) + avisos
+    combat/battle.gd                 # class_name Battle — executor: CombatSim + UnitView + passo fixo
+    data/unit_def.gd                 # class_name UnitDef (Resource) — definição de unidade
+    data/unit_catalog.gd             # class_name UnitCatalog — carrega data/units/*.tres
+    menu/main_menu.gd                # class_name MainMenu — só emite sinais
+    sandbox/sandbox_controller.gd    # class_name SandboxController — montagem, ações, seleção
+    sandbox/sandbox_ui.gd            # class_name SandboxUI — painéis e botões; só sinais
+    main/main.gd                     # troca de tela + atalhos globais (F3/F4/F9/F11) + avisos
   tests/
     combat_test.gd                   # teste headless do combate (SceneTree)
+    sandbox_test.gd                  # teste headless de ponta a ponta: menu + Sandbox na cena real
 ```
 
 Arquivos `*.import` e `*.uid` são gerados pela Godot e **devem ser versionados**. A pasta `.godot/` é cache
@@ -83,9 +94,19 @@ e fica fora do Git.
 ## Cenas
 
 ```
-Main (Node)                      main.gd — atalhos globais (F3, F4, F9, F11) e avisos
-├─ NoticeLayer (CanvasLayer 110) / NoticeLabel   aviso temporário no rodapé
-└─ Arena (Node2D)                arena.gd — enquadramento; set_debug_visible()
+Main (Node)                      main.gd — troca de tela, atalhos globais (F3, F4, F9, F11) e avisos
+├─ <tela atual>                  uma por vez: MainMenu ou Sandbox (instanciada por Main)
+└─ NoticeLayer (CanvasLayer 110) / NoticeLabel   aviso temporário no rodapé
+
+MainMenu (Control)               main_menu.gd — título + Jogar / Sandbox; sinais play_pressed, sandbox_pressed
+├─ Backdrop (TextureRect)        a arte da arena, escurecida (cover)
+└─ Center / Box                  título, botões, MessageLabel
+
+Sandbox (Node)                   sandbox_controller.gd — montagem, ações, seleção; sinal exit_requested
+├─ Arena                         a MESMA arena.tscn (instância), sem nada específico de Sandbox
+└─ SandboxUI (CanvasLayer 50)    sandbox_ui.gd — painéis montados em código
+
+Arena (Node2D)                   arena.gd — enquadramento; set_debug_visible()
    ├─ Camera2D                   posicionada pelo enquadramento
    ├─ Background (Node2D)        arte fixa; nunca treme nem recebe efeitos
    │   └─ ArenaArt (Sprite2D)
@@ -94,10 +115,16 @@ Main (Node)                      main.gd — atalhos globais (F3, F4, F9, F11) e
    │   │   ├─ Ground             áreas no chão, cadáveres (futuro)
    │   │   └─ Entities           unidades (UnitView, criados por Battle), y_sort_enabled
    │   └─ Effects (Node2D)       efeitos visuais do gameplay (futuro)
-   ├─ Battle (Node)              battle.gd — luta de teste; entities_path → Stage/World/Entities
+   ├─ Battle (Node)              battle.gd — executor do combate; entities_path → Stage/World/Entities
    └─ Debug (Node2D)             debug_overlay.gd — DebugOverlay.set_shown()
-       └─ InfoLayer (CanvasLayer 100) / InfoLabel   janela, mundo visível, escala
+       └─ InfoLayer (CanvasLayer 100) / InfoLabel   janela, mundo visível, escala (rodapé esquerdo)
 ```
+
+**Troca de tela.** `Main._switch_to()` tira a tela antiga da árvore na hora (a Arena antiga não disputa a
+câmera) e a libera no fim do quadro, depois instancia a nova. Não há `change_scene`: `Main` e o `NoticeLayer`
+continuam vivos entre telas.
+
+O painel do F3 (`InfoLabel`) foi para o **rodapé esquerdo**, porque o topo agora é do Sandbox.
 
 `Ground` e `Effects` estão vazios e servem só para fixar a ordem de desenho. `Entities` recebe os `UnitView`.
 
@@ -113,11 +140,14 @@ As ações ficam no **InputMap** (`project.godot`, seção `[input]`) e usam a *
 | `debug_toggle` | F3 | liga/desliga a camada de debug e o painel de informações |
 | `fullscreen_toggle` | F11 | alterna entre janela e tela cheia (`Window.mode`: `MODE_WINDOWED` ↔ `MODE_FULLSCREEN`) |
 | `combat_debug_toggle` | F4 | liga/desliga o debug de combate (alcance, alvo, HP, estado) |
-| `combat_restart` | F9 | reinicia a luta de teste |
+| `combat_restart` | F9 | atalho secundário de **Reiniciar combate** no Sandbox (o principal é o botão) |
 
 - Atalhos globais ficam **só em `Main`** e são tratados em `_input`, antes da interface, para que nenhum
-  controle de UI futuro consiga "engolir" as teclas. A Arena expõe `set_debug_visible()` e `is_debug_visible()`;
-  `Battle` (via `arena.battle`) expõe `set_debug_visible()`, `is_debug_visible()` e `restart()`.
+  controle de UI consiga "engolir" as teclas. Os botões usam `focus_mode = NONE`, então teclas nunca os apertam.
+- `Main` guarda o estado de F3/F4 e o aplica a toda Arena nova, então ele sobrevive a sair e voltar ao Sandbox.
+  No menu, F3/F4 só mudam esse estado guardado.
+- Uma tela com Arena expõe `get_arena()`. A Arena expõe `set_debug_visible()` / `is_debug_visible()`, e
+  `arena.battle` expõe os mesmos métodos para o debug de combate.
 - **Jogo embutido no editor.** A Godot 4.4+ roda o jogo dentro da aba *Game* por padrão:
   - o jogo só recebe teclado quando a área dele está focada;
   - uma janela embutida **não pode** entrar em tela cheia.
@@ -156,7 +186,8 @@ Nesta etapa as grades são **só visuais**: não há ocupação, footprint nem a
 
 ## Combate (núcleo mínimo)
 
-Luta de teste fixa: **1 aliado × 1 inimigo**, que começa sozinha. Não há fase de batalha, ondas nem formação.
+O mesmo combate serve a qualquer modo que use a Arena. Hoje o único é o Sandbox. Não há fase de batalha,
+ondas nem formação.
 
 **Camadas**
 - `CombatUnit` (`RefCounted`) guarda o estado de uma unidade:
@@ -164,13 +195,18 @@ Luta de teste fixa: **1 aliado × 1 inimigo**, que começa sozinha. Não há fas
   - `hp` / `max_hp`, `damage`, `attack_range`, `attack_interval`, `move_speed`;
   - `cooldown`, `target` e `state` (`IDLE / MOVING / ATTACKING / DEAD`).
 - `CombatSim` (`RefCounted`) contém as regras. Não conhece nós. Emite `unit_attacked` e `unit_died`.
-- `Battle` (`Node`, dentro da Arena) é o dono da simulação:
-  - acumula o dt do quadro (limitado a 0,05 s) e avança a simulação em passos fixos de `CombatSim.STEP` = 1/120 s;
-  - cria um `UnitView` por unidade em `Stage/World/Entities`;
-  - emite `finished(winner)` uma vez, quando um lado fica sem ninguém vivo.
+- `Battle` (`Node`, dentro da Arena) é o **executor**. Não decide quem luta nem quando.
+  - API: `spawn(def, team, pos, overrides)`, `start()`, `clear()`, `is_running()`, `is_finished()`,
+    `unit_at(ponto)` e `view_of(unit)`.
+  - Nasce vazia e **parada**. Só depois de `start()` acumula o dt do quadro (limitado a 0,05 s) e avança a
+    simulação em passos fixos de `CombatSim.STEP` = 1/120 s.
+  - Cria um `UnitView` por unidade em `Stage/World/Entities`.
+  - Emite `finished(winner_team)` uma vez, quando um lado fica sem ninguém vivo (−1 = ninguém sobrou).
+    A simulação continua rodando depois disso, e os sobreviventes passam a `IDLE`.
 - `UnitView` (`Node2D`, visual temporário) só lê a `CombatUnit`:
-  - círculo com as cores do HTML e barra de HP;
+  - círculo com as cores da `UnitDef` e barra de HP;
   - flash ao ser atingido e sumiço gradual ao morrer;
+  - anel de seleção;
   - debug com F4.
 
 **Regras por passo** (para cada unidade viva, em ordem de criação)
@@ -183,34 +219,105 @@ Luta de teste fixa: **1 aliado × 1 inimigo**, que começa sozinha. Não há fas
    não age e `is_valid_target()` é falso.
 
 **Referências entre unidades.** `target` forma um ciclo de `RefCounted` (A → B → A). Por isso
-`CombatSim.dispose()` limpa os alvos, e `Battle` o chama ao reiniciar e em `_exit_tree`.
+`CombatSim.dispose()` limpa os alvos, e `Battle` o chama em `clear()` e em `_exit_tree`.
 
-**Stats** (`Battle.ALLY_STATS`, `Battle.ENEMY_STATS`, portados de `UNIT_DEFS`)
-
-| Unidade | Início | HP | Dano | Alcance | cd | Vel. | r |
-|---|---|---|---|---|---|---|---|
-| Aliado `u_warrior` | (150, 380) | 74 | 10 | 32 | 1,0 | 56 | 12 |
-| Inimigo `warrior` | (850, 380) | 70 | 9 | 32 | 1,0 | 56 | 12 |
-
-A semente fixa (97) torna a luta determinística: o aliado vence com 20/74 HP em ≈12,0 s.
-
-**Teste headless**
-```
-godot --headless --import                      # uma vez, gera o cache de classes (.godot/)
-godot --headless -s res://tests/combat_test.gd # sai com 0 se passar, 1 se falhar
-```
+**Semente.** `Battle.rng_seed = 97` sorteia a primeira recarga de cada unidade. Assim, a mesma montagem sempre
+produz a mesma luta, e o **Reiniciar** do Sandbox repete a luta exatamente igual.
 
 As simplificações em relação ao HTML estão em `MIGRATION_NOTES.md`, seção 6.
 
 ---
 
+## Dados de unidade (`UnitDef` + `UnitCatalog`)
+
+- `UnitDef` (`Resource`) define uma unidade: um `.tres` por unidade em `res://data/units/`.
+  - Campos: `id` (a chave do HTML), `display_name`, `side` (em que lista aparece);
+  - combate: `max_hp`, `damage`, `attack_range`, `attack_interval`, `move_speed`, `radius`;
+  - visual temporário: `body_color`, `trim_color`.
+- `to_stats(overrides)` gera o dicionário que `CombatUnit` consome. A `CombatSim` **não conhece** `UnitDef`.
+- `UnitCatalog` lê a pasta (`all()`, `for_side()`, `get_def(id)`). As listas do Sandbox vêm daqui: para
+  adicionar uma unidade basta criar um `.tres`, sem mexer em código.
+
+| `.tres` | Nome | Lado | HP | Dano | Alcance | cd | Vel. | r |
+|---|---|---|---|---|---|---|---|---|
+| `u_warrior` | Guerreiro Morto-Vivo | PLAYER | 74 | 10 | 32 | 1,0 | 56 | 12 |
+| `warrior` | Guerreiro | ENEMY | 70 | 9 | 32 | 1,0 | 56 | 12 |
+
+---
+
+## Sandbox
+
+Fluxo: **Menu → Sandbox → Arena + SandboxUI + combate real.** O menu Jogar só mostra "em construção".
+
+**Responsabilidades**
+
+| Parte | Faz | Não faz |
+|---|---|---|
+| `MainMenu` | mostra botões, emite sinais | trocar de tela |
+| `Main` | troca de tela, atalhos globais | nada de combate |
+| `SandboxController` | guarda a **montagem**, chama `Battle`, seleção, liga a UI | regras de combate |
+| `SandboxUI` | painéis, listas, botões, painel da unidade; só emite sinais | conhecer `Battle`/`CombatSim` |
+| `Battle` / `CombatSim` / `CombatUnit` / `UnitView` | o combate real (os mesmos do jogo) | nada de Sandbox |
+
+**Montagem.** Uma lista de `Placement` (`def`, `team`, `position`, `overrides`, e a `unit` viva atual).
+- **Reiniciar** faz `battle.clear()` e recria cada `Placement` com `battle.spawn(...)`: HP cheio, posição
+  original, mesmas edições e mesma semente.
+- **Limpar** esvazia a montagem.
+
+**Modos do controller:** `PREP` → (Iniciar) → `RUNNING` → (fim) → `FINISHED` → (Reiniciar) → `PREP`.
+- Criar tropas e editar atributos: só em `PREP`.
+- Iniciar: só em `PREP`, e com pelo menos 1 aliado e 1 inimigo.
+- Reiniciar e Limpar: em qualquer modo, desde que haja tropas.
+
+**Posições automáticas.** Colunas a partir da divisa, a 100 de x=500 e com passo de 45; linhas na ordem
+y = 380, 330, 430, 280, 480.
+- Aliados crescem para a esquerda e inimigos para a direita.
+- Limite de 8 colunas × 5 linhas = 40 por lado.
+
+**Seleção.** Um clique que nenhum painel consumiu chega a `SandboxController._unhandled_input`.
+- A posição do evento vira coordenada do mundo (`arena.make_input_local`), e `battle.unit_at()` escolhe a
+  unidade (vivas têm prioridade).
+- Um clique no vazio desfaz a seleção. A seleção segue o `Placement` e sobrevive a Reiniciar e a edições.
+
+**Painel da unidade selecionada.**
+- Mostra nome, lado, estado, HP atual/máx., dano, alcance, intervalo, velocidade e alvo, atualizado a cada quadro.
+- Tem 5 campos editáveis por instância, só em `PREP`: HP máx., dano, alcance, intervalo e velocidade.
+  - A edição grava em `Placement.overrides` e recria a montagem, então vale desde o início da luta.
+  - A `UnitDef` não muda.
+
+**Layout.** Os painéis ficam no céu da arte, acima de y=210, para não cobrir o campo:
+- ALIADOS no topo esquerdo;
+- controles, estado e unidade selecionada no topo centro;
+- INIMIGOS no topo direito.
+
+---
+
+## Testes headless
+
+```
+godot --headless --import                       # uma vez, gera o cache de classes (.godot/)
+godot --headless -s res://tests/combat_test.gd  # regras de combate + catálogo
+godot --headless -s res://tests/sandbox_test.gd # ponta a ponta na cena real (menu → Sandbox → menu)
+```
+Cada teste sai com código 0 se passar e 1 se falhar.
+
+`sandbox_test` aperta os botões reais e faz um clique de verdade no viewport. Ele verifica:
+- abertura no menu;
+- criação de tropas e combate parado antes de Iniciar;
+- combate real, Reiniciar, Limpar e F9;
+- F3/F4 e seleção com edição;
+- voltar ao menu e entrar/sair 3 vezes sem acumular nós.
+
+---
+
 ## Próximas etapas (planejadas)
 
-1. ~~Esqueleto + arena~~ ✔ · ~~núcleo mínimo de combate (1 × 1)~~ ✔
-2. Máquina de fases (`MENU/PREP/BATTLE/NECROMANCY/VICTORY/DEAD`) + autoloads `GameState` e `Events`, e menu mínimo.
-3. Resources de dados (`UnitDef`, `FactionDef`…) + unidade placeholder + posicionamento na grade.
+1. ~~Esqueleto + arena~~ ✔ · ~~núcleo mínimo de combate (1 × 1)~~ ✔ · ~~menu inicial + Sandbox~~ ✔
+2. Máquina de fases (`MENU/PREP/BATTLE/NECROMANCY/VICTORY/DEAD`) + autoloads `GameState` e `Events`; ligar o
+   botão Jogar.
+3. Mais `UnitDef` (facções do HTML), `FactionDef`… + posicionamento na grade. (`UnitDef`/`UnitCatalog` já existem.)
 4. Batalha completa sobre o núcleo: velocidade 1x/2x/3x, IA de formação, unidades à distância/projéteis,
    integração com a fase de batalha. (Passo fixo, movimento, alvo e ataque básico já existem.)
 5. Cadáveres, Necromancia e portal.
 6. Essência, capacidade, lojas, Relíquias, Escola e HUD.
-7. Áudio, configurações e ferramentas (sandbox, bot).
+7. Áudio, configurações e ferramentas (evoluir o Sandbox, bot/Run Lab).
