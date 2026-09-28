@@ -709,3 +709,28 @@ Limitações:
 - Ainda não há sistema de cadáveres: o corpo no chão é só apresentação do visual.
 - Os parâmetros do Inspector ficam num recurso (`paladin_look.tres`); as partes do corpo continuam no código
   (não são nós separados).
+
+### Protótipo: sprite sheet piloto do Paladino Vivo (3/4, frame a frame) — aguardando validação
+Pedido: sprite sheet piloto do Paladino Vivo, fiel às pranchas aprovadas (A/B/C), em 3/4 estilizado 2.5D,
+só Idle (6), Walk (8) e Attack (8), para validar no Godot escala, fluidez, silhueta e perspectiva.
+Decisão (com o usuário): **renderizar pelo próprio Godot** em vez de gerar com IA — consistência e alinhamento
+garantidos entre frames; acabamento ilustrado/vetorial (não é pintura à mão como as pranchas).
+
+Feito:
+- `tools/sprites/render_paladin_pilot.gd`: pintor 3/4 (proporções da prancha: elmo grande com visor em T e
+  crista, auréola com estrelas, ombreiras em lâminas com bordas douradas, peitoral pesado, tabardo com sol,
+  saiote, capa com forro, escudo grande com espessura e sol, espada larga), IK nos pés e no braço da espada,
+  keyframes: idle (respiração ~1 px), walk (passada curta, 2 px de subida, escudo estável, espada com atraso,
+  capa/tabardo atrasados), attack (guarda · preparação · espada recua · tronco gira · início · impacto com arco
+  dourado sutil · follow-through · recuperação).
+- `assets/sprites/paladin_live_pilot/`: sheet 2048 × 768, 22 frames avulsos, sombra separada, JSON do contrato,
+  `SpriteFrames`.
+- `scenes/prototypes/paladin_sprite_pilot.tscn`: arena real, as 3 animações na escala de jogo ao lado do
+  Paladino atual, um Paladino andando a 44/s com o walk sincronizado, versões ampliadas com o pivô marcado
+  (Espaço pausa, ←/→ frame a frame, S sombra).
+
+Não feito (por pedido): Hit, Defesa, Provocação, Morte, Paladino Sombra; nada ligado ao combate/Sandbox.
+
+Limitações: acabamento vetorial com sombreado por vértice (sem textura pintada); o escudo é visto sempre pela
+face (3/4 fixo); a espada no frame "espada recua" passa por cima da ombreira; 256 px de frame é pouco para
+ampliar muito além de 2×.

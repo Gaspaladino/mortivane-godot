@@ -64,6 +64,9 @@ res://
   assets/art/arena_layers/           # primeiro plano extraído da arte (chão, laterais, estandartes, velas)
   tools/arena_backdrop/build_layers.py  # extrai o primeiro plano (Python, só desenvolvimento)
   tools/arena_backdrop/generate_backdrop_scene.gd  # gera arena_backdrop.tscn UMA vez (depois: editar no editor)
+  tools/sprites/render_paladin_pilot.gd  # PROTÓTIPO: pinta e exporta a sprite sheet piloto do Paladino Vivo (3/4)
+  assets/sprites/paladin_live_pilot/  # sheet (Idle 6 · Walk 8 · Attack 8), frames, sombra, SpriteFrames, JSON do contrato
+  scenes/prototypes/paladin_sprite_pilot.tscn  # PROTÓTIPO: prévia da sheet na arena (escala de jogo e ampliada)
   data/
     units/u_warrior.tres             # UnitDef — Guerreiro Sombra (aliado)
     units/warrior.tres               # UnitDef — Guerreiro (inimigo)
@@ -457,6 +460,22 @@ cadáver com escudo e espada soltos).
 | Detalhes | — | olhos roxos no visor, fissuras roxas no peitoral e no escudo, chama roxa no fio da espada |
 | Ambiente | sombra | borda roxa na silhueta, aura, névoa no chão, pouca fumaça; na morte a energia se apaga e o corpo solta fumaça |
 | Efeitos | rastro, barreira e anéis dourados | roxos com resto do dourado |
+
+### Protótipo: sprite sheet 3/4 do Paladino Vivo (frame a frame)
+
+Validação do estilo 2.5D/3/4 em animação por frames. **Não está ligado ao jogo** (o Paladino em combate continua
+o `PaladinVisual`); só a cena `scenes/prototypes/paladin_sprite_pilot.tscn` usa a sheet.
+- Gerada por `tools/sprites/render_paladin_pilot.gd`: o personagem é pintado por código num rig 3/4 (ombro da
+  espada perto da câmera, escudo à frente com espessura, auréola atrás do elmo, sombreado de volume com luz fixa
+  do alto à esquerda), com pés por IK plantados no chão e keyframes feitos à mão; cada pose é renderizada numa
+  `SubViewport` transparente em supersampling 3× e reduzida.
+- Contrato (`paladin_live_pilot.json`): frames 256 × 256, fundo transparente, **pivô = (128, 240)** (centro entre
+  os pés, no chão) em todos os frames; linhas idle (6, 8 fps, loop) · walk (8, 14 fps, loop) · attack (8, 12 fps).
+  Sombra num PNG separado com o mesmo pivô. `paladin_live_pilot_frames.tres` = `SpriteFrames` (AtlasTexture).
+- Escala de jogo: o personagem tem ~152 px no frame → `47 / 152 ≈ 0,31` (mesma altura do Paladino atual).
+  Walk no lugar: o pé de apoio recua 24 px em 4 frames; a 14 fps isso dá 84 px/s no sprite, então
+  `speed_scale = velocidade / (84 × escala)` faz os pés não deslizarem.
+- Inimigo = a mesma sheet com `flip_h` (o pivô fica no centro do frame em x).
 
 ### Versões sombra (unidades revividas pelo necromante)
 

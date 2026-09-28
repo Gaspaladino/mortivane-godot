@@ -1,0 +1,32 @@
+{
+  "frame_size": [
+    256,
+    256
+  ],
+  "light": "luz principal fria/neutra vinda do alto à esquerda (constante em todos os frames)",
+  "pivot": [
+    128.0,
+    240.0
+  ],
+  "pivot_note": "centro entre os pés, no chão",
+  "rows": [
+    {
+      "fps": 8.0,
+      "frames": 6,
+      "loop": true,
+      "name": "idle"
+    },
+    {
+      "fps": 14.0,
+      "frames": 8,
+      "loop": true,
+      "name": "walk"
+    },
+    {
+      "fps": 12.0,
+      "frames": 8,
+      "loop": false,
+      "name": "attack"
+    }
+  ]
+}
