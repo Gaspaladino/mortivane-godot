@@ -479,3 +479,43 @@ Limitações atuais:
   da joia e das lâminas.
 - O chapéu cai sempre para trás. Os restos ficam até Reiniciar ou Limpar (não é o sistema de cadáveres).
 - Sem som.
+
+### Fundo animado da arena ✔
+Pedido: recriar o cenário da referência como fundo animado em camadas, sem trocar a composição. A referência é
+a própria arte da arena (`novocenario.png`; diferença média de 1,6/255, só compressão). Por isso a arte foi
+**decomposta em camadas** por uma ferramenta, em vez de redesenhada à mão: essa é a forma de preservar
+exatamente a identidade, a perspectiva e as cores.
+
+Feito:
+- `tools/arena_backdrop/build_layers.py`: gera as máscaras (céu, vale, castelo, estandartes, velas), a camada de
+  cenário com a área atrás dos estandartes reconstruída (inpaint), os recortes e `arena_layers_data.gd`.
+- `ArenaBackdrop` (`scenes/arena/arena_backdrop.tscn`) no lugar do antigo `Sprite2D` estático.
+  - Camadas: céu (nuvens pintadas fluindo, lua respirando), halo da lua, dois planos de nuvens procedurais em
+    parallax (atrás das montanhas), cenário estático, luzes do castelo, dois planos de neblina no vale,
+    estandartes balançando, velas e seus halos tremulando.
+  - Prioridade de movimento, como pedido: nuvens > neblina > estandartes > velas > castelo > lua.
+- **Ajustável:** intensidade global, liga/desliga e força/velocidade por elemento (exportados).
+- **Chão e área de combate:** sem nenhuma animação.
+
+Validado:
+- `tests/backdrop_test.gd` (novo):
+  - ordem das camadas e alinhamento com a arte;
+  - camadas que não capturam cliques;
+  - posições geradas e importação das máscaras;
+  - tempo avançando;
+  - intensidade 0 = estático;
+  - pausa e ajustes por elemento.
+- As outras 4 suítes continuam OK. O Sandbox segue selecionando unidades por clique através do fundo.
+- Cena real em 1600×896:
+  - quadros em instantes diferentes e comparação do céu estático × animado;
+  - recortes de estandarte, velas e castelo;
+  - combate sobre o fundo;
+  - mapa de movimento: cerca de 3,6% dos pixels mudam entre dois instantes, **0% no chão**.
+
+Limitações:
+- As nuvens **pintadas** só oscilam (±7 px); quem atravessa o céu são as nuvens procedurais. Um deslocamento
+  contínuo das pintadas exigiria reconstruir o céu por trás delas.
+- A lua não se move de verdade; só o halo deriva, menos de 1 px. Mover o disco borraria a lua ao filtrar.
+- As árvores secas ficam paradas.
+- O menu inicial continua com a arte estática.
+- A ferramenta precisa de Python com OpenCV/SciPy, apenas para regenerar as camadas; o jogo não depende disso.

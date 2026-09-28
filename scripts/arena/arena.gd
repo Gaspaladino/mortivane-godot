@@ -3,7 +3,8 @@ extends Node2D
 ## Arena: enquadra o mundo 1000×560 na janela e ajusta o fundo.
 ##
 ## Camadas (de trás para frente):
-##   Background — arte fixa; nunca recebe tremor de tela nem efeitos de gameplay.
+##   Background — fundo animado (ArenaBackdrop, camadas recriadas da arte); nunca recebe
+##                tremor de tela nem efeitos de gameplay.
 ##   Stage/World — gameplay (Ground, Entities com y-sort). Futuro tremor vai em Stage.
 ##   Stage/Effects — efeitos visuais do gameplay.
 ##   Debug — sobreposição de referência (atalho F3 tratado em Main).
@@ -11,7 +12,7 @@ extends Node2D
 ##            A Arena não decide quem luta: o modo que a usa (Sandbox) chama battle.spawn/start/clear.
 
 @onready var camera: Camera2D = $Camera2D
-@onready var arena_art: Sprite2D = $Background/ArenaArt
+@onready var backdrop: ArenaBackdrop = $Background/Backdrop
 @onready var debug_overlay: DebugOverlay = $Debug
 @onready var battle: Battle = $Battle
 
@@ -50,10 +51,7 @@ func _update_framing() -> void:
 ## ao mundo em y ≈ 380 e presa para nunca deixar faixa vazia. A textura cobre a caixa
 ## sem distorção, centralizada.
 func _fit_background(view: Rect2) -> void:
-	if arena_art.texture == null:
-		push_error("Arena: Background/ArenaArt sem textura — verifique a referência da arte em arena.tscn.")
-		return
-	var tex_size := arena_art.texture.get_size()
+	var tex_size := backdrop.art_size
 	var box_w := maxf(view.size.x, view.size.y * WorldConfig.WIDTH / WorldConfig.HEIGHT)
 	var box_h := box_w * WorldConfig.HEIGHT / WorldConfig.WIDTH
 	var box_left := view.position.x + (view.size.x - box_w) / 2.0
@@ -62,5 +60,5 @@ func _fit_background(view: Rect2) -> void:
 
 	var k := maxf(box_w / tex_size.x, box_h / tex_size.y)
 	var draw_size := tex_size * k
-	arena_art.scale = Vector2(k, k)
-	arena_art.position = Vector2(box_left, box_top) + (Vector2(box_w, box_h) - draw_size) / 2.0
+	backdrop.scale = Vector2(k, k)
+	backdrop.position = Vector2(box_left, box_top) + (Vector2(box_w, box_h) - draw_size) / 2.0

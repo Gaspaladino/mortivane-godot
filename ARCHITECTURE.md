@@ -59,6 +59,8 @@ Casos verificados com captura real da janela:
 res://
   project.godot
   assets/art/novocenario.png         # arte da arena (1672×941); substituiu a arte extraída do HTML
+  assets/art/arena_layers/           # camadas geradas da arte (tools/arena_backdrop/build_layers.py)
+  tools/arena_backdrop/build_layers.py  # decompõe a arte em camadas + máscaras (Python, só desenvolvimento)
   data/
     units/u_warrior.tres             # UnitDef — Guerreiro Morto-Vivo (aliado)
     units/warrior.tres               # UnitDef — Guerreiro (inimigo)
@@ -69,6 +71,7 @@ res://
     menu/main_menu.tscn              # menu inicial (Jogar / Sandbox)
     sandbox/sandbox.tscn             # Sandbox: Arena + SandboxUI + SandboxController
     arena/arena.tscn                 # arena: camadas + Battle + debug
+    arena/arena_backdrop.tscn        # fundo animado da arena (camadas + materiais)
   scripts/
     core/world_config.gd             # class_name WorldConfig — constantes do mundo
     arena/arena.gd                   # enquadramento (câmera + fundo cover)
@@ -86,6 +89,9 @@ res://
     visuals/units/sentinel_shadow_visual.gd # class_name SentinelShadowVisual — Sentinela Sombra (herda a viva)
     visuals/effects/arcane_blade.gd         # class_name ArcaneBlade — desenho da lâmina (pairando e em voo)
     visuals/projectiles/projectile_view.gd  # class_name ProjectileView — orbe/lâmina em voo + impacto
+    visuals/backdrop/arena_backdrop.gd      # class_name ArenaBackdrop — fundo animado (tempo, intensidades)
+    visuals/backdrop/arena_layers_data.gd   # class_name ArenaLayersData — GERADO: posições das camadas
+    visuals/backdrop/shaders/*.gdshader     # céu, nuvens, neblina, castelo, estandarte, velas (+ noise.gdshaderinc)
     visuals/units/warrior_visual.gd         # class_name WarriorVisual — Guerreiro por código (rig + animação)
     visuals/units/undead_warrior_visual.gd  # class_name UndeadWarriorVisual — herda o Guerreiro
     combat/battle.gd                 # class_name Battle — executor: CombatSim + UnitView + passo fixo
@@ -100,6 +106,7 @@ res://
     sandbox_test.gd                  # teste headless de ponta a ponta: menu + Sandbox na cena real
     visual_test.gd                   # teste headless das poses/animações dos visuais por código
     sentinel_test.gd                 # teste headless da Sentinela: mecânica portada do HTML + visual
+    backdrop_test.gd                 # teste headless do fundo animado
 ```
 
 Arquivos `*.import` e `*.uid` são gerados pela Godot e **devem ser versionados**. A pasta `.godot/` é cache
@@ -124,8 +131,8 @@ Sandbox (Node)                   sandbox_controller.gd — montagem, ações, se
 
 Arena (Node2D)                   arena.gd — enquadramento; set_debug_visible()
    ├─ Camera2D                   posicionada pelo enquadramento
-   ├─ Background (Node2D)        arte fixa; nunca treme nem recebe efeitos
-   │   └─ ArenaArt (Sprite2D)
+   ├─ Background (Node2D)        fundo; nunca treme nem recebe efeitos de gameplay
+   │   └─ Backdrop (ArenaBackdrop, arena_backdrop.tscn) — camadas animadas (ver "Fundo animado")
    ├─ Stage (Node2D)             ← futuro tremor de tela aplicado aqui
    │   ├─ World (Node2D)
    │   │   ├─ Ground             áreas no chão, cadáveres (futuro)
@@ -362,6 +369,67 @@ porta 1:1 de `drawArcaneSentinel`.
 | Hit | 0,2 s: recuo, compressão, clarão, ponta do chapéu treme, lâminas desestabilizam | clarão lilás, o corpo tremula (translúcido) e a fumaça explode |
 | Morte | perde a sustentação, a magia se apaga, o manto colapsa com peso, o chapéu cai ao lado; as lâminas caem girando e se desfazem em faíscas; o monte fica no chão | sobe e se agita, colapsa se desfazendo (fica translúcida), fumaça sobe e as lâminas se partem em fragmentos |
 
+## Fundo animado da arena (`ArenaBackdrop`)
+
+A referência visual é a própria arte da arena (`novocenario.png`). Para manter a identidade (composição,
+perspectiva, cores), o fundo **não foi redesenhado**: a arte foi decomposta em camadas independentes e recebeu
+animações nativas (shaders e script). Não há vídeo nem sprite sheet.
+
+**Camadas** (`arena_backdrop.tscn`, de trás para frente; espaço local = pixels da arte, 1672×941)
+
+| Nó | Conteúdo | Animação |
+|---|---|---|
+| `Sky` | a arte original (céu, lua, nuvens pintadas) | as nuvens pintadas fluem ±7 px devagar (só onde `masks.r`, longe das montanhas e da lua); o disco da lua respira ±5% de brilho |
+| `MoonHalo` | halo radial aditivo | respira (alfa) e deriva < 1 px |
+| `CloudsFar` | nuvens procedurais (fbm com distorção) | 3 px/s, menores e ralas |
+| `CloudsNear` | nuvens procedurais | 6,5 px/s, maiores — **parallax**; clareiam perto da lua |
+| `Scenery` | tudo que não é céu (montanhas, castelos, ruínas, árvores, **chão**), com os estandartes reconstruídos por trás | estático |
+| `CastleLights` | luzes roxas do castelo (`masks.b`), aditivo | pulsam/tremulam por ruído |
+| `FogBack` / `FogFront` | neblina fria no vale (`masks.g`) | 2,2 px/s e −4 px/s (sentidos opostos) |
+| `BannerLeft` / `BannerRight` | estandartes recortados | onda presa na haste, crescendo até a ponta rasgada (≈ 2,6 px), rajadas lentas, sombra nas dobras |
+| `CandlesLeft` / `CandlesRight` | chamas e reflexos das velas, aditivo | tremulam por ruído |
+| `CandleGlows` | um halo por chama (criados pelo script) | alfa e escala oscilam, cada um no seu ritmo |
+
+- **Ordem de profundidade.** As nuvens procedurais ficam antes do `Scenery`, então passam **atrás** das
+  montanhas e do castelo. A neblina é recortada pela máscara do vale e fica atrás do muro de ruínas.
+- **O chão nunca anima.** A comparação de dois instantes mostra 0% dos pixels do campo (y > 560 na tela)
+  mudando.
+- **Enquadramento.** `Arena._fit_background` escala e posiciona o `Backdrop` exatamente como fazia com o
+  antigo `Sprite2D` (cover ancorado em y≈380).
+
+**Ajustes** (propriedades exportadas do `ArenaBackdrop`, no Inspector ou em código)
+- `animated` (congela o tempo) e `master_intensity` (0 = arte estática, sem nenhum efeito).
+- Por elemento:
+  - nuvens: velocidade, opacidade e fluxo das nuvens pintadas;
+  - neblina: velocidade e opacidade;
+  - estandartes: força e velocidade;
+  - velas: força e velocidade;
+  - castelo: força e velocidade;
+  - lua: força.
+- Os valores de base ficam em `ArenaBackdrop.BASE`. Os parâmetros de cada camada (tamanho das nuvens,
+  cobertura, cores, faixas de altura) estão nos `ShaderMaterial` da cena.
+- O tempo é um uniform `t` que o script alimenta (não `TIME`): dá para pausar, acelerar ou testar de forma
+  determinística.
+
+**Gerando as camadas** (`tools/arena_backdrop/build_layers.py`, Python + OpenCV, só em desenvolvimento)
+- **Céu:**
+  - preenchimento por inundação a partir do topo;
+  - buracos claros (nuvens) preenchidos;
+  - disco da lua por brilho;
+  - estruturas bem mais escuras que o céu da mesma linha (pico, torres) excluídas.
+- **Estandartes, velas e castelo:** tom roxo dentro de caixas conhecidas.
+- **Vale:** azulado, entre o céu e o muro de ruínas.
+- **Área atrás dos estandartes:** reconstruída com `cv2.inpaint`.
+- **Saída:** `scenery.png`, os recortes, `masks.png` (R fluxo, G neblina, B castelo, A céu; meia resolução) e
+  `arena_layers_data.gd`.
+- **Importação:** `masks.png` deve ficar com `fix_alpha_border=false`, porque os canais são dados. Isso já
+  está configurado no `.import`.
+- Trocar a arte = rodar a ferramenta de novo. As caixas dos estandartes, das velas e da lua ficam no topo do
+  script.
+
+**Custo.** Cinco camadas de tela cheia com shader: duas de nuvens e duas de neblina (fbm de 5 oitavas) e uma de
+brilho. Se precisar economizar, dá para reduzir oitavas ou desligar uma camada de nuvem ou neblina.
+
 ## Dados de unidade (`UnitDef` + `UnitCatalog`)
 
 - `UnitDef` (`Resource`) define uma unidade: um `.tres` por unidade em `res://data/units/`.
@@ -440,6 +508,7 @@ godot --headless -s res://tests/combat_test.gd  # regras de combate + catálogo
 godot --headless -s res://tests/sandbox_test.gd # ponta a ponta na cena real (menu → Sandbox → menu)
 godot --headless -s res://tests/visual_test.gd  # poses/animações dos visuais por código
 godot --headless -s res://tests/sentinel_test.gd  # Sentinela: mecânica do HTML + visual
+godot --headless -s res://tests/backdrop_test.gd  # fundo animado: camadas, alinhamento, ajustes
 ```
 Cada teste sai com código 0 se passar e 1 se falhar.
 

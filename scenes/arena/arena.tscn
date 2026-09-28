@@ -1,7 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" uid="uid://cxlxjiqtcqhpa" path="res://scripts/arena/arena.gd" id="1_arena"]
-[ext_resource type="Texture2D" uid="uid://bja6jdmwwej65" path="res://assets/art/novocenario.png" id="2_art"]
+[ext_resource type="PackedScene" path="res://scenes/arena/arena_backdrop.tscn" id="2_backdrop"]
 [ext_resource type="Script" uid="uid://sljo74cslvlx" path="res://scripts/arena/debug_overlay.gd" id="3_debug"]
 [ext_resource type="Script" uid="uid://belf6jm8b3652" path="res://scripts/combat/battle.gd" id="4_battle"]
 
@@ -13,9 +13,7 @@ position = Vector2(500, 280)
 
 [node name="Background" type="Node2D" parent="."]
 
-[node name="ArenaArt" type="Sprite2D" parent="Background"]
-texture = ExtResource("2_art")
-centered = false
+[node name="Backdrop" parent="Background" instance=ExtResource("2_backdrop")]
 
 [node name="Stage" type="Node2D" parent="."]
 
