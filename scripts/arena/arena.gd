@@ -47,6 +47,9 @@ func _update_framing() -> void:
 ## ao mundo em y ≈ 380 e presa para nunca deixar faixa vazia. A textura cobre a caixa
 ## sem distorção, centralizada.
 func _fit_background(view: Rect2) -> void:
+	if arena_art.texture == null:
+		push_error("Arena: Background/ArenaArt sem textura — verifique a referência da arte em arena.tscn.")
+		return
 	var tex_size := arena_art.texture.get_size()
 	var box_w := maxf(view.size.x, view.size.y * WorldConfig.WIDTH / WorldConfig.HEIGHT)
 	var box_h := box_w * WorldConfig.HEIGHT / WorldConfig.WIDTH

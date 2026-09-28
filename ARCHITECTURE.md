@@ -56,7 +56,7 @@ Casos verificados com captura real da janela:
 ```
 res://
   project.godot
-  assets/art/arena_background.webp   # extraída do base64 do HTML (ARENA_ART_SRC), sem recompressão
+  assets/art/novocenario.png         # arte da arena (1672×941); substituiu a arte extraída do HTML
   scenes/
     main/main.tscn                   # raiz do jogo
     arena/arena.tscn                 # arena: camadas + debug

@@ -1,8 +1,8 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3]
 
-[ext_resource type="Script" path="res://scripts/arena/arena.gd" id="1_arena"]
-[ext_resource type="Texture2D" path="res://assets/art/arena_background.webp" id="2_art"]
-[ext_resource type="Script" path="res://scripts/arena/debug_overlay.gd" id="3_debug"]
+[ext_resource type="Script" uid="uid://cxlxjiqtcqhpa" path="res://scripts/arena/arena.gd" id="1_arena"]
+[ext_resource type="Texture2D" uid="uid://bja6jdmwwej65" path="res://assets/art/novocenario.png" id="2_art"]
+[ext_resource type="Script" uid="uid://sljo74cslvlx" path="res://scripts/arena/debug_overlay.gd" id="3_debug"]
 
 [node name="Arena" type="Node2D"]
 script = ExtResource("1_arena")

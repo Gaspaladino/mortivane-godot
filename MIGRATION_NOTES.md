@@ -132,6 +132,8 @@ As duas imagens podem ser extraídas do base64 para `res://assets/` sem perdas (
 **Status da extração**
 - Arena: ✔ extraída na Etapa 1 para `assets/art/arena_background.webp`. Os bytes são idênticos ao base64 do
   HTML (SHA-256 `EE74CBFC…216C770B`).
+  **Depois foi substituída** por uma arte nova, `assets/art/novocenario.png` (PNG com as mesmas dimensões,
+  1672×941), e o `.webp` foi removido. O enquadramento não mudou.
 - Cadáver do Paladino: ainda não extraído; fica para a etapa dos cadáveres.
 
 ---

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dmp2f4im2da8b"
-path="res://.godot/imported/arena_background.webp-a1a763acf3ce7c93d546004574792d3a.ctex"
+uid="uid://bja6jdmwwej65"
+path="res://.godot/imported/novocenario.png-f94344439835085f91ada192563a410e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/art/arena_background.webp"
-dest_files=["res://.godot/imported/arena_background.webp-a1a763acf3ce7c93d546004574792d3a.ctex"]
+source_file="res://assets/art/novocenario.png"
+dest_files=["res://.godot/imported/novocenario.png-f94344439835085f91ada192563a410e.ctex"]
 
 [params]
 
