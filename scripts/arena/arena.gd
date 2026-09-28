@@ -1,3 +1,4 @@
+class_name Arena
 extends Node2D
 ## Arena: enquadra o mundo 1000×560 na janela e ajusta o fundo.
 ##
@@ -5,11 +6,11 @@ extends Node2D
 ##   Background — arte fixa; nunca recebe tremor de tela nem efeitos de gameplay.
 ##   Stage/World — gameplay (Ground, Entities com y-sort). Futuro tremor vai em Stage.
 ##   Stage/Effects — efeitos visuais do gameplay.
-##   Debug — sobreposição de referência (F3).
+##   Debug — sobreposição de referência (atalho F3 tratado em Main).
 
 @onready var camera: Camera2D = $Camera2D
 @onready var arena_art: Sprite2D = $Background/ArenaArt
-@onready var debug_overlay: Node2D = $Debug
+@onready var debug_overlay: DebugOverlay = $Debug
 
 ## Parte do mundo visível na janela atual (coordenadas do mundo).
 var visible_world_rect := Rect2(Vector2.ZERO, WorldConfig.SIZE)
@@ -18,6 +19,14 @@ var visible_world_rect := Rect2(Vector2.ZERO, WorldConfig.SIZE)
 func _ready() -> void:
 	get_viewport().size_changed.connect(_update_framing)
 	_update_framing()
+
+
+func set_debug_visible(value: bool) -> void:
+	debug_overlay.set_shown(value)
+
+
+func is_debug_visible() -> bool:
+	return debug_overlay.visible
 
 
 func _update_framing() -> void:

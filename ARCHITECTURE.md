@@ -64,8 +64,8 @@ res://
     core/world_config.gd             # class_name WorldConfig — constantes do mundo
     arena/arena.gd                   # enquadramento (câmera + fundo cover)
     arena/battle_grid.gd             # class_name BattleGrid — geometria das grades (só leitura)
-    arena/debug_overlay.gd           # desenho de referência (F3)
-    main/main.gd                     # atalhos de janela (F11)
+    arena/debug_overlay.gd           # class_name DebugOverlay — desenho de referência
+    main/main.gd                     # atalhos globais (F3/F11) + avisos
 ```
 
 Arquivos `*.import` e `*.uid` são gerados pela Godot e **devem ser versionados**. A pasta `.godot/` é cache
@@ -76,8 +76,9 @@ e fica fora do Git.
 ## Cenas
 
 ```
-Main (Node)                      main.gd — F11 alterna tela cheia
-└─ Arena (Node2D)                arena.gd — enquadramento
+Main (Node)                      main.gd — atalhos globais (F3, F11) e avisos
+├─ NoticeLayer (CanvasLayer 110) / NoticeLabel   aviso temporário no rodapé
+└─ Arena (Node2D)                arena.gd — enquadramento; set_debug_visible()
    ├─ Camera2D                   posicionada pelo enquadramento
    ├─ Background (Node2D)        arte fixa; nunca treme nem recebe efeitos
    │   └─ ArenaArt (Sprite2D)
@@ -86,11 +87,34 @@ Main (Node)                      main.gd — F11 alterna tela cheia
    │   │   ├─ Ground             áreas no chão, cadáveres (futuro)
    │   │   └─ Entities           unidades, y_sort_enabled (futuro)
    │   └─ Effects (Node2D)       efeitos visuais do gameplay (futuro)
-   └─ Debug (Node2D)             debug_overlay.gd — F3 liga/desliga
+   └─ Debug (Node2D)             debug_overlay.gd — DebugOverlay.set_shown()
        └─ InfoLayer (CanvasLayer 100) / InfoLabel   janela, mundo visível, escala
 ```
 
 Os nós `Ground`, `Entities` e `Effects` estão vazios e servem só para fixar a ordem de desenho.
+
+---
+
+## Input e atalhos
+
+As ações ficam no **InputMap** (`project.godot`, seção `[input]`) e usam a **tecla física**
+(`physical_keycode`), que não depende do layout do teclado:
+
+| Ação | Tecla | Efeito |
+|---|---|---|
+| `debug_toggle` | F3 | liga/desliga a camada de debug e o painel de informações |
+| `fullscreen_toggle` | F11 | alterna entre janela e tela cheia (`Window.mode`: `MODE_WINDOWED` ↔ `MODE_FULLSCREEN`) |
+
+- Atalhos globais ficam **só em `Main`** e são tratados em `_input`, antes da interface, para que nenhum
+  controle de UI futuro consiga "engolir" as teclas. A Arena expõe `set_debug_visible()` e `is_debug_visible()`.
+- **Jogo embutido no editor.** A Godot 4.4+ roda o jogo dentro da aba *Game* por padrão:
+  - o jogo só recebe teclado quando a área dele está focada;
+  - uma janela embutida **não pode** entrar em tela cheia.
+
+  `Engine.is_embedded_in_editor()` detecta esse caso. Nele, `Main` mostra um aviso ao iniciar e ao apertar
+  F11, em vez de falhar em silêncio.
+- **Recomendação para desenvolvimento:** rodar o jogo em janela própria. Na aba *Game*, menu ⋮ → desmarque
+  **Embed Game on Next Play**, ou use *Editor Settings → Run → Window Placement → Game Embed Mode = Disabled*.
 
 ---
 

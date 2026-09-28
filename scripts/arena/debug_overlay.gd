@@ -1,6 +1,7 @@
+class_name DebugOverlay
 extends Node2D
 ## Sobreposição de referência da arena. Só desenho: não participa de lógica.
-## F3 liga/desliga.
+## Ligada/desligada por Arena.set_debug_visible() (atalho F3 em Main).
 
 const COLOR_WORLD := Color(1.0, 1.0, 1.0, 0.35)
 const COLOR_CROP := Color(1.0, 1.0, 1.0, 0.22)
@@ -26,10 +27,10 @@ func _ready() -> void:
 	_font = ThemeDB.fallback_font
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F3:
-		visible = not visible
-		info_layer.visible = visible
+## O painel de informações é um CanvasLayer: não herda a visibilidade do Node2D.
+func set_shown(value: bool) -> void:
+	visible = value
+	info_layer.visible = value
 
 
 ## Chamado pela Arena a cada resize.

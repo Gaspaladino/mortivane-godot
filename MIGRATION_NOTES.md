@@ -233,6 +233,15 @@ Feito:
   - um painel com o tamanho da janela, o mundo visível e a escala.
 - Validado com capturas reais em 1600×896, 1800×700 e 1000×800.
 
+Correção pós-revisão (F3/F11):
+- Os atalhos passaram para o InputMap (tecla física) e são tratados só em `Main._input`.
+- No jogo embutido no editor, o F11 é impossível (a janela embutida não entra em tela cheia) e o teclado depende
+  do foco. Agora um aviso na tela explica isso.
+- Testado com teclas reais em três situações:
+  - jogo em janela própria;
+  - editor com o jogo em janela própria;
+  - editor com o jogo embutido.
+
 Diferenças conscientes em relação ao HTML:
 - O fundo procedural de reserva (`buildArenaCache`) não foi portado, porque a arte sempre está presente no projeto.
 - As camadas vazias `backgroundFar`/`backgroundMid` do HTML não foram criadas; podem entrar dentro de `Background` quando houver conteúdo.
