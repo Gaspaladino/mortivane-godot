@@ -1,0 +1,44 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/arena/arena.gd" id="1_arena"]
+[ext_resource type="Texture2D" path="res://assets/art/arena_background.webp" id="2_art"]
+[ext_resource type="Script" path="res://scripts/arena/debug_overlay.gd" id="3_debug"]
+
+[node name="Arena" type="Node2D"]
+script = ExtResource("1_arena")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(500, 280)
+
+[node name="Background" type="Node2D" parent="."]
+
+[node name="ArenaArt" type="Sprite2D" parent="Background"]
+texture = ExtResource("2_art")
+centered = false
+
+[node name="Stage" type="Node2D" parent="."]
+
+[node name="World" type="Node2D" parent="Stage"]
+
+[node name="Ground" type="Node2D" parent="Stage/World"]
+
+[node name="Entities" type="Node2D" parent="Stage/World"]
+y_sort_enabled = true
+
+[node name="Effects" type="Node2D" parent="Stage"]
+
+[node name="Debug" type="Node2D" parent="."]
+script = ExtResource("3_debug")
+
+[node name="InfoLayer" type="CanvasLayer" parent="Debug"]
+layer = 100
+
+[node name="InfoLabel" type="Label" parent="Debug/InfoLayer"]
+offset_left = 8.0
+offset_top = 6.0
+offset_right = 700.0
+offset_bottom = 40.0
+theme_override_colors/font_color = Color(0.9, 0.87, 0.96, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 10

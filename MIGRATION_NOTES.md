@@ -129,6 +129,11 @@ está nessa unidade. O canvas só aumenta o *backing store* por `devicePixelRati
 
 As duas imagens podem ser extraídas do base64 para `res://assets/` sem perdas (já verificado).
 
+**Status da extração**
+- Arena: ✔ extraída na Etapa 1 para `assets/art/arena_background.webp`. Os bytes são idênticos ao base64 do
+  HTML (SHA-256 `EE74CBFC…216C770B`).
+- Cadáver do Paladino: ainda não extraído; fica para a etapa dos cadáveres.
+
 ---
 
 ## 5. Arquitetura proposta para Godot 4
@@ -142,8 +147,9 @@ As duas imagens podem ser extraídas do base64 para `res://assets/` sem perdas (
 4. Um sistema por vez; nada de reproduzir as camadas "V64…V97".
 
 ### Configuração do projeto
-- Viewport base **1000×560**, janela inicial 1920×1080 (ou maior), `stretch_mode = canvas_items`,
-  `stretch_aspect = expand` → mundo escala uniformemente; espaço extra mostra mais do fundo, como no HTML.
+- Mundo lógico 1000×560. `stretch_mode = canvas_items` e `stretch_aspect = expand`: o mundo escala de forma
+  uniforme e o espaço extra mostra mais do fundo, como no HTML. O viewport base implementado é 1000×**490**
+  para reproduzir o corte máximo de 70 unidades em telas largas (ver `ARCHITECTURE.md`).
 - Fundo como `TextureRect`/`Sprite2D` dimensionado para cobrir a área visível (cover), ancorado em y≈380.
 - Filtro de textura: linear (a arte não é pixel-art estrita; revisar depois).
 - Batalha em passo fixo 1/120 s com acumulador próprio (para 1x/2x/3x), não dependente de `_physics_process`.
@@ -196,7 +202,7 @@ Como o HTML desenha tudo proceduralmente, há duas rotas:
 Sugestão: placeholders simples primeiro, decidir A/B quando o combate for migrado.
 
 ### Ordem sugerida de etapas
-1. **Esqueleto do projeto + arena**: config, fundo, escala/aspecto, limites do campo, debug overlay, grades. ← próxima
+1. **Esqueleto do projeto + arena**: config, fundo, escala/aspecto, limites do campo, debug overlay, grades. ✔ (ver seção 6)
 2. Máquina de fases + menu mínimo + HUD vazia.
 3. Resources de dados (unidades/facções) + placeholder de unidade e posicionamento na grade.
 4. Simulação de batalha (movimento, alvo, ataque), relógio fixo e velocidade.
@@ -204,3 +210,32 @@ Sugestão: placeholders simples primeiro, decidir A/B quando o combate for migra
 6. Essência, capacidade, lojas, Relíquias, Escola.
 7. Áudio (sintetizado via `AudioStreamGenerator` ou arquivos gerados), configurações.
 8. Ferramentas: sandbox/admin, bot/laboratório.
+
+---
+
+## 6. Progresso da migração
+
+### Etapa 1 — Esqueleto + arena ✔
+Feito:
+- Projeto Godot 4.7 (renderer Compatibility), cena principal `scenes/main/main.tscn`.
+- Arena (`scenes/arena/arena.tscn`) com as camadas Background, Stage/World (Ground, Entities),
+  Stage/Effects e Debug.
+- Resolução, escala e resize que reproduzem o HTML V65/V67/V68:
+  - palco uniforme, sem distorção;
+  - corte máximo de 56 unidades no topo e 14 no rodapé em telas largas;
+  - fundo em cover ancorado em y≈380.
+- `WorldConfig` concentra as constantes: 1000×560, MARGIN 26, topY 210, DEPLOY_X 500, portal e enquadramento.
+- `BattleGrid` porta a geometria de `buildBattleGrid` e a máscara `PLAYER_GRID_MASK` (só leitura).
+- Overlay de debug (F3) mostrando:
+  - y=210, x=500 e os limites x de 26 a 974 e y de 210 a 534;
+  - o portal (500,176) r=46 e o ponto onde ele rompe o chão (y=259);
+  - as grades 11×7 e as faixas que podem ser cortadas;
+  - um painel com o tamanho da janela, o mundo visível e a escala.
+- Validado com capturas reais em 1600×896, 1800×700 e 1000×800.
+
+Diferenças conscientes em relação ao HTML:
+- O fundo procedural de reserva (`buildArenaCache`) não foi portado, porque a arte sempre está presente no projeto.
+- As camadas vazias `backgroundFar`/`backgroundMid` do HTML não foram criadas; podem entrar dentro de `Background` quando houver conteúdo.
+
+Fora do escopo (próximas etapas): unidades, combate, IA, HP, cadáveres, Necromancia, Relíquias, HUD, ondas,
+drag-and-drop, footprint.
