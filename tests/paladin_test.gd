@@ -17,7 +17,7 @@ func _initialize() -> void:
 	_test_death_clears_taunt()
 	_test_many_paladins()
 	_test_reference_fight_unchanged()
-	for id in [&"sac_paladin", &"u_sac_paladin"]:
+	for id in [&"sac_paladin", &"u_sac_paladin"]:   # sac_paladin: o visual por código (fallback)
 		_test_visual(id)
 	_test_shadow_rule()
 	_run_sandbox.call_deferred()
@@ -336,7 +336,12 @@ func _run_sandbox() -> void:
 	for unit in battle.sim.units:
 		var view := battle.view_of(unit)
 		var d := UnitCatalog.get_def(unit.def_id)
-		_check(view.visual.get_script() == d.visual_script, "%s: visual da UnitDef" % unit.def_id)
+		var expected: Script = d.visual_script
+		if d.visual_scene:
+			var probe := d.visual_scene.instantiate()
+			expected = probe.get_script()
+			probe.free()
+		_check(view.visual.get_script() == expected, "%s: visual da UnitDef" % unit.def_id)
 	sb.start_combat()
 	var taunts := [0]
 	battle.sim.paladin_taunted.connect(func(_p: CombatUnit, _f: Array) -> void: taunts[0] += 1)

@@ -38,16 +38,9 @@ const RECOVER_END := 0.46
 const BLOCK_TIME := 0.28
 const HIT_TIME := 0.25
 const TAUNT_TIME := 0.34
-const TAUNT_RING_TIME := 0.38
-const SHIELD_RING_TIME := 0.28
+const TAUNT_RING_TIME := PaladinFx.TAUNT_RING_TIME
+const SHIELD_RING_TIME := PaladinFx.SHIELD_RING_TIME
 const DEATH_TIME := 0.72
-# barreira sagrada (HTML: PALADIN_SHIELD_VISUAL; só apresentação)
-const BARRIER_WIDTH := 1.4
-const BARRIER_HEIGHT := 2.55
-const BARRIER_FORWARD := 1.72
-const BARRIER_VERTICAL := -0.5
-const BARRIER_ENTER := 0.2
-const BARRIER_EXIT := 0.16
 
 # --- Paleta (vem do PaladinLook; a Sombra converte em _apply_shadow_style) ---------------
 var look: PaladinLook
@@ -754,18 +747,12 @@ func _draw_effects() -> void:
 		draw_polyline(pts, Color(trail, 0.7 * fade * glow), 1.6, true)
 		draw_polyline(pts, Color(_trail_core(), 0.85 * fade * glow), 0.6, true)
 	var pal := unit.paladin
-	# barreira sagrada à frente (HTML: drawPaladinBarrier — só apresentação)
+	# barreira sagrada, anel da provocação (raio real de 115) e anel do escudo: PaladinFx
 	if pal and unit.is_alive() and pal.is_shielded():
-		_draw_barrier(pal, glow)
-	# anéis: provocação (raio real de 115) e escudo erguido (1,8 r)
-	if _taunt_t >= 0.0 and (look == null or look.show_taunt_ring):
-		var k := clampf(_taunt_t / TAUNT_RING_TIME, 0.0, 1.0)
-		var r := PaladinTaunt.TAUNT_RADIUS * lerpf(0.35, 1.0, _ease_out(k))
-		# círculo no mundo: é a área real da provocação (a simulação mede distância euclidiana)
-		draw_arc(Vector2.ZERO, r, 0.0, TAU, 64, Color(_ring_color(), 0.55 * (1.0 - k) * glow), 1.6, true)
-	if _shield_ring_t >= 0.0:
-		var k2 := clampf(_shield_ring_t / SHIELD_RING_TIME, 0.0, 1.0)
-		draw_arc(Vector2(0, -6), unit.radius * 1.8 * lerpf(0.6, 1.0, k2), 0.0, TAU, 40, Color(_ring_color(), 0.8 * (1.0 - k2) * glow), 1.4, true)
+		PaladinFx.barrier(self, pal, unit.radius, _barrier_age, glow, _barrier_fill(), holy_edge, Vector2(_facing, 0))
+	if look == null or look.show_taunt_ring:
+		PaladinFx.taunt_ring(self, _taunt_t, glow, _ring_color())
+	PaladinFx.shield_ring(self, _shield_ring_t, unit.radius, glow, _ring_color())
 
 
 ## Ponta da espada (espaço do UnitView) para um ângulo de braço e de espada.
@@ -774,38 +761,6 @@ func _sword_tip(arm_deg: float, sword_deg: float) -> Vector2:
 	var torso := root * Transform2D(0.0, HIP) * Transform2D(deg_to_rad(p_lean), Vector2.ZERO)
 	var hand := _tf(SHOULDER_BACK, arm_deg) * Vector2(0, ARM_LENGTH)
 	return torso * (_tf(hand, sword_deg) * Vector2(0, -SWORD_LENGTH))
-
-
-func _draw_barrier(pal: PaladinTaunt, glow: float) -> void:
-	var f := pal.facing if pal.facing != Vector2.ZERO else Vector2(_facing, 0)
-	var r := unit.radius
-	var pos := Vector2(f.x * r * BARRIER_FORWARD, r * BARRIER_VERTICAL + f.y * r * BARRIER_FORWARD)
-	var w := r * BARRIER_WIDTH
-	var h := r * BARRIER_HEIGHT
-	var enter := clampf(_barrier_age / BARRIER_ENTER, 0.0, 1.0)
-	var ez := 1.0 - pow(1.0 - enter, 3.0)
-	var fade := clampf(pal.shield_t / BARRIER_EXIT, 0.0, 1.0)
-	var hit := clampf(pal.shield_hit / PaladinTaunt.SHIELD_IMPACT, 0.0, 1.0)
-	var a := ez * fade * (0.88 + 0.06 * sin(_barrier_age * 7.0)) * glow
-	var s := 0.7 + 0.3 * ez
-	draw_set_transform(pos, 0.0, Vector2(s, s))
-	var path := PackedVector2Array()
-	# HTML: holyShieldPath (escudo heráldico com curvas)
-	for i in 9:
-		var u := i / 8.0
-		path.append(Vector2(lerpf(0.0, w * 0.5, u), lerpf(-h * 0.5, -h * 0.38, u * u)))
-	for i in 7:
-		var u := i / 6.0
-		path.append(Vector2(lerpf(w * 0.47, 0.0, u * u), lerpf(h * 0.0, h * 0.5, u)))
-	var n := path.size()
-	for i in range(n - 2, 0, -1):
-		path.append(Vector2(-path[i].x, path[i].y))
-	draw_colored_polygon(path, Color(_barrier_fill(), (0.13 + hit * 0.23) * a))
-	var edge := path.duplicate()
-	edge.append(path[0])
-	draw_polyline(edge, Color(holy_edge.lerp(Color("fff6cb"), hit), 0.9 * a), 1.8, true)
-	_star(Vector2(0, -h * 0.05), h * 0.16, Color(holy_edge, 0.55 * a))
-	draw_set_transform(Vector2.ZERO)
 
 
 func _trail_color() -> Color:

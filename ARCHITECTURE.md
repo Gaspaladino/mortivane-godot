@@ -64,7 +64,10 @@ res://
   assets/art/arena_layers/           # primeiro plano extraído da arte (chão, laterais, estandartes, velas)
   tools/arena_backdrop/build_layers.py  # extrai o primeiro plano (Python, só desenvolvimento)
   tools/arena_backdrop/generate_backdrop_scene.gd  # gera arena_backdrop.tscn UMA vez (depois: editar no editor)
-  tools/sprites/render_paladin_pilot.gd  # PROTÓTIPO: pinta e exporta a sprite sheet piloto do Paladino Vivo (3/4)
+  tools/sprites/slice_paladin_live.py  # fatia a sprite sheet aprovada do Paladino Vivo (atlas + SpriteFrames)
+  assets/sprites/paladin_live/        # sheet original (source/), atlas alinhado pelo pivô, frames, JSON, SpriteFrames
+  scenes/units/paladin_sprite_visual.tscn  # visual do Paladino Vivo por sprites (Shadow · Sprite · Effects)
+  tools/sprites/render_paladin_pilot.gd  # PROTÓTIPO (superado pela sheet aprovada): pinta e exporta a sprite sheet piloto do Paladino Vivo (3/4)
   assets/sprites/paladin_live_pilot/  # sheet (Idle 6 · Walk 8 · Attack 8), frames, sombra, SpriteFrames, JSON do contrato
   scenes/prototypes/paladin_sprite_pilot.tscn  # PROTÓTIPO: prévia da sheet na arena (escala de jogo e ampliada)
   data/
@@ -112,6 +115,8 @@ res://
     visuals/units/paladin_visual.gd         # class_name PaladinVisual — Paladino por código (rig + animação)
     visuals/units/shadow_paladin_visual.gd  # class_name ShadowPaladinVisual — Paladino Sombra (herda o Paladino)
     visuals/units/paladin_look.gd           # class_name PaladinLook (Resource) — parâmetros visuais do Paladino
+    visuals/units/paladin_sprite_visual.gd  # class_name PaladinSpriteVisual — Paladino Vivo por sprite sheet
+    visuals/units/paladin_fx.gd             # class_name PaladinFx — barreira, anel da provocação, anel do escudo
     visuals/units/shadow_style.gd           # class_name ShadowStyle (Resource) — regra de conversão viva → sombra
     visuals/units/shadow_fx.gd              # class_name ShadowFX — aura, névoa, fumaça, fissuras, olhos
     combat/battle.gd                 # class_name Battle — executor: CombatSim + UnitView + passo fixo
@@ -130,6 +135,7 @@ res://
     menu_click_test.gd               # cliques reais de mouse no menu (Sandbox ida e volta)
     shadow_visual_test.gd            # regra visual das sombras (u_* = sombra; viva continua normal)
     paladin_test.gd                  # Paladino: stats/mecânica do HTML, visual, Sandbox, luta de referência
+    paladin_sprite_test.gd           # Paladino Vivo por sprites: SpriteFrames, pivô, estados, Sandbox
 ```
 
 Arquivos `*.import` e `*.uid` são gerados pela Godot e **devem ser versionados**. A pasta `.godot/` é cache
@@ -334,7 +340,8 @@ Nenhum PNG, SVG, sprite sheet ou asset externo. Cadeia: `CombatUnit` → `UnitVi
   - Para projéteis: `muzzle_point(p)` (de onde o disparo PARECE sair) e `projectile_style(p)` (cores).
   - Informa `top_y()` (barra de HP), `pick_rect()` (clique) e `ground_point()` (anel de seleção).
   - Só **lê** a `CombatUnit`; não tem regra de combate.
-- `UnitDef.visual_script` escolhe o visual. Vazio = `CircleUnitVisual`, o círculo das etapas anteriores.
+- `UnitDef.visual_scene` (cena cuja raiz estende `UnitVisual`, ex.: sprites) tem prioridade; senão
+  `UnitDef.visual_script` (desenho por código); vazio = `CircleUnitVisual`, o círculo das etapas anteriores.
 - **`WarriorVisual`** tem o rig e a animação:
   - O rig é uma cadeia de `Transform2D`: raiz (pés; espelho pela direção; `RIG_SCALE = 0.9`) → quadril →
     pernas / tronco → cabeça, ombros e braços → mão → espada.
@@ -420,7 +427,49 @@ porta 1:1 de `drawArcaneSentinel`.
 | Hit | 0,2 s: recuo, compressão, clarão, ponta do chapéu treme, lâminas desestabilizam | clarão lilás, o corpo tremula (translúcido) e a fumaça explode |
 | Morte | perde a sustentação, a magia se apaga, o manto colapsa com peso, o chapéu cai ao lado; as lâminas caem girando e se desfazem em faíscas; o monte fica no chão | sobe e se agita, colapsa se desfazendo (fica translúcida), fumaça sobe e as lâminas se partem em fragmentos |
 
-### Paladino e Paladino Sombra
+### Paladino Vivo por sprite sheet (visual padrão do `sac_paladin`)
+
+A arte aprovada (`assets/sprites/paladin_live/source/paladin_live_sheet_source.png`, 1125 × 844, fundo
+transparente, frames de larguras diferentes, sem grade) é fatiada por `tools/sprites/slice_paladin_live.py`:
+- cada linha é uma faixa de y e cada frame um intervalo de x, medidos por projeção do alfa;
+- os pedaços opacos (alfa > 100) vão inteiros para o frame onde está o centro — os arcos do golpe e os brilhos
+  não são cortados nem aparecem no vizinho; pedaços que tocam dois frames são divididos na linha de corte
+  (no ataque, uma polilinha que contorna a capa que passa por baixo do arco); o brilho fraco segue o pixel
+  opaco mais próximo; lascas soltas pequenas são descartadas;
+- **pivô** de cada frame = centro entre os pés no chão (base do corpo sólido; x = meio das últimas 8 linhas);
+  na morte (deitado), x = meio do corpo;
+- todos os frames vão para **células de 320 × 208 com o pivô em (160, 192)**, sem redimensionar a arte
+  (atlas 8 × 7); o teste confere que os pés ficam no pivô (±4 px) em todos os frames de pé.
+
+| Animação | Frames (linha da sheet) | FPS | Loop | Uso (estado real) |
+|---|---|---|---|---|
+| `idle` | 6 (linha 1) | 6 | sim | parado |
+| `walk` | 8 (linha 2) | 10 × (velocidade real ÷ 44) | sim | andando |
+| `attack` | 6 (linha 3) | 12 | não | golpe; **frame 3 = impacto**, mostrado no evento real de dano |
+| `defend` | 4 (linha 4, esq.) | 10 | não (segura o último) | espera do escudo (frame 0), escudo sobe / bloqueio (1–2 clarão), guarda (3) |
+| `taunt` | 3 (linha 4, dir.) | 8 | não | evento real da provocação |
+| `hit` | 3 (linha 5) | 12 | não | dano recebido |
+| `death` | 6 (linha 6) | 8 | não (para no último) | morto; o último frame é o corpo no campo |
+
+`PaladinSpriteVisual` (cena `scenes/units/paladin_sprite_visual.tscn`: `Shadow` · `Sprite` · `Effects`):
+- só lê o estado: morto → death; provocação → taunt; golpe → attack; bloqueio → defend (clarão);
+  dano → hit (no golpe, na provocação e na guarda do escudo só pisca); espera/escudo → defend; andando →
+  walk; resto → idle. A animação só troca quando o estado muda (não reinicia a cada quadro);
+- **sincronia do golpe:** a preparação começa quando falta ≤ 3 frames (0,25 s) para o dano previsto — a
+  recarga real no alcance, ou a distância que falta ÷ velocidade ao chegar — e segura o frame anterior ao
+  impacto; o frame de impacto entra no `attack_performed` (o mesmo passo do dano). O timing é da lógica;
+- a arte olha para a direita; o inimigo usa `flip_h` (o pivô está no centro da célula em x);
+- efeitos da habilidade compartilhados com o visual por código (`PaladinFx`): barreira sagrada, anel da
+  provocação (raio real 115) e anel do escudo;
+- Inspector: `sprite_scale` (0,35 → ~47 unidades até a auréola; Guerreiro ~35), `foot_y`, `frame_pivot`,
+  `frame_size`, `art_height`/`art_body_width` (barra de HP e clique), `attack_impact_frame`,
+  `walk_reference_speed`, `effects_glow`, `show_taunt_ring`;
+- filtragem: atlas importado com mipmaps e sprite em `LINEAR_WITH_MIPMAPS` — a arte (~135 px) aparece a
+  ~67 px na tela (redução ~2×): sem serrilhado e sem borrar além do necessário.
+- O `PaladinVisual` (por código) continua no `.tres` como `visual_script` (alternativa); o Paladino Sombra
+  segue no visual por código.
+
+### Paladino e Paladino Sombra (visual por código)
 
 Referência: a arte conceitual "Paladino Vivo / Paladino Sombra" (o desenho é novo, por código); tempos e
 intenção de pose do rig do HTML (`drawPaladinArt`, perfil `heavyMelee`, `paladinCue`, `drawPaladinBarrier`,
@@ -679,6 +728,7 @@ godot --headless -s res://tests/backdrop_test.gd  # fundo: camadas, profundidade
 godot --headless -s res://tests/menu_click_test.gd  # cliques reais de mouse no menu: Sandbox → menu → Sandbox, Jogar
 godot --headless -s res://tests/shadow_visual_test.gd  # regra "sombra": u_* = sombra convertida da viva
 godot --headless -s res://tests/paladin_test.gd  # Paladino: mecânica do HTML, visual, Sandbox, luta de referência
+godot --headless -s res://tests/paladin_sprite_test.gd  # Paladino Vivo por sprites: frames, pivô, estados, Sandbox
 ```
 Cada teste sai com código 0 se passar e 1 se falhar.
 

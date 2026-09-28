@@ -734,3 +734,33 @@ Não feito (por pedido): Hit, Defesa, Provocação, Morte, Paladino Sombra; nada
 Limitações: acabamento vetorial com sombreado por vértice (sem textura pintada); o escudo é visto sempre pela
 face (3/4 fixo); a espada no frame "espada recua" passa por cima da ombreira; 256 px de frame é pouco para
 ampliar muito além de 2×.
+
+### Paladino Vivo com a sprite sheet aprovada ✔ (aguardando validação)
+Pedido: integrar a sprite sheet do Paladino Vivo (arte aprovada) no lugar do visual por código, com
+AnimatedSprite2D/SpriteFrames, sem mudar mecânica; Paladino Sombra fica como está.
+
+Leitura da sheet (1125 × 844, fundo transparente, sem grade): 36 frames em 6 linhas — idle 6 · walk 8 ·
+attack 6 · linha 4 com defend 4 (ergue o escudo, dois clarões, guarda) + taunt 3 (espada erguida com halo,
+depois apontando) · hit 3 · death 6. **O ataque tem 6 frames** (não 8); defend e taunt dividem a mesma linha;
+o 1º frame do hit já tem o clarão do impacto. Nenhum frame foi inventado.
+
+Feito:
+- `tools/sprites/slice_paladin_live.py` fatia a sheet (ver `ARCHITECTURE.md`): atlas 320 × 208 por célula com
+  pivô (160, 192) nos pés, frames avulsos, JSON com retângulos e pivôs de origem, `paladin_live_frames.tres`.
+- `PaladinSpriteVisual` + cena; `UnitDef.visual_scene` (tem prioridade sobre `visual_script`); `UnitView`
+  instancia a cena. `sac_paladin` usa a cena; o `PaladinVisual` fica como alternativa no mesmo `.tres`.
+- `PaladinFx`: barreira/anéis extraídos do `PaladinVisual` (os dois visuais usam o mesmo código).
+- Mecânica, stats, provocação, Escudo Sagrado, seleção, barra de HP, debug e Sandbox inalterados.
+
+Validado: 9 suítes OK (nova `paladin_sprite_test`: recursos e loops, pivô ±4 px em todos os frames de pé,
+escala, cada estado pela lógica real, impacto no instante do dano, morte parada no último frame, Sandbox com
+seleção/combate/Reiniciar/Limpar); capturas 1600×896 dos estados e do Sandbox.
+
+Limitações:
+- A arte é de ~135 px de altura; no jogo aparece reduzida ~2× (mipmaps). Ampliar muito acima de 1× borra.
+- O walk da sheet é um ciclo no lugar sem medida de passada; o ritmo segue a velocidade real
+  (`walk_reference_speed` = 44), mas um leve deslizar dos pés pode aparecer — ajustável no Inspector.
+- Frame de impacto escolhido na arte (3º frame com o arco = índice 3) — ajustável (`attack_impact_frame`).
+- A morte na sheet cai para a direita da arte; espelhada no inimigo. Sem sistema de cadáveres (só visual).
+- A sheet piloto renderizada por código (`assets/sprites/paladin_live_pilot/`, cena de protótipo) continua no
+  repositório como referência; não é usada pelo jogo.

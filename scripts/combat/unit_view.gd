@@ -4,7 +4,7 @@ extends Node2D
 ##
 ## Camadas (de trás para frente):
 ##   este nó (_draw)   — anel de seleção e, com F4, alcance e linha até o alvo (no chão)
-##   Body (UnitVisual) — o corpo: o script de UnitDef.visual_script, ou o círculo padrão
+##   Body (UnitVisual) — o corpo: a cena de UnitDef.visual_scene, ou o script de visual_script, ou o círculo padrão
 ##   Overlay           — barra de HP e, com F4, o texto de debug (sempre por cima do corpo)
 ##
 ## Eventos visuais repassados pela Battle: on_hit(), on_attack_performed() e on_projectile_fired().
@@ -40,8 +40,11 @@ var _font: Font
 func _init(p_unit: CombatUnit, def: UnitDef) -> void:
 	unit = p_unit
 	name = "Unit%d" % unit.id
-	var script: Script = def.visual_script if def.visual_script else CircleUnitVisual
-	visual = script.new()
+	if def.visual_scene:
+		visual = def.visual_scene.instantiate() as UnitVisual
+	if visual == null:
+		var script: Script = def.visual_script if def.visual_script else CircleUnitVisual
+		visual = script.new()
 	visual.name = "Body"
 	visual.setup(unit, def)
 	add_child(visual)

@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/data/unit_def.gd" id="1_unitdef"]
 [ext_resource type="Script" path="res://scripts/visuals/units/paladin_visual.gd" id="2_visual"]
 [ext_resource type="Resource" path="res://data/visuals/paladin_look.tres" id="3_look"]
+[ext_resource type="PackedScene" path="res://scenes/units/paladin_sprite_visual.tscn" id="4_scene"]
 
 [resource]
 script = ExtResource("1_unitdef")
@@ -16,6 +17,7 @@ attack_interval = 1.2
 move_speed = 44.0
 radius = 14.0
 abilities = Array[StringName]([&"paladin_taunt_shield"])
+visual_scene = ExtResource("4_scene")
 visual_script = ExtResource("2_visual")
 body_color = Color(0.7882, 0.7608, 0.6784, 1)
 trim_color = Color(0.3608, 0.3373, 0.2784, 1)

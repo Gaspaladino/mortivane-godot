@@ -24,7 +24,10 @@ extends Resource
 @export var abilities: Array[StringName] = []
 
 @export_group("Visual")
+## Cena do visual (raiz estende UnitVisual; ex.: sprites). Tem prioridade sobre visual_script.
+@export var visual_scene: PackedScene
 ## Script do visual desenhado por código (estende UnitVisual). Vazio = círculo padrão.
+## Com visual_scene definido, fica como alternativa (fallback).
 @export var visual_script: Script
 ## Cores do círculo padrão (CircleUnitVisual).
 @export var body_color := Color(0.5, 0.5, 0.5)

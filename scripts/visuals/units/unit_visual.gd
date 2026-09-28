@@ -3,7 +3,7 @@ extends Node2D
 ## Base dos visuais de unidade: o "corpo" desenhado dentro de um UnitView.
 ## Só LÊ a CombatUnit; nunca altera a simulação. Não contém regra de combate.
 ##
-## O UnitView cria o visual (script indicado em UnitDef.visual_script), chama setup() e,
+## O UnitView cria o visual (cena de UnitDef.visual_scene ou script de UnitDef.visual_script), chama setup() e,
 ## a cada quadro, update_visual(delta). Eventos puramente visuais chegam por:
 ##   on_attack_performed()  — esta unidade executou o ataque básico (golpe desferido ou projétil
 ##                            disparado), no mesmo passo em que a CombatSim o executou
