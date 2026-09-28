@@ -18,6 +18,10 @@ extends Resource
 @export var attack_interval := 1.0
 @export var move_speed := 50.0
 @export var radius := 12.0
+## Ataque à distância: tipo do projétil (HTML: proj, ex.: "orb"). Vazio = corpo a corpo.
+@export var projectile_kind: StringName = &""
+## Habilidades mecânicas (ex.: "arcane_swords" = lâminas da Sentinela Arcana).
+@export var abilities: Array[StringName] = []
 
 @export_group("Visual")
 ## Script do visual desenhado por código (estende UnitVisual). Vazio = círculo padrão.
@@ -36,6 +40,7 @@ func to_stats(overrides := {}) -> Dictionary:
 		id = id, name = display_name,
 		hp = max_hp, dmg = damage, range = attack_range, cd = attack_interval,
 		speed = move_speed, r = radius,
+		projectile = projectile_kind, abilities = abilities,
 	}
 	stats.merge(overrides, true)
 	return stats

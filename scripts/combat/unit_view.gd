@@ -7,7 +7,7 @@ extends Node2D
 ##   Body (UnitVisual) — o corpo: o script de UnitDef.visual_script, ou o círculo padrão
 ##   Overlay           — barra de HP e, com F4, o texto de debug (sempre por cima do corpo)
 ##
-## Eventos visuais repassados pela Battle: on_hit() e on_attack_landed().
+## Eventos visuais repassados pela Battle: on_hit(), on_attack_performed() e on_projectile_fired().
 
 const COLOR_SELECTED := Color(1.0, 0.92, 0.55)
 const COLOR_HP_BACK := Color(0.05, 0.03, 0.06, 0.85)
@@ -60,8 +60,12 @@ func on_hit() -> void:
 	visual.on_hit()
 
 
-func on_attack_landed() -> void:
-	visual.on_attack_landed()
+func on_attack_performed() -> void:
+	visual.on_attack_performed()
+
+
+func on_projectile_fired(p: CombatProjectile) -> void:
+	visual.on_projectile_fired(p)
 
 
 ## O ponto (coordenadas do mundo) está sobre o corpo desta unidade?

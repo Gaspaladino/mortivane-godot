@@ -396,7 +396,8 @@ Feito:
 - `UnitView` ficou enxuto:
   - cuida só de seleção (elipse nos pés), barra de HP (acima do elmo, pelo `top_y()` do visual) e debug F4;
   - o corpo é o filho `Body`.
-- `Battle` agora repassa `unit_attacked` como eventos visuais: golpe para o atacante, hit para o alvo.
+- `Battle` agora repassa eventos visuais: golpe para o atacante, hit para o alvo. (Desde a etapa da Sentinela:
+  `attack_performed` → golpe, `unit_attacked` → hit.)
   O clique usa a área do visual, porque o corpo ficou mais alto que o antigo círculo.
 
 Validado:
@@ -422,3 +423,59 @@ Limitações atuais:
   vem da silhueta, da pluma, da capa e da espada.
 - Não há sistema geral de animação: os parâmetros vivem em `WarriorVisual` e o Morto-Vivo os sobrescreve.
   Outras unidades continuam como círculo até ganharem um visual.
+
+### Sentinela Arcana e Sentinela Arcana Sombra (mecânica do HTML + visual por código) ✔
+Pedido: rework visual das duas versões, preservando a função da unidade. **A unidade não existia no Godot**, e o
+núcleo de combate não tinha ataque à distância, projéteis nem habilidades. Para "preservar a função atual", a
+mecânica foi **portada do HTML**, só o necessário e só para quem declara. O corpo a corpo não mudou: o
+`combat_test` continua dando 20/74 HP em 12,03 s.
+
+Mecânica portada (referências no HTML):
+- `arc_battlemage` (linha ~2469): Sentinela Arcana. HP 43, dano 18, alcance 150, recarga 1,25, velocidade 54,
+  r 13, `proj:'orb'`, `arcaneSwords`.
+- A Sombra é o `u_arc_battlemage` que `registerFactionUnits` gera: mesmos stats, HP round(43 × 0,94) = 40.
+  No HTML ela se chama "Sentinela Arcana Morto-Vivo" e tem estado visual `shadow`; aqui o nome é
+  "Sentinela Arcana Sombra".
+- **Projétil** (`CombatProjectile`, de `fireProjectile` / `updateProjectiles`):
+  - velocidades de `PROJ_STYLE` (orbe 340, lâmina 520);
+  - persegue o alvo travado, acerta o alvo (r + 6) ou quem estiver no caminho (r + 5);
+  - vida de 2,6 s, some fora do mundo (+40), no máximo 200 projéteis.
+  - O dano do ataque básico à distância é aplicado **no impacto**.
+- **Parada à distância:** 0,92 × alcance (HTML: `dd > range*0.92`).
+- **Lâminas** (`SentinelSwords`, de `SENTINEL_CONFIG` / `updateArcaneSwords` / `launchSword` / `swordAnchor`):
+  todos os valores e a lógica de ameaça, reação, antecipação, intervalo e recarga iguais ao HTML.
+
+Diferenças conscientes:
+- **1ª lâmina lenta (peculiaridade mantida).** No quadro em que o inimigo entra nos 115, o HTML mede aproximação 0
+  (`anterior = pd`). Por isso a 1ª lâmina sempre usa a reação lenta (0,55 s) e só a 2ª pode ser rápida. Mantido
+  igual e documentado no teste.
+- **Antecipação zerada quando a ameaça sai dos 115.** No HTML o `windup` ficava "preso"; aqui ele é zerado.
+  Isso só afeta o visual.
+- **Âncora sem flutuação/recuo.** A âncora de partida da lâmina na simulação ignora os deslocamentos visuais
+  que o `swordAnchor` do HTML somava (flutuação e recuo, < 0,5 r).
+- **Partida suavizada.** As lâminas pairam mais alto no desenho do que a âncora da simulação, porque o corpo é
+  maior que o do HTML. O `ProjectileView` suaviza a partida em 0,12 s.
+- **Sem recuo à distância (kite).** O recuo das unidades à distância quando expostas (`aiKiteVector`, V88) é IA
+  avançada e não foi portado; a Sentinela para e atira.
+- **Fora do escopo:** relíquias, rituais e escola que interagem com projéteis (perfuração, ricochete, `extra`…)
+  e som (`sword_cast`).
+
+Visual (detalhes em `ARCHITECTURE.md`, "Sentinela Arcana"):
+- `SentinelVisual` / `SentinelShadowVisual` desenhados por código, a partir da arte conceitual;
+- `ArcaneBlade` (a mesma lâmina pairando e em voo), `ProjectileView` (orbe, lâmina, impacto);
+- `CodeDrawnUnitVisual`: utilitários comuns extraídos do Guerreiro, sem mudar o visual dele.
+
+Validado:
+- `tests/sentinel_test.gd` (novo, 8 grupos): mecânica do HTML e visual das duas versões;
+- `sandbox_test` com as Sentinelas no fluxo real (projéteis limpos em Reiniciar, Limpar e ao sair);
+- `combat_test` e `visual_test` inalterados e OK; nenhum erro nem vazamento;
+- Sandbox real em 1600×896 (Xvfb): folha de poses das duas versões; combate misto (Sentinelas + Guerreiros) com
+  preparação, movimento, disparo (tiras de quadros), habilidade das lâminas, morte da viva e morte da Sombra.
+
+Limitações atuais:
+- Brilho sem shader: halos são contornos translúcidos, sem mistura aditiva nem partículas.
+- Os projéteis ficam na camada `Effects`, sempre acima das unidades (sem y-sort).
+- Na escala da arena (≈ 64 px de altura) o rosto e os olhos são pequenos. A leitura vem do chapéu, do manto,
+  da joia e das lâminas.
+- O chapéu cai sempre para trás. Os restos ficam até Reiniciar ou Limpar (não é o sistema de cadáveres).
+- Sem som.

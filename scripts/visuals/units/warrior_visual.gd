@@ -1,5 +1,5 @@
 class_name WarriorVisual
-extends UnitVisual
+extends CodeDrawnUnitVisual
 ## Guerreiro desenhado 100% por código (sem PNG, SVG nem sprite sheet).
 ##
 ## Rig: cada parte é um conjunto de polígonos no SEU espaço local, posicionado por uma
@@ -28,14 +28,12 @@ const NECK := Vector2(0.6, -12.6)       # no espaço do tronco (origem no quadri
 const SHOULDER_FRONT := Vector2(1.2, -10.6)
 const SHOULDER_BACK := Vector2(-2.2, -10.8)
 const ARM_LENGTH := 9.0
-const OUTLINE_W := 1.1
 const HIT_TIME := 0.16
 
 # --- Paleta (o Morto-Vivo sobrescreve em _init) -----------------------------------------
 var metal := Color("b8bfc9")
 var metal_dark := Color("6c7481")
 var metal_light := Color("e6ebf1")
-var outline := Color("20232a")
 var cloth := Color("7d1e20")
 var cloth_dark := Color("4a1113")
 var plume := Color("c0352c")
@@ -47,7 +45,6 @@ var visor_glow := Color(0, 0, 0, 0)     # transparente = sem brilho
 # --- Estilo de animação (o Morto-Vivo sobrescreve em _init) -----------------------------
 var idle_bob := 0.45            # amplitude da respiração (unidades do rig)
 var idle_speed := 2.0           # rad/s
-var jitter := 0.0               # irregularidade geral (0 = movimento limpo)
 var posture_lean := 0.0         # graus; + = tronco para frente
 var head_tilt := 0.0            # graus; + = cabeça para frente/baixo
 var head_drop := 0.0            # cabeça afundada nos ombros
@@ -75,8 +72,6 @@ var death_time := 0.5
 var death_forward := false      # false = cai de costas; true = desaba para frente
 
 # --- Estado da animação -----------------------------------------------------------------
-var _time := 0.0
-var _seed := 0.0
 var _facing := 1.0
 var _last_pos := Vector2.ZERO
 var _walk_phase := 0.0
@@ -99,8 +94,6 @@ var p_arm_f := 0.0
 var p_arm_b := 0.0
 var p_sword := 0.0
 var p_cape := 0.0
-var p_flash := 0.0
-var p_dim := 0.0
 
 
 func setup(p_unit: CombatUnit, p_def: UnitDef) -> void:
@@ -115,7 +108,7 @@ func setup(p_unit: CombatUnit, p_def: UnitDef) -> void:
 
 # --- Interface do UnitVisual ------------------------------------------------------------
 
-func on_attack_landed() -> void:
+func on_attack_performed() -> void:
 	if unit.is_alive():
 		_strike_t = 0.0
 
@@ -284,13 +277,6 @@ func _death_pose() -> void:
 	p_dim = 0.28 * clampf(t / (death_time + 0.3), 0.0, 1.0)
 
 
-## Irregularidade: soma de senos com frequências incomensuráveis (0 quando jitter = 0).
-func _wobble() -> float:
-	if jitter <= 0.0:
-		return 0.0
-	return jitter * (sin(_time * 1.3 + _seed) * 0.6 + sin(_time * 3.7 + _seed * 2.0) * 0.4)
-
-
 # --- Desenho -----------------------------------------------------------------------------
 
 func _draw() -> void:
@@ -457,47 +443,3 @@ func _draw_sword() -> void:
 ## Ponto de extensão: o Morto-Vivo lasca a lâmina.
 func _blade_shape() -> PackedVector2Array:
 	return PackedVector2Array([Vector2(-1.25, -1.9), Vector2(1.25, -1.9), Vector2(1.1, -13.6), Vector2(0.0, -16.2), Vector2(-1.1, -13.6)])
-
-
-# --- Utilitários de desenho --------------------------------------------------------------
-
-func _with(xf: Transform2D) -> void:
-	draw_set_transform_matrix(xf)
-
-
-static func _tf(pos: Vector2, deg: float) -> Transform2D:
-	return Transform2D(deg_to_rad(deg), pos)
-
-
-## Cor final: sombreada (partes de trás), clareada no HIT, escurecida após a morte.
-func _c(col: Color, shade := 1.0) -> Color:
-	var out := Color(col.r * shade, col.g * shade, col.b * shade, col.a)
-	if p_flash > 0.0:
-		out = out.lerp(Color.WHITE, p_flash)
-	if p_dim > 0.0:
-		out = out.lerp(Color(0.08, 0.07, 0.1, out.a), p_dim)
-	return out
-
-
-func _poly(pts: PackedVector2Array, fill: Color) -> void:
-	draw_colored_polygon(pts, fill)
-	var closed := pts.duplicate()
-	closed.append(pts[0])
-	draw_polyline(closed, _c(outline), OUTLINE_W, true)
-
-
-func _circle(center: Vector2, radius: float, fill: Color) -> void:
-	draw_circle(center, radius, fill)
-	draw_arc(center, radius, 0.0, TAU, 16, _c(outline), OUTLINE_W, true)
-
-
-func _line(a: Vector2, b: Vector2, col: Color, width: float) -> void:
-	draw_line(a, b, col, width, true)
-
-
-static func _ease_out(x: float) -> float:
-	return 1.0 - (1.0 - x) * (1.0 - x)
-
-
-static func _ease_in_out(x: float) -> float:
-	return x * x * (3.0 - 2.0 * x)

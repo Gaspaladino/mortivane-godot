@@ -67,7 +67,7 @@ func _test_visual(id: StringName) -> void:
 	_tick(v, 0.05)
 	_check(absf(v.p_arm_f - v.windup_arm) < 2.0, "%s: PREPARA leva o braço para trás (%.0f)" % [tag, v.p_arm_f])
 	u.cooldown = u.attack_interval
-	v.on_attack_landed()
+	v.on_attack_performed()
 	_tick(v, v.strike_time)
 	_check(absf(v.p_arm_f - v.strike_arm) < 12.0 and v.p_offset.x > 0.5, "%s: GOLPE para frente com avanço (%.0f)" % [tag, v.p_arm_f])
 	_tick(v, v.recover_time + 0.05)
@@ -88,7 +88,7 @@ func _test_visual(id: StringName) -> void:
 
 	# DEATH: cai e permanece no chão
 	u.die()
-	v.on_attack_landed()   # evento tardio não reanima
+	v.on_attack_performed()   # evento tardio não reanima
 	_tick(v, v.death_time * 0.75)   # o morto-vivo primeiro cede os joelhos, depois tomba
 	var mid := v.p_rot
 	_tick(v, 2.0)

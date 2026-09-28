@@ -31,6 +31,7 @@ y_sort_enabled = true
 [node name="Battle" type="Node" parent="."]
 script = ExtResource("4_battle")
 entities_path = NodePath("../Stage/World/Entities")
+effects_path = NodePath("../Stage/Effects")
 
 [node name="Debug" type="Node2D" parent="."]
 script = ExtResource("3_debug")

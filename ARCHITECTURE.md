@@ -1,7 +1,7 @@
 # Mortivane (Godot 4) — Arquitetura
 
 Estado: **Etapa 1 (esqueleto + arena) + núcleo mínimo de combate + menu inicial + Sandbox
-+ teste visual: Guerreiro e Guerreiro Morto-Vivo desenhados 100% por código.**
++ Guerreiro, Guerreiro Morto-Vivo, Sentinela Arcana e Sentinela Arcana Sombra desenhados 100% por código.**
 Ainda não há campanha, fases, HUD de jogo, ondas, formação nem Necromancia.
 Referência funcional/visual: `MortivaneV97.html` (não é editado). Análise do HTML: `MIGRATION_NOTES.md`.
 
@@ -62,6 +62,8 @@ res://
   data/
     units/u_warrior.tres             # UnitDef — Guerreiro Morto-Vivo (aliado)
     units/warrior.tres               # UnitDef — Guerreiro (inimigo)
+    units/arc_battlemage.tres        # UnitDef — Sentinela Arcana (inimiga)
+    units/u_arc_battlemage.tres      # UnitDef — Sentinela Arcana Sombra (aliada)
   scenes/
     main/main.tscn                   # raiz do jogo: troca de tela + avisos
     menu/main_menu.tscn              # menu inicial (Jogar / Sandbox)
@@ -73,10 +75,17 @@ res://
     arena/battle_grid.gd             # class_name BattleGrid — geometria das grades (só leitura)
     arena/debug_overlay.gd           # class_name DebugOverlay — desenho de referência
     combat/combat_unit.gd            # class_name CombatUnit — estado de uma unidade (dado puro)
-    combat/combat_sim.gd             # class_name CombatSim — alvo, movimento, ataque, dano, morte (dado puro)
+    combat/combat_sim.gd             # class_name CombatSim — alvo, movimento, ataque, projéteis, dano, morte (dado puro)
+    combat/combat_projectile.gd      # class_name CombatProjectile — projétil da simulação (dado puro)
+    combat/abilities/sentinel_swords.gd  # class_name SentinelSwords — lâminas da Sentinela (dado puro)
     combat/unit_view.gd              # class_name UnitView — seleção + barra de HP + debug; hospeda o visual
     visuals/units/unit_visual.gd     # class_name UnitVisual — base/interface do "corpo" de uma unidade
     visuals/units/circle_unit_visual.gd     # class_name CircleUnitVisual — círculo padrão (sem visual_script)
+    visuals/units/code_drawn_unit_visual.gd # class_name CodeDrawnUnitVisual — utilitários de desenho comuns
+    visuals/units/sentinel_visual.gd        # class_name SentinelVisual — Sentinela Arcana viva
+    visuals/units/sentinel_shadow_visual.gd # class_name SentinelShadowVisual — Sentinela Sombra (herda a viva)
+    visuals/effects/arcane_blade.gd         # class_name ArcaneBlade — desenho da lâmina (pairando e em voo)
+    visuals/projectiles/projectile_view.gd  # class_name ProjectileView — orbe/lâmina em voo + impacto
     visuals/units/warrior_visual.gd         # class_name WarriorVisual — Guerreiro por código (rig + animação)
     visuals/units/undead_warrior_visual.gd  # class_name UndeadWarriorVisual — herda o Guerreiro
     combat/battle.gd                 # class_name Battle — executor: CombatSim + UnitView + passo fixo
@@ -90,6 +99,7 @@ res://
     combat_test.gd                   # teste headless do combate (SceneTree)
     sandbox_test.gd                  # teste headless de ponta a ponta: menu + Sandbox na cena real
     visual_test.gd                   # teste headless das poses/animações dos visuais por código
+    sentinel_test.gd                 # teste headless da Sentinela: mecânica portada do HTML + visual
 ```
 
 Arquivos `*.import` e `*.uid` são gerados pela Godot e **devem ser versionados**. A pasta `.godot/` é cache
@@ -200,7 +210,11 @@ ondas nem formação.
   - time, posição, raio;
   - `hp` / `max_hp`, `damage`, `attack_range`, `attack_interval`, `move_speed`;
   - `cooldown`, `target` e `state` (`IDLE / MOVING / ATTACKING / DEAD`).
-- `CombatSim` (`RefCounted`) contém as regras. Não conhece nós. Emite `unit_attacked` e `unit_died`.
+- `CombatSim` (`RefCounted`) contém as regras. Não conhece nós. Sinais:
+  - `attack_performed(atacante, alvo)`: o ataque básico ACONTECEU (golpe desferido ou projétil disparado);
+  - `projectile_fired(p)` e `projectile_ended(p, vítima)`;
+  - `unit_attacked(atacante, alvo, dano)`: dano aplicado;
+  - `unit_died(unidade)`.
 - `Battle` (`Node`, dentro da Arena) é o **executor**. Não decide quem luta nem quando.
   - API: `spawn(def, team, pos, overrides)`, `start()`, `clear()`, `is_running()`, `is_finished()`,
     `unit_at(ponto)` e `view_of(unit)`.
@@ -213,9 +227,11 @@ ondas nem formação.
   - anel de seleção (elipse nos pés) e, com F4, alcance e linha até o alvo;
   - filho `Body` = o `UnitVisual` da `UnitDef`;
   - filho `Overlay` = barra de HP e texto do F4, sempre por cima do corpo.
-- A `Battle` repassa o sinal `CombatSim.unit_attacked` como eventos **só visuais**:
-  - `on_attack_landed()` vai para o atacante;
-  - `on_hit()` vai para o alvo.
+- A `Battle` repassa os sinais como eventos **só visuais**:
+  - `attack_performed` → `on_attack_performed()` no atacante;
+  - `unit_attacked` → `on_hit()` no alvo;
+  - `projectile_fired` → `on_projectile_fired()` no dono, mais um `ProjectileView` em `Stage/Effects`;
+  - `projectile_ended` → impacto (ou dissipação) no `ProjectileView`, que depois se libera sozinho.
 - `unit_at()` usa a área clicável do visual (`UnitView.contains_point`).
 
 **Regras por passo** (para cada unidade viva, em ordem de criação)
@@ -230,6 +246,25 @@ ondas nem formação.
 **Referências entre unidades.** `target` forma um ciclo de `RefCounted` (A → B → A). Por isso
 `CombatSim.dispose()` limpa os alvos, e `Battle` o chama em `clear()` e em `_exit_tree`.
 
+**Ataque à distância e habilidades (por unidade; o corpo a corpo não muda).**
+- `CombatUnit.projectile` (vindo de `UnitDef.projectile_kind`) torna o ataque básico um disparo. No passo do
+  ataque, a `CombatSim` cria um `CombatProjectile`, e o dano só é aplicado quando ele acerta. Regras do HTML
+  (`fireProjectile` / `updateProjectiles`):
+  - nasce na borda do corpo;
+  - persegue o alvo travado enquanto ele for válido;
+  - acerta o alvo a raio + 6, ou qualquer inimigo no caminho a raio + 5;
+  - some após 2,6 s ou ao sair do mundo.
+  - Velocidades: orbe 340, lâmina 520.
+- Unidades à distância param a **0,92 × alcance** (HTML); o corpo a corpo continua em 0,85.
+- `CombatUnit.swords` (`SentinelSwords`, de `abilities = ["arcane_swords"]`) roda a cada passo, antes do alvo.
+  É uma porta fiel de `SENTINEL_CONFIG` / `updateArcaneSwords` / `launchSword`:
+  - 2 lâminas; disparam quando o inimigo vivo mais próximo está a ≤ 115;
+  - reação de 0,55 s (aproximação lenta) até 0,08 s (aproximação ≥ 55 px/s);
+  - 0,10 s de antecipação (`blade.windup`); uma de cada vez, com 0,35 s entre elas;
+  - dano = ataque básico × 1; cada lâmina volta após 10 s;
+  - partem da âncora (x ± 0,82 r, y − 1,9 r) como projétil perseguidor a 520 px/s.
+- A lâmina e o orbe **não** interferem na recarga do ataque básico, como no HTML.
+
 **Semente.** `Battle.rng_seed = 97` sorteia a primeira recarga de cada unidade. Assim, a mesma montagem sempre
 produz a mesma luta, e o **Reiniciar** do Sandbox repete a luta exatamente igual.
 
@@ -243,7 +278,8 @@ Nenhum PNG, SVG, sprite sheet ou asset externo. Cadeia: `CombatUnit` → `UnitVi
 
 - `UnitVisual` (`Node2D`) é a base. Recebe `setup(unit, def)` e, a cada quadro, `update_visual(delta)`
   (chamado pelo `UnitView`).
-  - Eventos: `on_attack_landed()` e `on_hit()`.
+  - Eventos: `on_attack_performed()`, `on_projectile_fired(p)` e `on_hit()`.
+  - Para projéteis: `muzzle_point(p)` (de onde o disparo PARECE sair) e `projectile_style(p)` (cores).
   - Informa `top_y()` (barra de HP), `pick_rect()` (clique) e `ground_point()` (anel de seleção).
   - Só **lê** a `CombatUnit`; não tem regra de combate.
 - `UnitDef.visual_script` escolhe o visual. Vazio = `CircleUnitVisual`, o círculo das etapas anteriores.
@@ -262,7 +298,7 @@ Nenhum PNG, SVG, sprite sheet ou asset externo. Cadeia: `CombatUnit` → `UnitVi
 | IDLE | sempre, atenuado ao andar | respiração (sobe/desce e leve escala), cabeça e braços oscilam, capa balança |
 | MOVING | fase dos passos avança pela **distância real percorrida** | pernas alternam, corpo sobe quando elas cruzam, braços em oposição, cabeça compensa, capa vai para trás; parado = pernas não andam |
 | ATTACKING (preparação) | últimos `windup_time` s da **recarga real** (`unit.cooldown`) | braço e espada recuam, tronco inclina para trás |
-| golpe | evento `on_attack_landed()`, no **mesmo passo** em que a `CombatSim` aplica o dano | golpe rápido (`strike_time`), avanço do corpo (`lunge`), depois retorno suave (`recover_time`) |
+| golpe | evento `on_attack_performed()`, no **mesmo passo** em que a `CombatSim` executa o golpe (e aplica o dano) | golpe rápido (`strike_time`), avanço do corpo (`lunge`), depois retorno suave (`recover_time`) |
 | HIT | evento `on_hit()` | 0,16 s de recuo, achatamento sutil, cabeça para trás e clarão |
 | DEAD | `unit.state == DEAD` | queda até o chão; o corpo **permanece deitado** e escurece um pouco |
 
@@ -282,7 +318,8 @@ Nenhum PNG, SVG, sprite sheet ou asset externo. Cadeia: `CombatUnit` → `UnitVi
 | Queda | de costas, pesada (acelera), um quique | joelhos cedem, depois desaba para frente com tremores |
 
 **Sincronia do ataque.**
-- O golpe visual não é previsto: ele começa quando a `CombatSim` emite `unit_attacked`, que é o momento real do dano.
+- O golpe visual não é previsto: ele começa quando a `CombatSim` emite `attack_performed`, no mesmo passo em que
+  aplica o dano.
 - A preparação é lida da recarga real, então termina exatamente quando o golpe chega.
 - Nada disso altera dano, recarga nem alcance.
 
@@ -291,11 +328,46 @@ seguinte ao passo da simulação (≈ 16 ms).
 
 ---
 
+### Sentinela Arcana (viva) e Sentinela Arcana Sombra
+
+Referência: a arte conceitual "Sentinela Arcano Vivo / Sombra". O desenho é novo, feito por código; não é uma
+porta 1:1 de `drawArcaneSentinel`.
+
+- **Estrutura.** `CodeDrawnUnitVisual` concentra os utilitários de desenho que o Guerreiro já usava.
+  - `SentinelVisual` monta a Sentinela.
+  - `SentinelShadowVisual extends SentinelVisual`: mesmo rig; troca paleta, estilo e alguns pontos de extensão
+    (barra rasgada, capelete, olhos, fumaça, morte).
+- **Silhueta** (rig espelhado pela direção, origem nos pés):
+  - chapéu largo e pontudo, com a ponta dobrada para trás e uma joia na faixa;
+  - manto triangular em camadas: manto de trás, vestido, painel frontal com o símbolo arcano, abas com
+    acabamento prateado;
+  - capelete com pontas, gola alta e joia em losango no peito;
+  - rosto em 3/4 com cabelo escuro e olhos brilhantes;
+  - pés quase escondidos.
+  - Altura ≈ 40 unidades do mundo; os pés ficam 10 abaixo do centro lógico.
+- **Lâminas.** Duas `ArcaneBlade` pairam ladeando a copa do chapéu.
+  - São desenhadas **sem espelhar** (a lâmina 0 fica sempre à esquerda, como no HTML) e apontam pela mira
+    suavizada (HTML: `swordAim`, 4,5 rad/s).
+  - O mesmo desenho é usado pelo `ProjectileView` quando a lâmina parte.
+  - O visual lê de `unit.swords` a recarga e a antecipação de cada lâmina.
+- **Partida dos projéteis.** O `ProjectileView` desenha a partida a partir de `muzzle_point` (a mão, ou a lâmina
+  pairando) e converge para a posição real em 0,12 s (HTML: `sentinelHand`). A simulação não muda.
+
+| Animação | Viva | Sombra |
+|---|---|---|
+| Idle | respiração, barra e ponta do chapéu balançam, lâminas flutuam (sen(t·2,2 + i·1,7), como no HTML) | + tremor arcano, fumaça roxa nas bordas, lâminas instáveis, olhos pulsando |
+| Movimento | desliza (fase pela distância real), inclina 4°, manto e ponta do chapéu ficam para trás, botas aparecem, lâminas atrasam | inclina 6°, mais arrastado e irregular, fumaça arrasta |
+| Ataque | preparação pela recarga real (últimos 0,30 s): mão recolhe à frente do corpo com energia azul, joia acende; no `attack_performed` o braço aponta ao alvo, o manto abre e as lâminas dão um tranco; retorno de 0,34 s | energia roxa crepitando na mão, orbe escuro com borda violeta e espinhos, inclinação maior |
+| Habilidade | lâmina em antecipação (estado real) recua, vibra, brilha, com elo de energia até a joia e a cabeça erguida; na partida, anel de clarão na âncora, a outra lâmina estremece; em recarga fica um vulto que ganha força e reforma com clarão | lâminas com energia sombria saindo do fio, rastro roxo |
+| Hit | 0,2 s: recuo, compressão, clarão, ponta do chapéu treme, lâminas desestabilizam | clarão lilás, o corpo tremula (translúcido) e a fumaça explode |
+| Morte | perde a sustentação, a magia se apaga, o manto colapsa com peso, o chapéu cai ao lado; as lâminas caem girando e se desfazem em faíscas; o monte fica no chão | sobe e se agita, colapsa se desfazendo (fica translúcida), fumaça sobe e as lâminas se partem em fragmentos |
+
 ## Dados de unidade (`UnitDef` + `UnitCatalog`)
 
 - `UnitDef` (`Resource`) define uma unidade: um `.tres` por unidade em `res://data/units/`.
   - Campos: `id` (a chave do HTML), `display_name`, `side` (em que lista aparece);
-  - combate: `max_hp`, `damage`, `attack_range`, `attack_interval`, `move_speed`, `radius`;
+  - combate: `max_hp`, `damage`, `attack_range`, `attack_interval`, `move_speed`, `radius`,
+    `projectile_kind` (vazio = corpo a corpo) e `abilities`;
   - visual: `visual_script` (um `UnitVisual`; vazio = círculo), `body_color` e `trim_color` (cores do círculo).
 - `to_stats(overrides)` gera o dicionário que `CombatUnit` consome. A `CombatSim` **não conhece** `UnitDef`.
 - `UnitCatalog` lê a pasta (`all()`, `for_side()`, `get_def(id)`). As listas do Sandbox vêm daqui: para
@@ -305,6 +377,11 @@ seguinte ao passo da simulação (≈ 16 ms).
 |---|---|---|---|---|---|---|---|---|
 | `u_warrior` | Guerreiro Morto-Vivo | PLAYER | 74 | 10 | 32 | 1,0 | 56 | 12 |
 | `warrior` | Guerreiro | ENEMY | 70 | 9 | 32 | 1,0 | 56 | 12 |
+| `arc_battlemage` | Sentinela Arcana | ENEMY | 43 | 18 | 150 | 1,25 | 54 | 13 |
+| `u_arc_battlemage` | Sentinela Arcana Sombra | PLAYER | 40 | 18 | 150 | 1,25 | 54 | 13 |
+
+As duas Sentinelas têm `projectile_kind = "orb"` e `abilities = ["arcane_swords"]`. A Sombra é a versão
+morta-viva do HTML (`registerFactionUnits`: mesmos stats, HP × 0,94).
 
 ---
 
@@ -362,6 +439,7 @@ godot --headless --import                       # uma vez, gera o cache de class
 godot --headless -s res://tests/combat_test.gd  # regras de combate + catálogo
 godot --headless -s res://tests/sandbox_test.gd # ponta a ponta na cena real (menu → Sandbox → menu)
 godot --headless -s res://tests/visual_test.gd  # poses/animações dos visuais por código
+godot --headless -s res://tests/sentinel_test.gd  # Sentinela: mecânica do HTML + visual
 ```
 Cada teste sai com código 0 se passar e 1 se falhar.
 
@@ -382,6 +460,21 @@ Cada teste sai com código 0 se passar e 1 se falhar.
 - que o visual não altera stats;
 - o círculo padrão para `UnitDef` sem `visual_script`.
 
+`sentinel_test` verifica a Sentinela:
+- stats do HTML nas duas versões;
+- ataque à distância: para a 0,92 × alcance, o dano vem no impacto e não no disparo, orbe a 340;
+- orbe acerta quem estiver no caminho quando o alvo morre, e expira;
+- lâminas: reação 0,55 s, antecipação, uma de cada vez, âncora, 520 px/s, dano, volta em 10 s, reação rápida
+  da 2ª lâmina e nada fora de 115;
+- visual das duas versões: idle, movimento, preparação/disparo/retorno, antecipação/partida/recarga/reforma
+  da lâmina, hit, morte e permanência no chão; e que o visual não altera stats.
+
+`sandbox_test` também cobre as Sentinelas no fluxo real:
+- visual próprio;
+- disparo criando `ProjectileView`;
+- Reiniciar e Limpar limpando projéteis;
+- sair do Sandbox com projéteis em voo sem vazar nós.
+
 ---
 
 ## Próximas etapas (planejadas)
@@ -390,8 +483,9 @@ Cada teste sai com código 0 se passar e 1 se falhar.
 2. Máquina de fases (`MENU/PREP/BATTLE/NECROMANCY/VICTORY/DEAD`) + autoloads `GameState` e `Events`; ligar o
    botão Jogar.
 3. Mais `UnitDef` (facções do HTML), `FactionDef`… + posicionamento na grade. (`UnitDef`/`UnitCatalog` já existem.)
-4. Batalha completa sobre o núcleo: velocidade 1x/2x/3x, IA de formação, unidades à distância/projéteis,
-   integração com a fase de batalha. (Passo fixo, movimento, alvo e ataque básico já existem.)
+4. Batalha completa sobre o núcleo: velocidade 1x/2x/3x, IA de formação (inclui recuo das unidades à distância),
+   integração com a fase de batalha. (Passo fixo, movimento, alvo, ataque básico, projéteis e as lâminas da
+   Sentinela já existem.)
 5. Cadáveres, Necromancia e portal.
 6. Essência, capacidade, lojas, Relíquias, Escola e HUD.
 7. Áudio, configurações e ferramentas (evoluir o Sandbox, bot/Run Lab).

@@ -164,6 +164,36 @@ func _run() -> void:
 		await _frames(2)
 	_check(Performance.get_monitor(Performance.OBJECT_NODE_COUNT) == nodes_in_menu, "entrar/sair do Sandbox não acumula nós")
 
+	# Sentinelas (viva e Sombra) no fluxo real: aparecem, disparam, e os projéteis são limpos
+	_press(main.current_screen.sandbox_button)
+	await _frames(2)
+	var ss: SandboxController = main.current_screen
+	var effects := ss.arena.find_child("Effects", true, false)
+	_press(ss.ui.find_child("Spawn_u_arc_battlemage", true, false))
+	_press(ss.ui.find_child("Spawn_arc_battlemage", true, false))
+	_check(ss.arena.battle.view_of(ss.placements[0].unit).visual is SentinelShadowVisual
+		and ss.arena.battle.view_of(ss.placements[1].unit).visual is SentinelVisual, "Sentinelas com visual próprio no Sandbox")
+	_press(ss.ui.start_button)
+	var t_start := Time.get_ticks_msec()
+	while effects.get_child_count() == 0 and Time.get_ticks_msec() - t_start < 20000:
+		await _frames(1)
+	_check(effects.get_child_count() > 0, "disparo real cria ProjectileView")
+	_press(ss.ui.reset_button)
+	await _frames(1)
+	_check(effects.get_child_count() == 0 and ss.arena.battle.sim.projectiles.is_empty(), "Reiniciar limpa os projéteis")
+	_press(ss.ui.start_button)
+	await _frames(40)
+	_press(ss.ui.clear_button)
+	await _frames(1)
+	_check(effects.get_child_count() == 0, "Limpar remove os projéteis")
+	_press(ss.ui.find_child("Spawn_u_arc_battlemage", true, false))
+	_press(ss.ui.find_child("Spawn_warrior", true, false))
+	_press(ss.ui.start_button)
+	await _frames(30)
+	_press(ss.ui.menu_button)
+	await _frames(2)
+	_check(Performance.get_monitor(Performance.OBJECT_NODE_COUNT) == nodes_in_menu, "sair com projéteis em voo não vaza nós")
+
 	print("sandbox_test: %s" % ("OK" if _failures == 0 else "%d falha(s)" % _failures))
 	main.queue_free()
 	await _frames(1)

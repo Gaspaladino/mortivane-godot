@@ -13,17 +13,21 @@ signal finished(winner_team: int)
 const MAX_FRAME_DT := 0.05
 
 @export var entities_path: NodePath
+## Onde ficam os ProjectileView (acima das unidades).
+@export var effects_path: NodePath
 ## Semente da primeira recarga de cada unidade: a mesma montagem sempre produz a mesma luta.
 @export var rng_seed := 97
 
 var sim: CombatSim
 var _views: Dictionary = {}   # id da unidade → UnitView
+var _projectile_views: Dictionary = {}   # id do projétil → ProjectileView
 var _accumulator := 0.0
 var _running := false
 var _finished := false
 var _debug_visible := false
 
 @onready var _entities: Node2D = get_node(entities_path)
+@onready var _effects: Node2D = get_node(effects_path)
 
 
 func _ready() -> void:
@@ -40,10 +44,17 @@ func clear() -> void:
 	for view in _views.values():
 		view.queue_free()
 	_views.clear()
+	for view in _projectile_views.values():
+		if is_instance_valid(view):
+			view.queue_free()
+	_projectile_views.clear()
 	if sim:
 		sim.dispose()
 	sim = CombatSim.new(rng_seed)
+	sim.attack_performed.connect(_on_attack_performed)
 	sim.unit_attacked.connect(_on_unit_attacked)
+	sim.projectile_fired.connect(_on_projectile_fired)
+	sim.projectile_ended.connect(_on_projectile_ended)
 	_accumulator = 0.0
 	_running = false
 	_finished = false
@@ -123,12 +134,41 @@ func _winner_team() -> int:
 	return -1
 
 
-## Eventos puramente visuais, no instante exato em que a CombatSim aplica o golpe:
-## o atacante executa o golpe da espada e o alvo reage ao dano.
-func _on_unit_attacked(attacker: CombatUnit, target: CombatUnit, _amount: float) -> void:
-	var attacker_view := view_of(attacker)
-	if attacker_view:
-		attacker_view.on_attack_landed()
-	var target_view := view_of(target)
-	if target_view:
-		target_view.on_hit()
+func projectile_view_of(p: CombatProjectile) -> ProjectileView:
+	return _projectile_views.get(p.id)
+
+
+# --- Eventos da simulação → apresentação (nenhum altera a simulação) --------------------
+
+## O atacante executou o ataque básico (golpe corpo a corpo ou disparo), no mesmo passo.
+func _on_attack_performed(attacker: CombatUnit, _target: CombatUnit) -> void:
+	var view := view_of(attacker)
+	if view:
+		view.on_attack_performed()
+
+
+## Dano aplicado: o alvo reage.
+func _on_unit_attacked(_attacker: CombatUnit, target: CombatUnit, _amount: float) -> void:
+	var view := view_of(target)
+	if view:
+		view.on_hit()
+
+
+func _on_projectile_fired(p: CombatProjectile) -> void:
+	var owner_view := view_of(p.owner)
+	var muzzle := p.position
+	var style := UnitVisual.DEFAULT_PROJECTILE_STYLE
+	if owner_view:
+		owner_view.on_projectile_fired(p)
+		muzzle = owner_view.position + owner_view.visual.muzzle_point(p)
+		style = owner_view.visual.projectile_style(p)
+	var view := ProjectileView.new(p, style, muzzle)
+	_effects.add_child(view)
+	_projectile_views[p.id] = view
+
+
+func _on_projectile_ended(p: CombatProjectile, victim: CombatUnit) -> void:
+	var view: ProjectileView = _projectile_views.get(p.id)
+	_projectile_views.erase(p.id)
+	if view and is_instance_valid(view):
+		view.finish(victim)

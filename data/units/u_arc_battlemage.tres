@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="UnitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_def.gd" id="1_unitdef"]
+[ext_resource type="Script" path="res://scripts/visuals/units/sentinel_shadow_visual.gd" id="2_visual"]
+
+[resource]
+script = ExtResource("1_unitdef")
+id = &"u_arc_battlemage"
+display_name = "Sentinela Arcana Sombra"
+side = 0
+max_hp = 40.0
+damage = 18.0
+attack_range = 150.0
+attack_interval = 1.25
+move_speed = 54.0
+radius = 13.0
+projectile_kind = &"orb"
+abilities = Array[StringName]([&"arcane_swords"])
+visual_script = ExtResource("2_visual")
+body_color = Color(0.1843, 0.1647, 0.2706, 1)
+trim_color = Color(0.102, 0.0902, 0.149, 1)

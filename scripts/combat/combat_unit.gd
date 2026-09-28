@@ -3,7 +3,8 @@ extends RefCounted
 ## Estado de uma unidade em combate. Dado puro: nenhum nó, nenhum desenho.
 ## Posições em coordenadas do mundo 1000×560 (WorldConfig).
 ##
-## Stats no formato de UnitDef.to_stats(): {id, name, hp, dmg, range, cd, speed, r}.
+## Stats no formato de UnitDef.to_stats(): {id, name, hp, dmg, range, cd, speed, r}
+## e, opcionais, {projectile, abilities}.
 
 enum Team { PLAYER, ENEMY }
 enum State { IDLE, MOVING, ATTACKING, DEAD }
@@ -25,6 +26,13 @@ var attack_interval: float
 ## Unidades do mundo por segundo (HTML: speed).
 var move_speed: float
 
+## Ataque à distância: tipo do projétil (HTML: proj). Vazio = golpe corpo a corpo instantâneo.
+var projectile: StringName = &""
+## Fração do alcance em que a unidade para ao se aproximar (HTML: corpo a corpo 0,85; à distância 0,92).
+var approach_share := CombatSim.APPROACH_SHARE
+## Lâminas flutuantes da Sentinela Arcana (HTML: arcaneSwords); null = não tem.
+var swords: SentinelSwords = null
+
 ## Tempo restante até o próximo ataque.
 var cooldown := 0.0
 var target: CombatUnit = null
@@ -43,7 +51,16 @@ func _init(p_id: int, p_team: Team, stats: Dictionary, p_position: Vector2) -> v
 	attack_interval = stats.cd
 	move_speed = stats.speed
 	radius = stats.r
+	projectile = stats.get("projectile", &"")
+	if projectile != &"":
+		approach_share = CombatSim.RANGED_APPROACH_SHARE
+	if &"arcane_swords" in stats.get("abilities", []):
+		swords = SentinelSwords.new()
 	position = p_position
+
+
+func is_ranged() -> bool:
+	return projectile != &""
 
 
 func is_alive() -> bool:
