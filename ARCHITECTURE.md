@@ -1,7 +1,8 @@
 # Mortivane (Godot 4) — Arquitetura
 
 Estado: **Etapa 1 (esqueleto + arena) + núcleo mínimo de combate + menu inicial + Sandbox
-+ Guerreiro, Guerreiro Sombra, Sentinela Arcana e Sentinela Arcana Sombra desenhados 100% por código
++ Guerreiro, Guerreiro Sombra, Sentinela Arcana, Sentinela Arcana Sombra, Paladino e Paladino Sombra
+desenhados 100% por código
 + regra visual "sombra necromântica" (ShadowStyle + ShadowFX) para as unidades revividas.**
 Ainda não há campanha, fases, HUD de jogo, ondas, formação nem Necromancia.
 Referência funcional/visual: `MortivaneV97.html` (não é editado). Análise do HTML: `MIGRATION_NOTES.md`.
@@ -68,6 +69,9 @@ res://
     units/warrior.tres               # UnitDef — Guerreiro (inimigo)
     units/arc_battlemage.tres        # UnitDef — Sentinela Arcana (inimiga)
     units/u_arc_battlemage.tres      # UnitDef — Sentinela Arcana Sombra (aliada)
+    units/sac_paladin.tres           # UnitDef — Paladino (inimigo)
+    units/u_sac_paladin.tres         # UnitDef — Paladino Sombra (aliado)
+    visuals/paladin_look.tres        # PaladinLook — escala, offsets, cores, brilho do Paladino (Inspector)
     visuals/shadow_style.tres        # ShadowStyle padrão: a conversão "sombra" de TODAS as unidades revividas
   scenes/
     main/main.tscn                   # raiz do jogo: troca de tela + avisos
@@ -86,6 +90,7 @@ res://
     combat/combat_sim.gd             # class_name CombatSim — alvo, movimento, ataque, projéteis, dano, morte (dado puro)
     combat/combat_projectile.gd      # class_name CombatProjectile — projétil da simulação (dado puro)
     combat/abilities/sentinel_swords.gd  # class_name SentinelSwords — lâminas da Sentinela (dado puro)
+    combat/abilities/paladin_taunt.gd    # class_name PaladinTaunt — provocação + Escudo Sagrado (dado puro)
     combat/unit_view.gd              # class_name UnitView — seleção + barra de HP + debug; hospeda o visual
     visuals/units/unit_visual.gd     # class_name UnitVisual — base/interface do "corpo" de uma unidade
     visuals/units/circle_unit_visual.gd     # class_name CircleUnitVisual — círculo padrão (sem visual_script)
@@ -101,6 +106,9 @@ res://
     visuals/backdrop/shaders/*.gdshader     # céu, lua, nuvens, neblina, estandarte, velas (+ noise.gdshaderinc)
     visuals/units/warrior_visual.gd         # class_name WarriorVisual — Guerreiro por código (rig + animação)
     visuals/units/shadow_warrior_visual.gd  # class_name ShadowWarriorVisual — Guerreiro Sombra (herda o Guerreiro)
+    visuals/units/paladin_visual.gd         # class_name PaladinVisual — Paladino por código (rig + animação)
+    visuals/units/shadow_paladin_visual.gd  # class_name ShadowPaladinVisual — Paladino Sombra (herda o Paladino)
+    visuals/units/paladin_look.gd           # class_name PaladinLook (Resource) — parâmetros visuais do Paladino
     visuals/units/shadow_style.gd           # class_name ShadowStyle (Resource) — regra de conversão viva → sombra
     visuals/units/shadow_fx.gd              # class_name ShadowFX — aura, névoa, fumaça, fissuras, olhos
     combat/battle.gd                 # class_name Battle — executor: CombatSim + UnitView + passo fixo
@@ -118,6 +126,7 @@ res://
     backdrop_test.gd                 # teste headless do fundo animado (inclui "nada flutua")
     menu_click_test.gd               # cliques reais de mouse no menu (Sandbox ida e volta)
     shadow_visual_test.gd            # regra visual das sombras (u_* = sombra; viva continua normal)
+    paladin_test.gd                  # Paladino: stats/mecânica do HTML, visual, Sandbox, luta de referência
 ```
 
 Arquivos `*.import` e `*.uid` são gerados pela Godot e **devem ser versionados**. A pasta `.godot/` é cache
@@ -290,6 +299,20 @@ ondas nem formação.
   - dano = ataque básico × 1; cada lâmina volta após 10 s;
   - partem da âncora (x ± 0,82 r, y − 1,9 r) como projétil perseguidor a 520 px/s.
 - A lâmina e o orbe **não** interferem na recarga do ataque básico, como no HTML.
+- `CombatUnit.paladin` (`PaladinTaunt`, de `abilities = ["paladin_taunt_shield"]`): porta fiel de
+  `PALADIN_CONFIG` / `tickPaladinCombat` / `paladinShieldDamage` / `lockPaladinShieldFacing`:
+  - roda numa **passada antes de todas as unidades** (`CombatSim._tick_paladins`, como o HTML chama
+    `tickPaladinCombat` antes de `updateUnit`): desconta `taunt_t` de todos e os timers dos Paladinos;
+  - pronto (recarga 0 — começa em 0) e com inimigo vivo a ≤ **115**: provoca todos eles por **2,5 s**
+    (`taunted_by`/`taunt_t`, alvo = o Paladino), recarga **15 s**, e começa a espera de **1 s**;
+  - ao fim da espera sobe o **Escudo Sagrado** por **1,5 s** (descontando o excesso do passo), com a direção
+    travada no alvo/provocado/mais próximo;
+  - com o escudo, todo dano recebido é reduzido em **75%** (`CombatSim._apply_damage`);
+  - provocado: `nearest_foe` devolve o Paladino enquanto a provocação vale (HTML: `tauntTarget` dentro de
+    `nearestFoe`); morto o Paladino, quem ele provocou é liberado (HTML: `killUnit` → `clearTaunt`).
+  - Sinais só de apresentação: `paladin_taunted`, `paladin_shield_raised`, `paladin_shield_blocked`
+    (a `Battle` repassa como `UnitView.on_ability_event(taunt/shield/block)`).
+  - Quem não tem a habilidade não muda: a luta de referência (Guerreiro × Guerreiro) é idêntica.
 
 **Semente.** `Battle.rng_seed = 97` sorteia a primeira recarga de cada unidade. Assim, a mesma montagem sempre
 produz a mesma luta, e o **Reiniciar** do Sandbox repete a luta exatamente igual.
@@ -393,6 +416,47 @@ porta 1:1 de `drawArcaneSentinel`.
 | Habilidade | lâmina em antecipação (estado real) recua, vibra, brilha, com elo de energia até a joia e a cabeça erguida; na partida, anel de clarão na âncora, a outra lâmina estremece; em recarga fica um vulto que ganha força e reforma com clarão | lâminas com energia sombria saindo do fio, rastro roxo |
 | Hit | 0,2 s: recuo, compressão, clarão, ponta do chapéu treme, lâminas desestabilizam | clarão lilás, o corpo tremula (translúcido) e a fumaça explode |
 | Morte | perde a sustentação, a magia se apaga, o manto colapsa com peso, o chapéu cai ao lado; as lâminas caem girando e se desfazem em faíscas; o monte fica no chão | sobe e se agita, colapsa se desfazendo (fica translúcida), fumaça sobe e as lâminas se partem em fragmentos |
+
+### Paladino e Paladino Sombra
+
+Referência: a arte conceitual "Paladino Vivo / Paladino Sombra" (o desenho é novo, por código); tempos e
+intenção de pose do rig do HTML (`drawPaladinArt`, perfil `heavyMelee`, `paladinCue`, `drawPaladinBarrier`,
+cadáver com escudo e espada soltos).
+
+- **Estrutura.** `PaladinVisual extends CodeDrawnUnitVisual`; `ShadowPaladinVisual extends PaladinVisual`
+  (mesmo rig; regra `ShadowStyle`). Parâmetros no Inspector: `PaladinLook` (`data/visuals/paladin_look.tres`,
+  via `UnitDef.visual_look`): `scale`, `shield_offset`, `sword_offset`, cores, `glow`, `show_taunt_ring`,
+  `secondary_speed`. A intensidade da sombra fica no `ShadowStyle`.
+- **Rig** (origem nos pés, espelhado pela direção): raiz → quadril → pernas (joelho dobra com `p_crouch`) /
+  tronco → cabeça (auréola atrás do elmo) · ombro de trás → braço → espada · ombro da frente → braço → escudo.
+  Ordem: sombra · capa · braço da espada e ombreira de trás · pernas · tabardo partido e cinto · peitoral ·
+  elmo · espada · braço do escudo, escudo e ombreira da frente · efeitos. No golpe a espada passa **na frente**
+  do escudo.
+- **Silhueta:** ~47 unidades até a estrela da auréola (Guerreiro ~35), área clicável 26 × 43 (Guerreiro
+  20 × 40): maior e mais largo pelos ombros, escudo e armadura — sem virar chefe.
+
+| Estado | Como é lido | Paladino |
+|---|---|---|
+| Idle | sempre | firme: respiração mínima (0,25), capa reage de leve, escudo sustentado, espada em pé, pronta |
+| Walk | fase pela distância real | passada curta e pesada (13 por ciclo, 18°), corpo sobe pouco, tronco e ombros juntos, escudo quase parado, espada com inércia |
+| Preparação | últimos 0,20 s da recarga real; e ao chegar a < 2r do alcance com a recarga pronta (HTML) | espada recua acima da cabeça, tronco inclina para trás |
+| Golpe | `attack_performed` (mesmo passo do dano) | desce em 0,12 s com o corpo afundando (peso), avanço, rastro no arco da espada; retorno à guarda até 0,46 s |
+| Provocação | `paladin_taunted` | batida do escudo à frente, peito ergue, anel no raio real de 115 |
+| Espera do escudo | `paladin.delay` (estado real) | ergue a guarda aos poucos |
+| Escudo ativo | `paladin.shield_t` | guarda firme (joelhos dobram, inclina, escudo à frente), barreira sagrada à frente na direção travada (HTML: entra 0,2 s, some 0,16 s) |
+| Bloqueio | `paladin_shield_blocked` (dano realmente reduzido) | 0,28 s: o braço cede, recuo curto, clarão no escudo e na barreira |
+| Hit | `on_hit` | 0,25 s: recuo pequeno, cabeça recua, clarão curto |
+| Morte | `unit.state == DEAD` | joelhos cedem, a espada escapa da mão e cai solta ao lado, o escudo pesa e cai ao lado do corpo, tomba de costas (0,72 s, acelera), quica e fica no chão |
+
+| | Paladino | Paladino Sombra |
+|---|---|---|
+| Armadura | marfim, sombra na metade de trás | grafite violeta (`convert`) |
+| Dourado | auréola, crista, filetes, guarda e pomo, borda do escudo | **preservado** (só um pouco mais escuro) |
+| Sol (escudo/tabardo) | dourado | energia roxa pulsando |
+| Tecidos | tabardo e capa claros | tabardo desbotado e rasgado; capa quase preta, rasgada, com fio roxo |
+| Detalhes | — | olhos roxos no visor, fissuras roxas no peitoral e no escudo, chama roxa no fio da espada |
+| Ambiente | sombra | borda roxa na silhueta, aura, névoa no chão, pouca fumaça; na morte a energia se apaga e o corpo solta fumaça |
+| Efeitos | rastro, barreira e anéis dourados | roxos com resto do dourado |
 
 ### Versões sombra (unidades revividas pelo necromante)
 
@@ -509,9 +573,13 @@ desenhadas.
 | `warrior` | Guerreiro | ENEMY | 70 | 9 | 32 | 1,0 | 56 | 12 |
 | `arc_battlemage` | Sentinela Arcana | ENEMY | 43 | 18 | 150 | 1,25 | 54 | 13 |
 | `u_arc_battlemage` | Sentinela Arcana Sombra | PLAYER | 40 | 18 | 150 | 1,25 | 54 | 13 |
+| `sac_paladin` | Paladino | ENEMY | 120 | 13 | 34 | 1,2 | 44 | 14 |
+| `u_sac_paladin` | Paladino Sombra | PLAYER | 113 | 13 | 34 | 1,2 | 44 | 14 |
 
 As duas Sentinelas têm `projectile_kind = "orb"` e `abilities = ["arcane_swords"]`. A Sombra é a versão
 morta-viva do HTML (`registerFactionUnits`: mesmos stats, HP × 0,94).
+Os dois Paladinos têm `abilities = ["paladin_taunt_shield"]` (HTML: `FACTION_UNITS.sac_paladin`; a Sombra é o
+`u_sac_paladin` de `registerFactionUnits`, HP round(120 × 0,94) = 113) e `visual_look = paladin_look.tres`.
 
 ---
 
@@ -591,6 +659,7 @@ godot --headless -s res://tests/sentinel_test.gd  # Sentinela: mecânica do HTML
 godot --headless -s res://tests/backdrop_test.gd  # fundo: camadas, profundidade, movimento, janelas, parallax, nada flutua
 godot --headless -s res://tests/menu_click_test.gd  # cliques reais de mouse no menu: Sandbox → menu → Sandbox, Jogar
 godot --headless -s res://tests/shadow_visual_test.gd  # regra "sombra": u_* = sombra convertida da viva
+godot --headless -s res://tests/paladin_test.gd  # Paladino: mecânica do HTML, visual, Sandbox, luta de referência
 ```
 Cada teste sai com código 0 se passar e 1 se falhar.
 
@@ -632,6 +701,19 @@ acima dela.
 
 `backdrop_test` também garante a coerência do fundo: a base de toda torre externa e das muralhas fica dentro do
 rochedo, as pontes do castelo são filhas do castelo e todo pilar/ponte desce até o chão.
+
+`paladin_test` verifica o Paladino:
+- stats do HTML nas duas versões e `PALADIN_CONFIG` (115 · 2,5 s · 1 s · 1,5 s · 75% · 15 s);
+- provocação no 1º passo, alvo forçado mesmo com outro inimigo mais perto, fora do raio (116) não provoca,
+  expira em 2,5 s, não repete antes de 15 s e repete depois; escudo 1 s depois, travado na direção do inimigo,
+  20 → 5 de dano, dura 1,5 s, só vale para o próprio Paladino; morte libera os provocados;
+- 3 × 3 Paladinos + Guerreiros até o fim; a **luta de referência** Guerreiro Sombra × Guerreiro (semente 97)
+  dá exatamente o mesmo resultado medido antes desta etapa (`ally 20/74 12.025 13`);
+- visual das duas versões: idle firme, walk curto pela distância, preparação/golpe/retorno, provocação,
+  espera/escudo/bloqueio, hit curto, morte de costas com espada e escudo soltos, permanência no chão, e que o
+  visual não altera stats; regra da sombra com o dourado preservado; maior que o Guerreiro sem virar chefe;
+- Sandbox real: botões dos dois Paladinos, vários Paladinos + Guerreiros + Sentinela, combate até o fim com
+  provocações, Reiniciar e Limpar.
 
 `sandbox_test` também cobre as Sentinelas no fluxo real:
 - visual próprio;

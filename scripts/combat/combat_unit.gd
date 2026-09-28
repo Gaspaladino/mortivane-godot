@@ -32,6 +32,11 @@ var projectile: StringName = &""
 var approach_share := CombatSim.APPROACH_SHARE
 ## Lâminas flutuantes da Sentinela Arcana (HTML: arcaneSwords); null = não tem.
 var swords: SentinelSwords = null
+## Provocação + Escudo Sagrado do Paladino (HTML: paladin_taunt_shield); null = não tem.
+var paladin: PaladinTaunt = null
+## Provocada por este Paladino (HTML: tauntedBy/tauntT): enquanto taunt_t > 0 ele é o alvo.
+var taunted_by: CombatUnit = null
+var taunt_t := 0.0
 
 ## Tempo restante até o próximo ataque.
 var cooldown := 0.0
@@ -56,6 +61,8 @@ func _init(p_id: int, p_team: Team, stats: Dictionary, p_position: Vector2) -> v
 		approach_share = CombatSim.RANGED_APPROACH_SHARE
 	if &"arcane_swords" in stats.get("abilities", []):
 		swords = SentinelSwords.new()
+	if &"paladin_taunt_shield" in stats.get("abilities", []):
+		paladin = PaladinTaunt.new()
 	position = p_position
 
 
@@ -92,6 +99,10 @@ func die() -> void:
 	state = State.DEAD
 	target = null
 	cooldown = 0.0
+	taunted_by = null
+	taunt_t = 0.0
+	if paladin:
+		paladin.reset()   # HTML: killUnit → resetPaladinCombat
 
 
 func label() -> String:

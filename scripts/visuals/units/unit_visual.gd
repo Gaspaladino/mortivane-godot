@@ -9,6 +9,7 @@ extends Node2D
 ##                            disparado), no mesmo passo em que a CombatSim o executou
 ##   on_projectile_fired(p) — um projétil desta unidade nasceu (inclui as lâminas da Sentinela)
 ##   on_hit()               — esta unidade acabou de receber dano
+##   on_ability_event(kind) — evento de habilidade desta unidade (ex.: Paladino: taunt, shield, block)
 ## A morte é detectada pelo próprio visual (unit.state == DEAD).
 
 ## Cores padrão de projétil (ProjectileView): {core, glow, dark, trim, shadow}.
@@ -39,6 +40,10 @@ func on_projectile_fired(_projectile: CombatProjectile) -> void:
 
 
 func on_hit() -> void:
+	pass
+
+
+func on_ability_event(_kind: StringName) -> void:
 	pass
 
 

@@ -666,3 +666,46 @@ Limitações:
   o que dobra o custo de desenho das sombras (ainda barato).
 - Só existem duas classes hoje (Guerreiro e Sentinela); paladino/healer etc. usarão a mesma regra quando
   forem criados (`convert(cor, keep)` para os acentos da classe).
+
+### Paladino (vivo e Sombra) ✔
+Pedido (com a arte conceitual "Paladino Vivo / Paladino Sombra"): portar o Paladino **exatamente como no
+HTML** — sem mudar mecânica, números ou função — com visual por código fiel à referência, animações pesadas e
+legíveis, versão Sombra pela regra necromântica (dourado preservado) e integração ao Sandbox.
+
+Portado do HTML (`MortivaneV97.html`):
+- `FACTION_UNITS.sac_paladin`: HP 120, dano 13, alcance 34, recarga 1,2, velocidade 44, raio 14, corpo a
+  corpo, `ability: 'paladin_taunt_shield'`. O `u_sac_paladin` sai de `registerFactionUnits` (mesmos stats e
+  habilidade, HP round(120 × 0,94) = **113**). Nome no Godot: "Paladino Sombra" (no HTML, "Paladino Morto-Vivo").
+- `PALADIN_CONFIG` + `tickPaladinCombat` + `paladinShieldDamage` + `lockPaladinShieldFacing` + `tauntTarget`/
+  `clearTaunt` (em `nearestFoe` e em `killUnit`) → `PaladinTaunt` + ganchos na `CombatSim` (ver
+  `ARCHITECTURE.md`, "Combate"). Mesma ordem do HTML: a passada do Paladino roda antes das unidades.
+- Fora do escopo (ainda não existem no Godot, então não entram): `cost`/`essence`/`wc`/`from`/`tier`
+  (economia e ondas), `stun` e `controlImmune` (nenhuma unidade atual tem), relíquias (`relicShield`), métricas
+  (`behaviorMetric`), sons (`paladinCue` toca sons no HTML) e as camadas de dano que o Paladino não usa
+  (`incomingMul`, `shield`, `tempHp`, espinhos). O corpo a corpo segue o núcleo mínimo (sem separação
+  entre unidades).
+- Diferença de apresentação consciente: o HTML desenha o Paladino num rig 3/4 com lado do escudo fixo
+  (nunca espelha a arte) e o cadáver é um PNG; aqui ele segue a convenção das outras unidades (espelha pela
+  direção) e o cadáver é o próprio rig no chão, com escudo e espada soltos.
+
+Feito:
+- `PaladinVisual` / `ShadowPaladinVisual` (desenho 100% por código) e `PaladinLook` (Inspector); tabelas de
+  animação e de diferenças Vivo × Sombra em `ARCHITECTURE.md`.
+- Eventos de habilidade para o visual: `UnitVisual.on_ability_event(kind)` (via `Battle`/`UnitView`).
+- `UnitDef.visual_look` (opcional, genérico).
+- Sandbox: "Paladino" (inimigos) e "Paladino Sombra" (aliados) aparecem sozinhos (o catálogo lê a pasta).
+
+Validado:
+- 8 suítes OK (combat, visual, sentinel, sandbox, backdrop, menu_click, shadow_visual e a nova paladin_test);
+  `shadow_visual_test` agora cobre também o par Paladino/Paladino Sombra. Nenhum vazamento.
+- `paladin_test`: mutação de teste (redução 75% → 50%) faz o teste falhar; a luta de referência do Guerreiro
+  bate com a medida no commit anterior (`ally 20/74 12.025 13`).
+- Capturas em 1600×896 no Sandbox real (provocação, golpes, mortes) e folha de poses ampliada (idle, walk,
+  preparação, golpe, provocação, escudo, bloqueio, hit, caindo, no chão), mais comparação de escala.
+
+Limitações:
+- O anel da provocação é desenhado no raio real (115); em telas cheias de Paladinos isso pode poluir —
+  `PaladinLook.show_taunt_ring` desliga.
+- Ainda não há sistema de cadáveres: o corpo no chão é só apresentação do visual.
+- Os parâmetros do Inspector ficam num recurso (`paladin_look.tres`); as partes do corpo continuam no código
+  (não são nós separados).

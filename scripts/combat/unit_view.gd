@@ -68,6 +68,10 @@ func on_projectile_fired(p: CombatProjectile) -> void:
 	visual.on_projectile_fired(p)
 
 
+func on_ability_event(kind: StringName) -> void:
+	visual.on_ability_event(kind)
+
+
 ## O ponto (coordenadas do mundo) está sobre o corpo desta unidade?
 func contains_point(world_point: Vector2) -> bool:
 	return visual.pick_rect().has_point(world_point - position)

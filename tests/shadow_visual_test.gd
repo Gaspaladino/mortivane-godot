@@ -12,7 +12,7 @@ var _failures := 0
 func _initialize() -> void:
 	_test_style()
 	_test_catalog_rule()
-	for pair in [[&"warrior", &"u_warrior"], [&"arc_battlemage", &"u_arc_battlemage"]]:
+	for pair in [[&"warrior", &"u_warrior"], [&"arc_battlemage", &"u_arc_battlemage"], [&"sac_paladin", &"u_sac_paladin"]]:
 		_test_pair(pair[0], pair[1])
 	print("shadow_visual_test: %s" % ("OK" if _failures == 0 else "%d falha(s)" % _failures))
 	quit(1 if _failures > 0 else 0)
@@ -56,14 +56,14 @@ func _test_pair(living_id: StringName, shadow_id: StringName) -> void:
 	# mesma classe: mesmo rig/silhueta (área clicável e altura da barra de HP iguais)
 	_check(live.pick_rect() == dead.pick_rect() and is_equal_approx(live.top_y(), dead.top_y()), "%s: mesma silhueta da classe viva" % tag)
 	# corpo convertido: bem mais escuro que o vivo
-	var pairs := {"metal": "metal", "robe": "robe"}
+	var pairs := {"metal": "metal", "robe": "robe", "ivory": "ivory"}
 	for key in pairs:
 		if key in live:
 			var lc: Color = live.get(key)
 			var dc: Color = dead.get(key)
 			_check(dc.get_luminance() < lc.get_luminance() * 0.75, "%s: %s escurecido (%.2f → %.2f)" % [tag, key, lc.get_luminance(), dc.get_luminance()])
 	# energia roxa (olhos/brilho) na sombra
-	var glow_key := "visor_glow" if "visor_glow" in dead else "glow"
+	var glow_key := "visor_glow" if "visor_glow" in dead else ("glow" if "glow" in dead else "holy")
 	var g: Color = dead.get(glow_key)
 	_check(g.a > 0.5 and g.b > g.g and g.r > g.g, "%s: brilho roxo (%s)" % [tag, glow_key])
 	# anima (fumaça/pulsação dependem do tempo) sem mexer na CombatUnit

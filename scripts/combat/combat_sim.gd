@@ -13,7 +13,10 @@ extends RefCounted
 ## Extensões por unidade (só valem para quem as declara; o corpo a corpo não muda):
 ##   - ataque à distância (`unit.projectile`): o ataque dispara um CombatProjectile e o dano
 ##     acontece quando ele acerta (HTML: fireProjectile/updateProjectiles);
-##   - lâminas da Sentinela (`unit.swords`): SentinelSwords.update a cada passo.
+##   - lâminas da Sentinela (`unit.swords`): SentinelSwords.update a cada passo;
+##   - provocação + Escudo Sagrado do Paladino (`unit.paladin`): PaladinTaunt, numa passada
+##     antes das unidades (HTML: tickPaladinCombat antes de updateUnit); o provocado tem o
+##     Paladino como alvo forçado (HTML: tauntTarget em nearestFoe) e o escudo reduz o dano.
 
 ## O ataque básico ACONTECEU (golpe desferido ou projétil disparado). Só para apresentação.
 signal attack_performed(attacker: CombatUnit, target: CombatUnit)
@@ -23,6 +26,10 @@ signal projectile_ended(projectile: CombatProjectile, victim: CombatUnit)
 ## Dano aplicado (corpo a corpo, projétil ou lâmina); `attacker` = quem causou.
 signal unit_attacked(attacker: CombatUnit, target: CombatUnit, amount: float)
 signal unit_died(unit: CombatUnit)
+## Paladino provocou `foes` / ergueu o Escudo Sagrado / o escudo absorveu dano. Só apresentação.
+signal paladin_taunted(paladin: CombatUnit, foes: Array)
+signal paladin_shield_raised(paladin: CombatUnit)
+signal paladin_shield_blocked(paladin: CombatUnit, prevented: float)
 
 ## Passo fixo da batalha (HTML: BATTLE_STEP = 1/120 s).
 const STEP := 1.0 / 120.0
@@ -62,6 +69,7 @@ func add_unit(team: CombatUnit.Team, stats: Dictionary, position: Vector2) -> Co
 
 func step(dt: float) -> void:
 	time += dt
+	_tick_paladins(dt)
 	for unit in units:
 		if unit.is_alive():
 			_update_unit(unit, dt)
@@ -73,12 +81,17 @@ func step(dt: float) -> void:
 func dispose() -> void:
 	for unit in units:
 		unit.target = null
+		unit.taunted_by = null
 	units.clear()
 	projectiles.clear()
 
 
 ## Inimigo vivo mais próximo; empate fica com o primeiro da lista.
+## Provocado por um Paladino: o Paladino (HTML: nearestFoe → tauntTarget).
 func nearest_foe(unit: CombatUnit) -> CombatUnit:
+	var forced := taunt_target(unit)
+	if forced:
+		return forced
 	var best: CombatUnit = null
 	var best_dist := INF
 	for other in units:
@@ -89,6 +102,16 @@ func nearest_foe(unit: CombatUnit) -> CombatUnit:
 			best_dist = d
 			best = other
 	return best
+
+
+## HTML: tauntTarget — o Paladino que provocou esta unidade, se a provocação ainda vale.
+func taunt_target(unit: CombatUnit) -> CombatUnit:
+	var p := unit.taunted_by
+	if unit.taunt_t > 0.0 and p and p.is_valid_target() and p.team != unit.team and p in units:
+		return p
+	if p:
+		_clear_taunt(unit)
+	return null
 
 
 func alive_count(team: CombatUnit.Team) -> int:
@@ -139,10 +162,41 @@ func _attack(attacker: CombatUnit, target: CombatUnit) -> void:
 
 
 func _apply_damage(attacker: CombatUnit, target: CombatUnit, amount: float) -> void:
+	if target.paladin and target.is_alive():   # HTML: damage → paladinShieldDamage
+		var reduced := target.paladin.shield_damage(target, amount)
+		if reduced < amount:
+			paladin_shield_blocked.emit(target, amount - reduced)
+		amount = reduced
 	var applied := target.take_damage(amount)
 	unit_attacked.emit(attacker, target, applied)
 	if not target.is_alive():
+		for v in units:   # HTML: killUnit → clearTaunt de quem este Paladino provocou
+			if v.taunted_by == target:
+				_clear_taunt(v)
 		unit_died.emit(target)
+
+
+## HTML: tickPaladinCombat — uma passada antes de qualquer unidade agir (independe da ordem).
+func _tick_paladins(dt: float) -> void:
+	for u in units:
+		u.taunt_t = maxf(0.0, u.taunt_t - dt)
+		taunt_target(u)
+		if u.paladin and u.paladin.tick(u, self, dt):
+			paladin_shield_raised.emit(u)
+	for u in units:
+		if u.paladin == null:
+			continue
+		var foes := u.paladin.try_taunt(u, self)
+		if not foes.is_empty():
+			paladin_taunted.emit(u, foes)
+
+
+## HTML: clearTaunt.
+func _clear_taunt(u: CombatUnit) -> void:
+	if u.taunted_by and u.target == u.taunted_by:
+		u.target = null
+	u.taunted_by = null
+	u.taunt_t = 0.0
 
 
 func _fire(kind: StringName, owner: CombatUnit, target: CombatUnit, damage: float) -> CombatProjectile:

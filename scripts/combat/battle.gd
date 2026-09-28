@@ -55,6 +55,9 @@ func clear() -> void:
 	sim.unit_attacked.connect(_on_unit_attacked)
 	sim.projectile_fired.connect(_on_projectile_fired)
 	sim.projectile_ended.connect(_on_projectile_ended)
+	sim.paladin_taunted.connect(func(u: CombatUnit, _foes: Array) -> void: _ability_event(u, &"taunt"))
+	sim.paladin_shield_raised.connect(func(u: CombatUnit) -> void: _ability_event(u, &"shield"))
+	sim.paladin_shield_blocked.connect(func(u: CombatUnit, _prevented: float) -> void: _ability_event(u, &"block"))
 	_accumulator = 0.0
 	_running = false
 	_finished = false
@@ -152,6 +155,13 @@ func _on_unit_attacked(_attacker: CombatUnit, target: CombatUnit, _amount: float
 	var view := view_of(target)
 	if view:
 		view.on_hit()
+
+
+## Evento de habilidade (provocação, escudo…): só apresentação.
+func _ability_event(unit: CombatUnit, kind: StringName) -> void:
+	var view := view_of(unit)
+	if view:
+		view.on_ability_event(kind)
 
 
 func _on_projectile_fired(p: CombatProjectile) -> void:

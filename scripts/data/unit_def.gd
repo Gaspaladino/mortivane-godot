@@ -31,6 +31,8 @@ extends Resource
 @export var trim_color := Color(0.9, 0.9, 0.9)
 ## Versões sombra (u_*): estilo da conversão necromântica. Vazio = data/visuals/shadow_style.tres.
 @export var shadow_style: ShadowStyle
+## Parâmetros visuais próprios da unidade (ex.: PaladinLook), editáveis no Inspector. Opcional.
+@export var visual_look: Resource
 
 ## Chaves de atributo que podem ser sobrescritas por instância (Sandbox).
 const EDITABLE_STATS := ["hp", "dmg", "range", "cd", "speed"]
