@@ -1,13 +1,15 @@
 extends SceneTree
-## Teste headless do Paladino Vivo com sprite sheet (PaladinSpriteVisual): recurso SpriteFrames,
+## Teste headless do Paladino Vivo com sprite sheets (PaladinSpriteVisual): recurso SpriteFrames,
 ## contrato de pivô (sem pulo entre animações), escala, e a escolha da animação pelo estado REAL
-## (idle, walk, attack sincronizado com o dano, defend, taunt, hit, death parado no último frame).
+## (idle, walk, attack sincronizado com o dano, defend/defend_hold/defend_block, taunt, dano só
+## pisca, death parado no último frame).
 ## O visual só lê a CombatUnit: nada de gameplay muda.
 ##   godot --headless -s res://tests/paladin_sprite_test.gd
 
 const VDT := 1.0 / 60.0
-const EXPECTED := {idle = [6, true], walk = [8, true], attack = [6, false], defend = [4, false],
-	taunt = [3, false], hit = [3, false], death = [6, false]}
+const DIR := "res://assets/units/paladin/"
+const EXPECTED := {idle = [8, true], walk = [8, true], attack = [8, false], defend = [4, false],
+	defend_hold = [4, true], defend_block = [2, false], taunt = [2, false], death = [8, false]}
 
 var _failures := 0
 
@@ -33,48 +35,64 @@ func _test_resources() -> void:
 	_check(def.visual_scene != null and def.visual_scene.resource_path == "res://scenes/units/paladin_sprite_visual.tscn", "Paladino Vivo usa a cena de sprites")
 	_check(def.visual_script == PaladinVisual, "visual por código continua como fallback")
 	_check(UnitCatalog.get_def(&"u_sac_paladin").visual_scene == null and UnitCatalog.get_def(&"u_sac_paladin").visual_script == ShadowPaladinVisual, "Paladino Sombra continua no visual atual")
-	var sf: SpriteFrames = load("res://assets/sprites/paladin_live/paladin_live_frames.tres")
+	var sf: SpriteFrames = load(DIR + "paladin_frames.tres")
+	_check(Array(sf.get_animation_names()).size() == EXPECTED.size() and not sf.has_animation(&"hit"), "só as animações do contrato (sem hit)")
 	for anim in EXPECTED:
 		_check(sf.has_animation(anim), "animação %s existe" % anim)
 		if sf.has_animation(anim):
 			_check(sf.get_frame_count(anim) == EXPECTED[anim][0] and sf.get_animation_loop(anim) == EXPECTED[anim][1],
 				"%s: %d frames, loop=%s" % [anim, EXPECTED[anim][0], EXPECTED[anim][1]])
-	var tex: Texture2D = load("res://assets/sprites/paladin_live/paladin_live_atlas.png")
-	_check(tex.get_size() == Vector2(320 * 8, 208 * 7), "atlas 8 × 7 células de 320 × 208")
-	var imp := FileAccess.get_file_as_string("res://assets/sprites/paladin_live/paladin_live_atlas.png.import")
-	_check(imp.contains("mipmaps/generate=true"), "atlas com mipmaps (reduzido ~2× no jogo sem serrilhar)")
+	var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(DIR + "paladin_frames.json"))
+	var cell := Vector2(meta.cell[0], meta.cell[1])
+	var tex: Texture2D = load(DIR + "paladin_atlas.png")
+	_check(tex.get_size() == Vector2(cell.x * 8, cell.y * 5), "atlas 8 × 5 células de %s" % cell)
+	var imp := FileAccess.get_file_as_string(DIR + "paladin_atlas.png.import")
+	_check(imp.contains("mipmaps/generate=true"), "atlas com mipmaps (reduzido ~3× no jogo sem serrilhar)")
+	# o visual usa o contrato gerado pelo fatiador
+	var v: PaladinSpriteVisual = load("res://scenes/units/paladin_sprite_visual.tscn").instantiate()
+	_check(v.frame_size == cell and v.frame_pivot == Vector2(meta.pivot[0], meta.pivot[1]), "cena com a célula e o pivô do contrato")
+	_check(v.attack_impact_frame == int(meta.attack_impact_frame), "frame de impacto do contrato (%d)" % v.attack_impact_frame)
+	_check(v.frames == sf, "cena usa o SpriteFrames novo")
+	v.free()
+	# as sheets de origem ficam fora da importação do Godot
+	_check(FileAccess.file_exists(DIR + "source/.gdignore") and FileAccess.file_exists(DIR + "source/paladin_attack.png"), "sheets originais guardadas em source/ (sem importar)")
 
 
-## Em todos os frames de pé, os pés (base do corpo sólido) ficam no pivô da célula (±4 px):
-## trocar de animação não faz o Paladino pular.
+## Em todos os frames de pé, o chão (última linha com massa de corpo; ponta de espada não conta)
+## fica na linha do pivô (±2 px), e no idle os pés ficam centrados no pivô: trocar de animação não
+## faz o Paladino pular nem afundar.
 func _test_pivot_contract() -> void:
-	var img: Image = (load("res://assets/sprites/paladin_live/paladin_live_atlas.png") as Texture2D).get_image()
+	var img: Image = (load(DIR + "paladin_atlas.png") as Texture2D).get_image()
 	if img.is_compressed():
 		img.decompress()
-	var sf: SpriteFrames = load("res://assets/sprites/paladin_live/paladin_live_frames.tres")
-	var pivot := Vector2i(160, 192)
+	var sf: SpriteFrames = load(DIR + "paladin_frames.tres")
+	var v: PaladinSpriteVisual = load("res://scenes/units/paladin_sprite_visual.tscn").instantiate()
+	var pivot := Vector2i(v.frame_pivot)
+	v.free()
 	var worst_y := 0
-	var worst_x := 0
-	for anim in [&"idle", &"walk", &"attack", &"defend", &"taunt", &"hit"]:
+	var worst_idle_x := 0
+	for anim in [&"idle", &"walk", &"attack", &"defend", &"defend_hold", &"defend_block", &"taunt"]:
 		for i in sf.get_frame_count(anim):
-			var region := (sf.get_frame_texture(anim, i) as AtlasTexture).region
+			var region := Rect2i((sf.get_frame_texture(anim, i) as AtlasTexture).region)
 			var bottom := -1
-			for y in range(int(region.size.y) - 1, -1, -1):
-				for x in int(region.size.x):
-					if img.get_pixel(int(region.position.x) + x, int(region.position.y) + y).a > 0.78:
-						bottom = y
-						break
-				if bottom >= 0:
+			for y in range(region.size.y - 1, -1, -1):
+				var count := 0
+				for x in region.size.x:
+					if img.get_pixel(region.position.x + x, region.position.y + y).a > 0.78:
+						count += 1
+				if count >= 15:
+					bottom = y
 					break
-			var xs := []
-			for y in range(bottom - 6, bottom + 1):
-				for x in int(region.size.x):
-					if img.get_pixel(int(region.position.x) + x, int(region.position.y) + y).a > 0.78:
-						xs.append(x)
-			var cx := int(round((xs.min() + xs.max()) / 2.0))
 			worst_y = maxi(worst_y, absi(bottom - pivot.y))
-			worst_x = maxi(worst_x, absi(cx - pivot.x))
-	_check(worst_y <= 4 and worst_x <= 4, "pés no pivô em todos os frames de pé (desvio máx. %d px em y, %d em x)" % [worst_y, worst_x])
+			if anim == &"idle":
+				var xs := []
+				for y in range(bottom - 5, bottom + 1):
+					for x in region.size.x:
+						if img.get_pixel(region.position.x + x, region.position.y + y).a > 0.78:
+							xs.append(x)
+				worst_idle_x = maxi(worst_idle_x, absi(int(round((xs.min() + xs.max()) / 2.0)) - pivot.x))
+	_check(worst_y <= 2, "chão no pivô em todos os frames de pé (desvio máx. %d px)" % worst_y)
+	_check(worst_idle_x <= 2, "idle: pés centrados no pivô (desvio máx. %d px)" % worst_idle_x)
 
 
 # --- Estados ----------------------------------------------------------------------------------
@@ -139,19 +157,19 @@ func _test_states() -> void:
 	v.on_attack_performed()
 	_check(s.animation == &"attack" and s.frame == v.attack_impact_frame and s.is_playing(), "frame de impacto no instante do dano")
 	v.on_hit()
-	_check(v.mode == &"attack", "hit durante o golpe só pisca (não interrompe)")
+	_check(v.mode == &"attack", "dano durante o golpe só pisca (não interrompe)")
 	v._on_animation_finished()
 	_tick(v, VDT)
 	u.target = null
 	u.state = CombatUnit.State.IDLE
 	_tick(v, VDT)
 	_check(v.mode == &"idle", "depois do golpe volta ao idle")
-	# HIT
+	# DANO: não há sheet de hit → pisca e recua um pouco, sem trocar a animação
 	v.on_hit()
-	_check(v.mode == &"hit" and s.animation == &"hit", "dano → hit")
-	v._on_animation_finished()
 	_tick(v, VDT)
-	_check(v.mode == &"idle", "hit é curto e volta")
+	_check(v.mode == &"idle" and s.modulate != Color.WHITE and s.position.x != 0.0, "dano → pisca e recua (sem trocar a animação)")
+	_tick(v, 0.2)
+	_check(s.modulate == Color.WHITE and s.position == Vector2(0, v.foot_y), "o recuo volta ao lugar")
 	# TAUNT (evento real)
 	v.on_ability_event(&"taunt")
 	_tick(v, VDT)
@@ -162,18 +180,23 @@ func _test_states() -> void:
 	# DEFEND: espera do escudo, escudo ativo, bloqueio
 	u.paladin.delay = 0.5
 	_tick(v, VDT)
-	_check(v.mode == &"defend" and s.frame == 0 and not s.is_playing(), "espera do escudo → ergue o escudo (frame 0)")
+	_check(v.mode == &"defend" and s.frame == 0 and not s.is_playing(), "espera do escudo → guarda erguida (defend, frame 0)")
 	u.paladin.delay = -1.0
 	u.paladin.shield_t = 1.0
 	u.paladin.facing = Vector2(1, 0)
 	v.on_ability_event(&"shield")
 	_tick(v, VDT)
-	_check(v.mode == &"defend" and s.frame >= 1, "escudo sobe → clarão da guarda")
+	_check(v.mode == &"defend" and s.frame >= 1 and s.is_playing(), "escudo sobe → giro e clarão (defend)")
 	v._on_animation_finished()
-	_check(s.frame == 3 and not s.is_playing(), "segura a guarda enquanto o escudo está ativo")
+	_tick(v, VDT)
+	_check(v.mode == &"defend_hold" and s.animation == &"defend_hold" and s.is_playing(), "segura a guarda em loop enquanto o escudo está ativo")
 	v.on_ability_event(&"block")
 	v.on_hit()
-	_check(v.mode == &"defend" and s.frame == 1, "bloqueio (dano reduzido) → clarão; o hit não quebra a guarda")
+	_tick(v, VDT)
+	_check(v.mode == &"defend_block" and s.animation == &"defend_block", "bloqueio (dano reduzido) → clarão; o dano não quebra a guarda")
+	v._on_animation_finished()
+	_tick(v, VDT)
+	_check(v.mode == &"defend_hold", "depois do clarão volta à guarda")
 	u.paladin.shield_t = 0.0
 	_tick(v, 0.3)
 	_check(v.mode == &"idle", "escudo acabou → idle")
@@ -205,7 +228,7 @@ func _test_death_holds() -> void:
 		await process_frame
 		t += get_root().get_process_delta_time()
 	await _frames(10)
-	_check(v.sprite.animation == &"death" and v.sprite.frame == 5 and not v.sprite.is_playing(), "death para no último frame (%s %d)" % [v.sprite.animation, v.sprite.frame])
+	_check(v.sprite.animation == &"death" and v.sprite.frame == 7 and not v.sprite.is_playing(), "death para no último frame (%s %d)" % [v.sprite.animation, v.sprite.frame])
 	_check(v.pick_rect().size.x > v.pick_rect().size.y, "área clicável do corpo deitado")
 	_check(is_instance_valid(view) and view.is_inside_tree(), "o corpo continua no campo")
 	view.queue_free()

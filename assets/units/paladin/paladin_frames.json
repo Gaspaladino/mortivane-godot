@@ -1,0 +1,930 @@
+{
+ "sources": {
+  "idle": {
+   "file": "source/paladin_idle.png",
+   "scale": 0.5
+  },
+  "walk": {
+   "file": "source/paladin_walk.png",
+   "scale": 0.4425
+  },
+  "attack": {
+   "file": "source/paladin_attack.png",
+   "scale": 0.5291
+  },
+  "defend": {
+   "file": "source/paladin_defend.png",
+   "scale": 0.4167
+  },
+  "death": {
+   "file": "source/paladin_death.png",
+   "scale": 0.5435
+  }
+ },
+ "cell": [
+  246,
+  186
+ ],
+ "pivot": [
+  123,
+  161
+ ],
+ "pivot_note": "centro entre os p\u00e9s, no ch\u00e3o",
+ "attack_impact_frame": 4,
+ "art_height": 128.0,
+ "art_body_width": 108.5,
+ "animations": [
+  {
+   "name": "idle",
+   "fps": 7.0,
+   "loop": true,
+   "frames": [
+    {
+     "sheet": "source/paladin_idle.png",
+     "index": 0,
+     "source_rect": [
+      10,
+      222,
+      232,
+      260
+     ],
+     "source_pivot": [
+      126,
+      479
+     ],
+     "scale": 0.5,
+     "cell": [
+      0,
+      0
+     ]
+    },
+    {
+     "sheet": "source/paladin_idle.png",
+     "index": 1,
+     "source_rect": [
+      258,
+      206,
+      236,
+      276
+     ],
+     "source_pivot": [
+      380,
+      479
+     ],
+     "scale": 0.5,
+     "cell": [
+      1,
+      0
+     ]
+    },
+    {
+     "sheet": "source/paladin_idle.png",
+     "index": 2,
+     "source_rect": [
+      500,
+      221,
+      241,
+      261
+     ],
+     "source_pivot": [
+      629,
+      479
+     ],
+     "scale": 0.5,
+     "cell": [
+      2,
+      0
+     ]
+    },
+    {
+     "sheet": "source/paladin_idle.png",
+     "index": 3,
+     "source_rect": [
+      744,
+      213,
+      254,
+      269
+     ],
+     "source_pivot": [
+      875,
+      479
+     ],
+     "scale": 0.5,
+     "cell": [
+      3,
+      0
+     ]
+    },
+    {
+     "sheet": "source/paladin_idle.png",
+     "index": 4,
+     "source_rect": [
+      998,
+      214,
+      241,
+      268
+     ],
+     "source_pivot": [
+      1124,
+      479
+     ],
+     "scale": 0.5,
+     "cell": [
+      4,
+      0
+     ]
+    },
+    {
+     "sheet": "source/paladin_idle.png",
+     "index": 5,
+     "source_rect": [
+      1254,
+      211,
+      242,
+      271
+     ],
+     "source_pivot": [
+      1375,
+      479
+     ],
+     "scale": 0.5,
+     "cell": [
+      5,
+      0
+     ]
+    },
+    {
+     "sheet": "source/paladin_idle.png",
+     "index": 6,
+     "source_rect": [
+      1504,
+      218,
+      234,
+      264
+     ],
+     "source_pivot": [
+      1628,
+      479
+     ],
+     "scale": 0.5,
+     "cell": [
+      6,
+      0
+     ]
+    },
+    {
+     "sheet": "source/paladin_idle.png",
+     "index": 7,
+     "source_rect": [
+      1756,
+      221,
+      234,
+      261
+     ],
+     "source_pivot": [
+      1875,
+      479
+     ],
+     "scale": 0.5,
+     "cell": [
+      7,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "name": "walk",
+   "fps": 10.0,
+   "loop": true,
+   "frames": [
+    {
+     "sheet": "source/paladin_walk.png",
+     "index": 0,
+     "source_rect": [
+      20,
+      203,
+      237,
+      278
+     ],
+     "source_pivot": [
+      144,
+      477
+     ],
+     "scale": 0.4425,
+     "cell": [
+      0,
+      1
+     ]
+    },
+    {
+     "sheet": "source/paladin_walk.png",
+     "index": 1,
+     "source_rect": [
+      267,
+      194,
+      236,
+      293
+     ],
+     "source_pivot": [
+      392,
+      483
+     ],
+     "scale": 0.4425,
+     "cell": [
+      1,
+      1
+     ]
+    },
+    {
+     "sheet": "source/paladin_walk.png",
+     "index": 2,
+     "source_rect": [
+      509,
+      196,
+      253,
+      294
+     ],
+     "source_pivot": [
+      648,
+      485
+     ],
+     "scale": 0.4425,
+     "cell": [
+      2,
+      1
+     ]
+    },
+    {
+     "sheet": "source/paladin_walk.png",
+     "index": 3,
+     "source_rect": [
+      765,
+      194,
+      245,
+      294
+     ],
+     "source_pivot": [
+      897,
+      485
+     ],
+     "scale": 0.4425,
+     "cell": [
+      3,
+      1
+     ]
+    },
+    {
+     "sheet": "source/paladin_walk.png",
+     "index": 4,
+     "source_rect": [
+      1021,
+      197,
+      242,
+      292
+     ],
+     "source_pivot": [
+      1149,
+      485
+     ],
+     "scale": 0.4425,
+     "cell": [
+      4,
+      1
+     ]
+    },
+    {
+     "sheet": "source/paladin_walk.png",
+     "index": 5,
+     "source_rect": [
+      1268,
+      195,
+      249,
+      293
+     ],
+     "source_pivot": [
+      1404,
+      484
+     ],
+     "scale": 0.4425,
+     "cell": [
+      5,
+      1
+     ]
+    },
+    {
+     "sheet": "source/paladin_walk.png",
+     "index": 6,
+     "source_rect": [
+      1508,
+      193,
+      252,
+      295
+     ],
+     "source_pivot": [
+      1646,
+      484
+     ],
+     "scale": 0.4425,
+     "cell": [
+      6,
+      1
+     ]
+    },
+    {
+     "sheet": "source/paladin_walk.png",
+     "index": 7,
+     "source_rect": [
+      1762,
+      192,
+      232,
+      296
+     ],
+     "source_pivot": [
+      1884,
+      484
+     ],
+     "scale": 0.4425,
+     "cell": [
+      7,
+      1
+     ]
+    }
+   ]
+  },
+  {
+   "name": "attack",
+   "fps": 14.0,
+   "loop": false,
+   "frames": [
+    {
+     "sheet": "source/paladin_attack.png",
+     "index": 0,
+     "source_rect": [
+      16,
+      267,
+      225,
+      221
+     ],
+     "source_pivot": [
+      129,
+      484
+     ],
+     "scale": 0.5291,
+     "cell": [
+      0,
+      2
+     ]
+    },
+    {
+     "sheet": "source/paladin_attack.png",
+     "index": 1,
+     "source_rect": [
+      228,
+      188,
+      238,
+      300
+     ],
+     "source_pivot": [
+      359,
+      484
+     ],
+     "scale": 0.5291,
+     "cell": [
+      1,
+      2
+     ]
+    },
+    {
+     "sheet": "source/paladin_attack.png",
+     "index": 2,
+     "source_rect": [
+      462,
+      193,
+      269,
+      295
+     ],
+     "source_pivot": [
+      591,
+      484
+     ],
+     "scale": 0.5291,
+     "cell": [
+      2,
+      2
+     ]
+    },
+    {
+     "sheet": "source/paladin_attack.png",
+     "index": 3,
+     "source_rect": [
+      697,
+      237,
+      350,
+      252
+     ],
+     "source_pivot": [
+      823,
+      485
+     ],
+     "scale": 0.5291,
+     "cell": [
+      3,
+      2
+     ]
+    },
+    {
+     "sheet": "source/paladin_attack.png",
+     "index": 4,
+     "source_rect": [
+      1018,
+      255,
+      258,
+      265
+     ],
+     "source_pivot": [
+      1120,
+      487
+     ],
+     "scale": 0.5291,
+     "cell": [
+      4,
+      2
+     ]
+    },
+    {
+     "sheet": "source/paladin_attack.png",
+     "index": 5,
+     "source_rect": [
+      1234,
+      234,
+      291,
+      256
+     ],
+     "source_pivot": [
+      1350,
+      486
+     ],
+     "scale": 0.5291,
+     "cell": [
+      5,
+      2
+     ]
+    },
+    {
+     "sheet": "source/paladin_attack.png",
+     "index": 6,
+     "source_rect": [
+      1513,
+      268,
+      237,
+      220
+     ],
+     "source_pivot": [
+      1633,
+      484
+     ],
+     "scale": 0.5291,
+     "cell": [
+      6,
+      2
+     ]
+    },
+    {
+     "sheet": "source/paladin_attack.png",
+     "index": 7,
+     "source_rect": [
+      1747,
+      270,
+      235,
+      218
+     ],
+     "source_pivot": [
+      1867,
+      484
+     ],
+     "scale": 0.5291,
+     "cell": [
+      7,
+      2
+     ]
+    }
+   ]
+  },
+  {
+   "name": "defend",
+   "fps": 12.0,
+   "loop": false,
+   "frames": [
+    {
+     "sheet": "source/paladin_defend.png",
+     "index": 0,
+     "source_rect": [
+      149,
+      21,
+      262,
+      293
+     ],
+     "source_pivot": [
+      276,
+      310
+     ],
+     "scale": 0.4167,
+     "cell": [
+      0,
+      3
+     ]
+    },
+    {
+     "sheet": "source/paladin_defend.png",
+     "index": 1,
+     "source_rect": [
+      588,
+      21,
+      402,
+      291
+     ],
+     "source_pivot": [
+      752,
+      309
+     ],
+     "scale": 0.4167,
+     "cell": [
+      1,
+      3
+     ]
+    },
+    {
+     "sheet": "source/paladin_defend.png",
+     "index": 2,
+     "source_rect": [
+      1032,
+      12,
+      461,
+      303
+     ],
+     "source_pivot": [
+      1229,
+      312
+     ],
+     "scale": 0.4167,
+     "cell": [
+      2,
+      3
+     ]
+    },
+    {
+     "sheet": "source/paladin_defend.png",
+     "index": 3,
+     "source_rect": [
+      1536,
+      40,
+      429,
+      276
+     ],
+     "source_pivot": [
+      1755,
+      312
+     ],
+     "scale": 0.4167,
+     "cell": [
+      3,
+      3
+     ]
+    }
+   ]
+  },
+  {
+   "name": "defend_hold",
+   "fps": 6.0,
+   "loop": true,
+   "frames": [
+    {
+     "sheet": "source/paladin_defend.png",
+     "index": 4,
+     "source_rect": [
+      99,
+      324,
+      330,
+      313
+     ],
+     "source_pivot": [
+      272,
+      634
+     ],
+     "scale": 0.4167,
+     "cell": [
+      4,
+      3
+     ]
+    },
+    {
+     "sheet": "source/paladin_defend.png",
+     "index": 5,
+     "source_rect": [
+      569,
+      354,
+      367,
+      283
+     ],
+     "source_pivot": [
+      726,
+      635
+     ],
+     "scale": 0.4167,
+     "cell": [
+      5,
+      3
+     ]
+    },
+    {
+     "sheet": "source/paladin_defend.png",
+     "index": 6,
+     "source_rect": [
+      1089,
+      338,
+      317,
+      302
+     ],
+     "source_pivot": [
+      1263,
+      636
+     ],
+     "scale": 0.4167,
+     "cell": [
+      6,
+      3
+     ]
+    },
+    {
+     "sheet": "source/paladin_defend.png",
+     "index": 7,
+     "source_rect": [
+      1610,
+      338,
+      292,
+      301
+     ],
+     "source_pivot": [
+      1761,
+      636
+     ],
+     "scale": 0.4167,
+     "cell": [
+      7,
+      3
+     ]
+    }
+   ]
+  },
+  {
+   "name": "defend_block",
+   "fps": 12.0,
+   "loop": false,
+   "frames": [
+    {
+     "sheet": "source/paladin_defend.png",
+     "index": 2,
+     "source_rect": [
+      1032,
+      12,
+      461,
+      303
+     ],
+     "source_pivot": [
+      1229,
+      312
+     ],
+     "scale": 0.4167,
+     "cell": [
+      2,
+      3
+     ]
+    },
+    {
+     "sheet": "source/paladin_defend.png",
+     "index": 3,
+     "source_rect": [
+      1536,
+      40,
+      429,
+      276
+     ],
+     "source_pivot": [
+      1755,
+      312
+     ],
+     "scale": 0.4167,
+     "cell": [
+      3,
+      3
+     ]
+    }
+   ]
+  },
+  {
+   "name": "taunt",
+   "fps": 6.0,
+   "loop": false,
+   "frames": [
+    {
+     "sheet": "source/paladin_defend.png",
+     "index": 1,
+     "source_rect": [
+      588,
+      21,
+      402,
+      291
+     ],
+     "source_pivot": [
+      752,
+      309
+     ],
+     "scale": 0.4167,
+     "cell": [
+      1,
+      3
+     ]
+    },
+    {
+     "sheet": "source/paladin_defend.png",
+     "index": 0,
+     "source_rect": [
+      149,
+      21,
+      262,
+      293
+     ],
+     "source_pivot": [
+      276,
+      310
+     ],
+     "scale": 0.4167,
+     "cell": [
+      0,
+      3
+     ]
+    }
+   ]
+  },
+  {
+   "name": "death",
+   "fps": 8.0,
+   "loop": false,
+   "frames": [
+    {
+     "sheet": "source/paladin_death.png",
+     "index": 0,
+     "source_rect": [
+      13,
+      281,
+      198,
+      250
+     ],
+     "source_pivot": [
+      106,
+      527
+     ],
+     "scale": 0.5435,
+     "cell": [
+      0,
+      4
+     ]
+    },
+    {
+     "sheet": "source/paladin_death.png",
+     "index": 1,
+     "source_rect": [
+      223,
+      321,
+      189,
+      227
+     ],
+     "source_pivot": [
+      311,
+      527
+     ],
+     "scale": 0.5435,
+     "cell": [
+      1,
+      4
+     ]
+    },
+    {
+     "sheet": "source/paladin_death.png",
+     "index": 2,
+     "source_rect": [
+      443,
+      329,
+      199,
+      218
+     ],
+     "source_pivot": [
+      538,
+      527
+     ],
+     "scale": 0.5435,
+     "cell": [
+      2,
+      4
+     ]
+    },
+    {
+     "sheet": "source/paladin_death.png",
+     "index": 3,
+     "source_rect": [
+      652,
+      354,
+      225,
+      197
+     ],
+     "source_pivot": [
+      766,
+      527
+     ],
+     "scale": 0.5435,
+     "cell": [
+      3,
+      4
+     ]
+    },
+    {
+     "sheet": "source/paladin_death.png",
+     "index": 4,
+     "source_rect": [
+      886,
+      352,
+      279,
+      186
+     ],
+     "source_pivot": [
+      1030,
+      527
+     ],
+     "scale": 0.5435,
+     "cell": [
+      4,
+      4
+     ]
+    },
+    {
+     "sheet": "source/paladin_death.png",
+     "index": 5,
+     "source_rect": [
+      1173,
+      386,
+      275,
+      175
+     ],
+     "source_pivot": [
+      1304,
+      527
+     ],
+     "scale": 0.5435,
+     "cell": [
+      5,
+      4
+     ]
+    },
+    {
+     "sheet": "source/paladin_death.png",
+     "index": 6,
+     "source_rect": [
+      1443,
+      401,
+      261,
+      151
+     ],
+     "source_pivot": [
+      1558,
+      527
+     ],
+     "scale": 0.5435,
+     "cell": [
+      6,
+      4
+     ]
+    },
+    {
+     "sheet": "source/paladin_death.png",
+     "index": 7,
+     "source_rect": [
+      1702,
+      430,
+      287,
+      134
+     ],
+     "source_pivot": [
+      1821,
+      527
+     ],
+     "scale": 0.5435,
+     "cell": [
+      7,
+      4
+     ]
+    }
+   ]
+  }
+ ]
+}

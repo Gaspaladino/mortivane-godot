@@ -64,8 +64,8 @@ res://
   assets/art/arena_layers/           # primeiro plano extraído da arte (chão, laterais, estandartes, velas)
   tools/arena_backdrop/build_layers.py  # extrai o primeiro plano (Python, só desenvolvimento)
   tools/arena_backdrop/generate_backdrop_scene.gd  # gera arena_backdrop.tscn UMA vez (depois: editar no editor)
-  tools/sprites/slice_paladin_live.py  # fatia a sprite sheet aprovada do Paladino Vivo (atlas + SpriteFrames)
-  assets/sprites/paladin_live/        # sheet original (source/), atlas alinhado pelo pivô, frames, JSON, SpriteFrames
+  tools/sprites/slice_paladin_sheets.py  # fatia as 5 sprite sheets do Paladino Vivo (atlas + SpriteFrames + JSON)
+  assets/units/paladin/               # Paladino Vivo: source/ (sheets originais, .gdignore), atlas, SpriteFrames, JSON
   scenes/units/paladin_sprite_visual.tscn  # visual do Paladino Vivo por sprites (Shadow · Sprite · Effects)
   tools/sprites/render_paladin_pilot.gd  # PROTÓTIPO (superado pela sheet aprovada): pinta e exporta a sprite sheet piloto do Paladino Vivo (3/4)
   assets/sprites/paladin_live_pilot/  # sheet (Idle 6 · Walk 8 · Attack 8), frames, sombra, SpriteFrames, JSON do contrato
@@ -427,47 +427,62 @@ porta 1:1 de `drawArcaneSentinel`.
 | Hit | 0,2 s: recuo, compressão, clarão, ponta do chapéu treme, lâminas desestabilizam | clarão lilás, o corpo tremula (translúcido) e a fumaça explode |
 | Morte | perde a sustentação, a magia se apaga, o manto colapsa com peso, o chapéu cai ao lado; as lâminas caem girando e se desfazem em faíscas; o monte fica no chão | sobe e se agita, colapsa se desfazendo (fica translúcida), fumaça sobe e as lâminas se partem em fragmentos |
 
-### Paladino Vivo por sprite sheet (visual padrão do `sac_paladin`)
+### Paladino Vivo por sprite sheets (visual padrão do `sac_paladin`)
 
-A arte aprovada (`assets/sprites/paladin_live/source/paladin_live_sheet_source.png`, 1125 × 844, fundo
-transparente, frames de larguras diferentes, sem grade) é fatiada por `tools/sprites/slice_paladin_live.py`:
-- cada linha é uma faixa de y e cada frame um intervalo de x, medidos por projeção do alfa;
-- os pedaços opacos (alfa > 100) vão inteiros para o frame onde está o centro — os arcos do golpe e os brilhos
-  não são cortados nem aparecem no vizinho; pedaços que tocam dois frames são divididos na linha de corte
-  (no ataque, uma polilinha que contorna a capa que passa por baixo do arco); o brilho fraco segue o pixel
-  opaco mais próximo; lascas soltas pequenas são descartadas;
-- **pivô** de cada frame = centro entre os pés no chão (base do corpo sólido; x = meio das últimas 8 linhas);
-  na morte (deitado), x = meio do corpo;
-- todos os frames vão para **células de 320 × 208 com o pivô em (160, 192)**, sem redimensionar a arte
-  (atlas 8 × 7); o teste confere que os pés ficam no pivô (±4 px) em todos os frames de pé.
+Arte aprovada: cinco sheets em `assets/units/paladin/source/` (`paladin_idle.png`, `paladin_walk.png`,
+`paladin_attack.png`, `paladin_defend.png`, `paladin_death.png`; 2000 × 667, fundo **já transparente** com
+borda suave — nada de fundo preto para remover). A pasta tem `.gdignore`: o Godot não importa as originais.
+`tools/sprites/slice_paladin_sheets.py` gera `paladin_atlas.png`, `paladin_frames.tres` e `paladin_frames.json`:
+- **cortes** entre frames medidos na imagem: reta vertical ou polilinha (no ataque os arcos atravessam a
+  coluna do vizinho; o corte entre o 4º e o 5º frame segue o contorno da capa e o fim do arco some em 16 px
+  em vez de terminar numa reta — `feather`); pedaços opacos pequenos do lado errado vão para o frame cuja
+  massa está mais perto; o brilho fraco segue o pixel opaco mais próximo;
+- **escala por sheet**: as sheets vieram em tamanhos diferentes (defesa ~20% maior, caminhada ~13% maior,
+  ataque ~5% e morte ~8% menores que o idle). `scale` iguala tudo ao idle — medido casando o elmo do idle em
+  várias escalas com cada sheet (`cv2.matchTemplate`);
+- **pivô** = pés no chão. y = última linha com ≥ 30 px sólidos (ponta de espada não conta); x = registro do
+  frame contra o frame 0 da sheet, pela sobreposição de uma faixa do corpo — `feet` (idle, ataque, defesa:
+  faixa das pernas, os pés não se mexem), `torso` (walk: o tronco não balança, as pernas alternam), `chain`
+  (morte: corpo inteiro contra o frame anterior, mesmo chão da sheet);
+- redução ~2× (`INTER_AREA` com alfa pré-multiplicado: sem franja escura) para **células de 246 × 186 com o
+  pivô em (123, 161)**, pivô no meio da largura (espelhar não desloca); atlas 8 × 5 com mipmaps. Cada frame
+  de origem vira uma célula; as animações só apontam para as células (defend, defend_block e taunt
+  reaproveitam frames da sheet de defesa).
 
-| Animação | Frames (linha da sheet) | FPS | Loop | Uso (estado real) |
+| Animação | Frames (sheet) | FPS | Loop | Uso (estado real) |
 |---|---|---|---|---|
-| `idle` | 6 (linha 1) | 6 | sim | parado |
-| `walk` | 8 (linha 2) | 10 × (velocidade real ÷ 44) | sim | andando |
-| `attack` | 6 (linha 3) | 12 | não | golpe; **frame 3 = impacto**, mostrado no evento real de dano |
-| `defend` | 4 (linha 4, esq.) | 10 | não (segura o último) | espera do escudo (frame 0), escudo sobe / bloqueio (1–2 clarão), guarda (3) |
-| `taunt` | 3 (linha 4, dir.) | 8 | não | evento real da provocação |
-| `hit` | 3 (linha 5) | 12 | não | dano recebido |
-| `death` | 6 (linha 6) | 8 | não (para no último) | morto; o último frame é o corpo no campo |
+| `idle` | idle 0–7 | 7 | sim | parado (a auréola pulsa nos frames ímpares) |
+| `walk` | walk 0–7 | 10 × (velocidade real ÷ 44) | sim | andando |
+| `attack` | attack 0–7 | 14 | não | golpe; **frame 4 = impacto** (clarão), mostrado no evento real de dano |
+| `defend` | defend 0–3 (linha de cima) | 12 | não | espera do escudo = frame 0 parado; escudo sobe = 1–3 (giro, clarão da bênção) |
+| `defend_hold` | defend 4–7 (linha de baixo) | 6 | sim | guarda firme enquanto o escudo está ativo |
+| `defend_block` | defend 2–3 | 12 | não | o escudo absorve um golpe (evento `block`); volta ao `defend_hold` |
+| `taunt` | defend 1, 0 | 6 | não | evento da provocação: giro do escudo e volta à guarda (o anel mostra o raio real 115) |
+| `death` | death 0–7 | 8 | não (para no último) | morto; o último frame é o corpo no campo |
+
+Não há sheet de **hit**: o dano pisca a arte e dá um recuo curto (2,5 px × escala), sem trocar a animação.
 
 `PaladinSpriteVisual` (cena `scenes/units/paladin_sprite_visual.tscn`: `Shadow` · `Sprite` · `Effects`):
-- só lê o estado: morto → death; provocação → taunt; golpe → attack; bloqueio → defend (clarão);
-  dano → hit (no golpe, na provocação e na guarda do escudo só pisca); espera/escudo → defend; andando →
-  walk; resto → idle. A animação só troca quando o estado muda (não reinicia a cada quadro);
-- **sincronia do golpe:** a preparação começa quando falta ≤ 3 frames (0,25 s) para o dano previsto — a
+- só lê o estado: morto → death; provocação → taunt; golpe → attack; espera do escudo → defend (frame 0);
+  escudo ativo → defend → defend_hold; bloqueio → defend_block; andando → walk; resto → idle. A animação só
+  troca quando o estado muda (não reinicia a cada quadro);
+- **sincronia do golpe:** a preparação começa quando faltam ≤ 4 frames (0,29 s) para o dano previsto — a
   recarga real no alcance, ou a distância que falta ÷ velocidade ao chegar — e segura o frame anterior ao
   impacto; o frame de impacto entra no `attack_performed` (o mesmo passo do dano). O timing é da lógica;
-- a arte olha para a direita; o inimigo usa `flip_h` (o pivô está no centro da célula em x);
+- a arte olha para a direita; o inimigo usa `flip_h`;
 - efeitos da habilidade compartilhados com o visual por código (`PaladinFx`): barreira sagrada, anel da
   provocação (raio real 115) e anel do escudo;
-- Inspector: `sprite_scale` (0,35 → ~47 unidades até a auréola; Guerreiro ~35), `foot_y`, `frame_pivot`,
+- Inspector: `sprite_scale` (0,37 → ~47 unidades até a auréola; Guerreiro ~35), `foot_y`, `frame_pivot`,
   `frame_size`, `art_height`/`art_body_width` (barra de HP e clique), `attack_impact_frame`,
-  `walk_reference_speed`, `effects_glow`, `show_taunt_ring`;
-- filtragem: atlas importado com mipmaps e sprite em `LINEAR_WITH_MIPMAPS` — a arte (~135 px) aparece a
-  ~67 px na tela (redução ~2×): sem serrilhado e sem borrar além do necessário.
+  `walk_reference_speed`, `effects_glow`, `show_taunt_ring`. O teste confere pivô, célula e frame de impacto
+  contra o `paladin_frames.json`;
+- filtragem: atlas com mipmaps e sprite em `LINEAR_WITH_MIPMAPS` — a arte (~128 px no atlas) aparece a
+  ~47 unidades (~2,7× menor): sem serrilhado.
 - O `PaladinVisual` (por código) continua no `.tres` como `visual_script` (alternativa); o Paladino Sombra
   segue no visual por código.
+- Para trocar a arte: substituir as sheets em `source/`, conferir os cortes/escala no topo do script e rodar
+  `python3 tools/sprites/slice_paladin_sheets.py` (se a célula mudar, atualizar `frame_pivot`/`frame_size` na
+  cena — o teste avisa).
 
 ### Paladino e Paladino Sombra (visual por código)
 

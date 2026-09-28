@@ -1,41 +1,44 @@
 class_name PaladinSpriteVisual
 extends UnitVisual
-## Paladino Vivo com a sprite sheet aprovada (frame a frame, 3/4). Cena:
+## Paladino Vivo com as sprite sheets aprovadas (frame a frame, 3/4). Cena:
 ## scenes/units/paladin_sprite_visual.tscn → Shadow · Sprite (AnimatedSprite2D) · Effects.
 ##
 ## Só LÊ o estado real (CombatUnit + unit.paladin) e os eventos repassados pela Battle; nenhuma
 ## regra de combate aqui. O estado real decide a animação:
 ##   morto                           → death (uma vez; para no último frame: o corpo fica no campo)
-##   provocação (evento)             → taunt (uma vez)
+##   provocação (evento)             → taunt (giro do escudo, uma vez; o anel mostra o raio real)
 ##   golpe                           → attack: a preparação começa pela recarga real (ou ao chegar
 ##                                     no alcance) e o frame de IMPACTO aparece no evento real de dano
-##   escudo absorveu dano (evento)   → defend, frames do clarão
-##   dano recebido                   → hit (curto); durante golpe/provocação só pisca
-##   espera do escudo / escudo ativo → defend: ergue (frame 0) e segura a guarda (último frame)
+##   espera do escudo (1 s)          → defend, frame 0 parado (guarda erguida)
+##   escudo sobe (evento)            → defend (giro → clarão da bênção) e depois defend_hold (loop)
+##   escudo absorveu dano (evento)   → defend_block (clarão) e volta ao defend_hold
+##   dano recebido                   → só pisca e recua um pouco (não há sheet de hit); nada interrompe
 ##   andando                         → walk (velocidade do quadro acompanha o deslocamento real)
 ##   resto                           → idle
 ## Os efeitos da habilidade (barreira, anéis) são os mesmos do visual por código (PaladinFx).
 
-## Frames do SpriteFrames (paladin_live_frames.tres, gerado por tools/sprites/slice_paladin_live.py).
+## Frames do SpriteFrames (assets/units/paladin/paladin_frames.tres, gerado por
+## tools/sprites/slice_paladin_sheets.py a partir das sheets em assets/units/paladin/source/).
 @export var frames: SpriteFrames
-## Escala do sprite no mundo. Com 0,35 o Paladino fica com ~47 unidades até a auréola
+## Escala do sprite no mundo. Com 0,37 o Paladino fica com ~47 unidades até a auréola
 ## (Guerreiro: ~35), como o Paladino por código.
-@export_range(0.1, 1.0, 0.005) var sprite_scale := 0.35:
+@export_range(0.1, 1.0, 0.005) var sprite_scale := 0.37:
 	set(v):
 		sprite_scale = v
 		_apply_scale()
 ## Pés abaixo do centro lógico da CombatUnit (igual ao Paladino por código).
 @export var foot_y := 10.0
 ## Pivô do frame (centro entre os pés) e tamanho da célula, em px da arte (contrato da sheet).
-@export var frame_pivot := Vector2(160, 192)
-@export var frame_size := Vector2(320, 208)
+## (Valores do paladin_frames.json; o teste confere.)
+@export var frame_pivot := Vector2(123, 161)
+@export var frame_size := Vector2(246, 186)
 ## Altura da arte parada (pé à auréola) e largura do corpo, em px: barra de HP e área clicável.
-@export var art_height := 136.0
+@export var art_height := 128.0
 @export var art_body_width := 84.0
 ## A arte olha para a direita; o inimigo usa o espelho.
 @export var art_faces_right := true
 ## Frame do ataque em que a espada atinge (sincronizado com o dano real).
-@export var attack_impact_frame := 3
+@export var attack_impact_frame := 4
 ## Velocidade de deslocamento em que o walk roda no FPS do recurso.
 @export var walk_reference_speed := 44.0
 ## Força dos efeitos da habilidade (barreira, anéis).
@@ -43,6 +46,8 @@ extends UnitVisual
 @export var show_taunt_ring := true
 
 const HIT_FLASH := 0.12
+const HIT_RECOIL := 2.5          # px da arte × escala: recuo curto ao levar dano
+const DEFEND_MODES: Array[StringName] = [&"defend", &"defend_hold", &"defend_block"]
 
 @onready var sprite: AnimatedSprite2D = $Sprite
 @onready var effects: Node2D = $Effects
@@ -52,12 +57,11 @@ var _facing := 1.0
 var _last_pos := Vector2.ZERO
 var _speed := 0.0               # velocidade suavizada (ritmo do walk)
 var _moved_now := false         # deslocou-se neste quadro (decide se anda)
-## Estado da apresentação: &"idle", &"walk", &"attack", &"defend", &"taunt", &"hit", &"death".
+## Estado da apresentação = animação tocando: &"idle", &"walk", &"attack", &"defend",
+## &"defend_hold", &"defend_block", &"taunt", &"death".
 var mode := &"idle"
 var _striking := false          # o impacto já aconteceu (tocando o resto do golpe)
 var _taunt_playing := false
-var _hit_t := 0.0
-var _block_t := 0.0
 var _flash := 0.0
 var _taunt_t := -1.0
 var _shield_ring_t := -1.0
@@ -104,12 +108,10 @@ func on_attack_performed() -> void:
 
 
 func on_hit() -> void:
-	_flash = HIT_FLASH
-	var shielded := unit.paladin != null and unit.paladin.is_shielded()
-	if not unit.is_alive() or shielded or mode in [&"attack", &"taunt", &"death"]:
-		return   # golpe, provocação e guarda do escudo não são interrompidos: só pisca
-	_hit_t = _anim_length(&"hit")
-	_play(&"hit", 0)
+	# não há sheet de "hit": o dano pisca a arte e dá um recuo curto, sem trocar a animação
+	# (golpe, provocação e guarda não são interrompidos)
+	if unit.is_alive():
+		_flash = HIT_FLASH
 
 
 func on_ability_event(kind: StringName) -> void:
@@ -124,12 +126,11 @@ func on_ability_event(kind: StringName) -> void:
 			_shield_ring_t = 0.0
 			_barrier_age = 0.0
 			_shield_raised = true
-			if mode in [&"idle", &"walk", &"defend", &"hit"]:
-				_play(&"defend", 1)       # clarão do escudo subindo, depois segura a guarda
+			if mode in [&"idle", &"walk", &"defend", &"defend_hold"]:
+				_play(&"defend", 1)       # giro do escudo e clarão da bênção, depois defend_hold
 		&"block":
-			_block_t = 0.2
-			if mode in [&"idle", &"walk", &"defend", &"hit"]:
-				_play(&"defend", 1)
+			if mode in [&"defend_hold", &"defend_block"] or (mode == &"defend" and not sprite.is_playing()):
+				_play(&"defend_block", 0) # o escudo absorve: clarão, depois volta à guarda
 
 
 func top_y() -> float:
@@ -164,8 +165,6 @@ func update_visual(delta: float) -> void:
 	_moved_now = moved > 0.01
 	if delta > 0.0:
 		_speed = lerpf(_speed, moved / delta, 1.0 - exp(-delta * 10.0))
-	_hit_t = maxf(0.0, _hit_t - delta)
-	_block_t = maxf(0.0, _block_t - delta)
 	_flash = maxf(0.0, _flash - delta)
 	if _taunt_t >= 0.0:
 		_taunt_t += delta
@@ -184,7 +183,9 @@ func update_visual(delta: float) -> void:
 	_was_shielded = shielded
 
 	_choose_animation(delta)
-	sprite.modulate = Color(1, 1, 1).lerp(Color(1.6, 1.5, 1.3), _flash / HIT_FLASH * 0.6) if _flash > 0.0 else Color.WHITE
+	var k := _flash / HIT_FLASH
+	sprite.modulate = Color(1, 1, 1).lerp(Color(1.6, 1.5, 1.3), k * 0.6) if _flash > 0.0 else Color.WHITE
+	sprite.position = Vector2(-_facing * HIT_RECOIL * sin(k * PI) * sprite_scale, foot_y)
 	shadow_node.queue_redraw()
 	effects.queue_redraw()
 
@@ -211,17 +212,17 @@ func _choose_animation(_delta: float) -> void:
 			sprite.frame = attack_impact_frame - 1
 			sprite.pause()
 		return
-	if _hit_t > 0.0 and mode == &"hit":
-		return
 	var pal := unit.paladin
-	if pal and (pal.is_shielded() or pal.is_preparing() or _block_t > 0.0):
-		if mode != &"defend":
-			_play(&"defend", 0 if pal.is_preparing() else 1)
-		if pal.is_preparing() and not pal.is_shielded():
-			sprite.frame = 0   # escudo erguido, esperando a bênção subir
-			sprite.pause()
-		elif not sprite.is_playing() and sprite.frame == 0:
-			_play(&"defend", 1)   # a bênção subiu: clarão e guarda
+	if pal and pal.is_shielded():
+		if mode not in DEFEND_MODES:
+			_play(&"defend", 1)            # escudo ativo: giro e clarão (o resto segue pelo fim da animação)
+		elif mode == &"defend" and sprite.frame == 0 and not sprite.is_playing():
+			_play(&"defend", 1)            # a bênção subiu depois da espera
+		return
+	if pal and pal.is_preparing():
+		if mode != &"defend" or sprite.frame != 0:
+			_play(&"defend", 0)
+		sprite.pause()                     # guarda erguida, esperando a bênção subir
 		return
 	if unit.state == CombatUnit.State.MOVING or _moved_now:
 		if mode != &"walk":
@@ -255,12 +256,8 @@ func _on_animation_finished() -> void:
 		&"taunt":
 			_taunt_playing = false
 			_play(&"idle", 0)
-		&"hit":
-			_hit_t = 0.0
-			_play(&"idle", 0)
-		&"defend":
-			sprite.frame = sprite.sprite_frames.get_frame_count(&"defend") - 1   # segura a guarda
-			sprite.pause()
+		&"defend", &"defend_block":
+			_play(&"defend_hold", 0)       # guarda firme; sai quando o escudo acaba (_choose_animation)
 		# death: fica no último frame (o corpo permanece no campo)
 
 
@@ -274,10 +271,6 @@ func _play(anim: StringName, from_frame := 0) -> void:
 
 func _fps(anim: StringName) -> float:
 	return sprite.sprite_frames.get_animation_speed(anim) if sprite and sprite.sprite_frames else 10.0
-
-
-func _anim_length(anim: StringName) -> float:
-	return sprite.sprite_frames.get_frame_count(anim) / _fps(anim)
 
 
 # --- Desenho auxiliar -----------------------------------------------------------------------

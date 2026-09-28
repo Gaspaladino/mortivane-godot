@@ -31,3 +31,6 @@ desktop.ini
 
 # Claude Code (configurações locais)
 .claude/settings.local.json
+
+# Python
+__pycache__/

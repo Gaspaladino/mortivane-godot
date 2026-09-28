@@ -735,7 +735,7 @@ Limitações: acabamento vetorial com sombreado por vértice (sem textura pintad
 face (3/4 fixo); a espada no frame "espada recua" passa por cima da ombreira; 256 px de frame é pouco para
 ampliar muito além de 2×.
 
-### Paladino Vivo com a sprite sheet aprovada ✔ (aguardando validação)
+### Paladino Vivo com a sprite sheet aprovada ✔ (substituída pelas sheets novas, abaixo)
 Pedido: integrar a sprite sheet do Paladino Vivo (arte aprovada) no lugar do visual por código, com
 AnimatedSprite2D/SpriteFrames, sem mudar mecânica; Paladino Sombra fica como está.
 
@@ -764,3 +764,46 @@ Limitações:
 - A morte na sheet cai para a direita da arte; espelhada no inimigo. Sem sistema de cadáveres (só visual).
 - A sheet piloto renderizada por código (`assets/sprites/paladin_live_pilot/`, cena de protótipo) continua no
   repositório como referência; não é usada pelo jogo.
+
+### Paladino Vivo com as sprite sheets novas (idle, walk, attack, defend, death) ✔ (aguardando validação)
+Pedido: substituir o visual do Paladino Vivo pelas cinco sheets novas (estilo cartunesco mais polido e
+robusto), organizadas numa pasta própria, com AnimatedSprite2D/SpriteFrames, pivô nos pés, escala coerente,
+sem mudar mecânica, stats ou comportamento.
+
+Leitura das sheets (2000 × 667 cada): idle 8 · walk 8 · attack 8 · defend 8 (duas linhas de 4) · death 8.
+- **O fundo já vem transparente** (alfa com borda suave), não preto: nenhuma limpeza de cor foi necessária.
+- As sheets vieram em **escalas diferentes** (defesa ~20% maior que o idle, caminhada ~13%; ataque e morte
+  um pouco menores). O fatiador normaliza tudo pelo elmo do idle.
+- No ataque os arcos invadem o frame vizinho; o fim do arco do 4º frame fica atrás da capa do 5º na
+  própria arte — o corte segue a capa e o arco some suavemente.
+- A sheet de defesa: linha de cima = guarda → giro do escudo (arco) → clarão da bênção → faíscas; linha de
+  baixo = guarda firme (respirando).
+
+Feito:
+- `assets/units/paladin/`: `source/` com as 5 sheets (PNG sem perdas; `.gdignore`), `paladin_atlas.png`
+  (1968 × 930, mipmaps), `paladin_frames.tres` (SpriteFrames), `paladin_frames.json` (contrato e medidas).
+- `tools/sprites/slice_paladin_sheets.py` (ver `ARCHITECTURE.md`): cortes, escala por sheet, pivô por
+  registro (sem tremedeira), células 246 × 186 com pivô (123, 161).
+- Animações: `idle`, `walk`, `attack`, `defend`, `defend_hold`, `defend_block`, `taunt`, `death`.
+- `PaladinSpriteVisual`: nova máquina de defesa (espera = defend frame 0; escudo = defend → defend_hold em
+  loop; bloqueio = defend_block → defend_hold), impacto do golpe no frame 4, dano = pisca + recuo (sem hit),
+  escala 0,37, pivô/célula novos na cena.
+- Removidos a sheet anterior (`assets/sprites/paladin_live/`) e `tools/sprites/slice_paladin_live.py`: o
+  visual antigo não é mais usado.
+- Mecânica, stats, provocação, Escudo Sagrado, seleção, barra de HP e Sandbox inalterados; Paladino Sombra
+  inalterado.
+
+Validado: 9 suítes OK (`paladin_sprite_test` reescrita: animações e loops do contrato, célula/pivô/impacto
+iguais ao JSON, chão no pivô ±2 px em todos os frames de pé, pés do idle centrados, cada estado pela lógica
+real, bloqueio e volta à guarda, dano só pisca, morte parada no frame 7, Sandbox); capturas 1600×896 dos
+estados e do combate real.
+
+Limitações:
+- Não há sheet de **hit** nem de **provocação**: o dano só pisca/recua e a provocação reaproveita o giro
+  do escudo da sheet de defesa (o anel do raio real continua).
+- O `defend_hold` é a respiração desenhada na arte: o 2º frame tem a postura um pouco mais aberta (o
+  escudo anda ~6 unidades no jogo). É da arte; dá para reduzir tirando esse frame ou baixando o FPS.
+- A escala entre sheets foi medida pelo elmo (erro estimado ≤ 3%). Se alguma animação parecer maior ou
+  menor, ajustar `scale` da sheet no topo do fatiador.
+- O walk é um ciclo no lugar; o ritmo segue a velocidade real (`walk_reference_speed` = 44).
+- A morte muda de pose bastante entre frames (queda); o alinhamento é por sobreposição com o frame anterior.
