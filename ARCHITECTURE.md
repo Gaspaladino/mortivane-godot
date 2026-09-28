@@ -1,7 +1,10 @@
 # Mortivane (Godot 4) — Arquitetura
 
-Estado: **Etapa 1 (esqueleto + arena) + núcleo mínimo de combate** (1 aliado × 1 inimigo).
-Ainda não há fases, menu, HUD, ondas, formação nem Necromancia.
+Estado: **Etapa 1 (esqueleto + arena) + núcleo mínimo de combate + menu inicial + Sandbox
++ Guerreiro, Guerreiro Sombra, Sentinela Arcana, Sentinela Arcana Sombra, Paladino e Paladino Sombra
+desenhados 100% por código
++ regra visual "sombra necromântica" (ShadowStyle + ShadowFX) para as unidades revividas.**
+Ainda não há campanha, fases, HUD de jogo, ondas, formação nem Necromancia.
 Referência funcional/visual: `MortivaneV97.html` (não é editado). Análise do HTML: `MIGRATION_NOTES.md`.
 
 Engine: **Godot 4.7** · renderer **Compatibility** (2D puro, roda em qualquer GPU) · GDScript.
@@ -58,21 +61,81 @@ Casos verificados com captura real da janela:
 res://
   project.godot
   assets/art/novocenario.png         # arte da arena (1672×941); substituiu a arte extraída do HTML
+  assets/art/arena_layers/           # primeiro plano extraído da arte (chão, laterais, estandartes, velas)
+  tools/arena_backdrop/build_layers.py  # extrai o primeiro plano (Python, só desenvolvimento)
+  tools/arena_backdrop/generate_backdrop_scene.gd  # gera arena_backdrop.tscn UMA vez (depois: editar no editor)
+  tools/sprites/slice_paladin_live.py  # fatia a sprite sheet aprovada do Paladino Vivo (atlas + SpriteFrames)
+  assets/sprites/paladin_live/        # sheet original (source/), atlas alinhado pelo pivô, frames, JSON, SpriteFrames
+  scenes/units/paladin_sprite_visual.tscn  # visual do Paladino Vivo por sprites (Shadow · Sprite · Effects)
+  tools/sprites/render_paladin_pilot.gd  # PROTÓTIPO (superado pela sheet aprovada): pinta e exporta a sprite sheet piloto do Paladino Vivo (3/4)
+  assets/sprites/paladin_live_pilot/  # sheet (Idle 6 · Walk 8 · Attack 8), frames, sombra, SpriteFrames, JSON do contrato
+  scenes/prototypes/paladin_sprite_pilot.tscn  # PROTÓTIPO: prévia da sheet na arena (escala de jogo e ampliada)
+  data/
+    units/u_warrior.tres             # UnitDef — Guerreiro Sombra (aliado)
+    units/warrior.tres               # UnitDef — Guerreiro (inimigo)
+    units/arc_battlemage.tres        # UnitDef — Sentinela Arcana (inimiga)
+    units/u_arc_battlemage.tres      # UnitDef — Sentinela Arcana Sombra (aliada)
+    units/sac_paladin.tres           # UnitDef — Paladino (inimigo)
+    units/u_sac_paladin.tres         # UnitDef — Paladino Sombra (aliado)
+    visuals/paladin_look.tres        # PaladinLook — escala, offsets, cores, brilho do Paladino (Inspector)
+    visuals/shadow_style.tres        # ShadowStyle padrão: a conversão "sombra" de TODAS as unidades revividas
   scenes/
-    main/main.tscn                   # raiz do jogo
-    arena/arena.tscn                 # arena: camadas + debug
+    main/main.tscn                   # raiz do jogo: troca de tela + avisos
+    menu/main_menu.tscn              # menu inicial (Jogar / Sandbox)
+    sandbox/sandbox.tscn             # Sandbox: Arena + SandboxUI + SandboxController
+    sandbox/sandbox_ui.tscn          # interface do Sandbox (faixa inferior, Controls editáveis)
+    sandbox/sandbox_theme.tres       # tema da interface do Sandbox
+    arena/arena.tscn                 # arena: camadas + Battle + debug
+    arena/arena_backdrop.tscn        # fundo da arena: ~190 nós editáveis em 21 camadas
   scripts/
     core/world_config.gd             # class_name WorldConfig — constantes do mundo
     arena/arena.gd                   # enquadramento (câmera + fundo cover)
     arena/battle_grid.gd             # class_name BattleGrid — geometria das grades (só leitura)
     arena/debug_overlay.gd           # class_name DebugOverlay — desenho de referência
     combat/combat_unit.gd            # class_name CombatUnit — estado de uma unidade (dado puro)
-    combat/combat_sim.gd             # class_name CombatSim — alvo, movimento, ataque, dano, morte (dado puro)
-    combat/unit_view.gd              # class_name UnitView — visual temporário + barra de HP + debug
-    combat/battle.gd                 # class_name Battle — luta de teste, passo fixo, cria os UnitView
-    main/main.gd                     # atalhos globais (F3/F4/F9/F11) + avisos
+    combat/combat_sim.gd             # class_name CombatSim — alvo, movimento, ataque, projéteis, dano, morte (dado puro)
+    combat/combat_projectile.gd      # class_name CombatProjectile — projétil da simulação (dado puro)
+    combat/abilities/sentinel_swords.gd  # class_name SentinelSwords — lâminas da Sentinela (dado puro)
+    combat/abilities/paladin_taunt.gd    # class_name PaladinTaunt — provocação + Escudo Sagrado (dado puro)
+    combat/unit_view.gd              # class_name UnitView — seleção + barra de HP + debug; hospeda o visual
+    visuals/units/unit_visual.gd     # class_name UnitVisual — base/interface do "corpo" de uma unidade
+    visuals/units/circle_unit_visual.gd     # class_name CircleUnitVisual — círculo padrão (sem visual_script)
+    visuals/units/code_drawn_unit_visual.gd # class_name CodeDrawnUnitVisual — utilitários de desenho comuns
+    visuals/units/sentinel_visual.gd        # class_name SentinelVisual — Sentinela Arcana viva
+    visuals/units/sentinel_shadow_visual.gd # class_name SentinelShadowVisual — Sentinela Sombra (herda a viva)
+    visuals/effects/arcane_blade.gd         # class_name ArcaneBlade — desenho da lâmina (pairando e em voo)
+    visuals/projectiles/projectile_view.gd  # class_name ProjectileView — orbe/lâmina em voo + impacto
+    visuals/backdrop/arena_backdrop.gd      # class_name ArenaBackdrop — orquestra camadas, tempo, parallax, ajustes
+    visuals/backdrop/arena_layers_data.gd   # class_name ArenaLayersData — GERADO: posições do primeiro plano
+    visuals/backdrop/nodes/*.gd             # nós do fundo: BackdropCloud, BackdropDrift, BackdropFog, BackdropMoon,
+                                            # CastleWindow, CastleLights, CandleFlame, CandleGlow, BannerSway, BackdropShaderRect
+    visuals/backdrop/shaders/*.gdshader     # céu, lua, nuvens, neblina, estandarte, velas (+ noise.gdshaderinc)
+    visuals/units/warrior_visual.gd         # class_name WarriorVisual — Guerreiro por código (rig + animação)
+    visuals/units/shadow_warrior_visual.gd  # class_name ShadowWarriorVisual — Guerreiro Sombra (herda o Guerreiro)
+    visuals/units/paladin_visual.gd         # class_name PaladinVisual — Paladino por código (rig + animação)
+    visuals/units/shadow_paladin_visual.gd  # class_name ShadowPaladinVisual — Paladino Sombra (herda o Paladino)
+    visuals/units/paladin_look.gd           # class_name PaladinLook (Resource) — parâmetros visuais do Paladino
+    visuals/units/paladin_sprite_visual.gd  # class_name PaladinSpriteVisual — Paladino Vivo por sprite sheet
+    visuals/units/paladin_fx.gd             # class_name PaladinFx — barreira, anel da provocação, anel do escudo
+    visuals/units/shadow_style.gd           # class_name ShadowStyle (Resource) — regra de conversão viva → sombra
+    visuals/units/shadow_fx.gd              # class_name ShadowFX — aura, névoa, fumaça, fissuras, olhos
+    combat/battle.gd                 # class_name Battle — executor: CombatSim + UnitView + passo fixo
+    data/unit_def.gd                 # class_name UnitDef (Resource) — definição de unidade
+    data/unit_catalog.gd             # class_name UnitCatalog — carrega data/units/*.tres
+    menu/main_menu.gd                # class_name MainMenu — só emite sinais
+    sandbox/sandbox_controller.gd    # class_name SandboxController — montagem, ações, seleção
+    sandbox/sandbox_ui.gd            # class_name SandboxUI — liga os Controls da cena a sinais
+    main/main.gd                     # troca de tela + atalhos globais (F3/F4/F9/F11) + avisos
   tests/
     combat_test.gd                   # teste headless do combate (SceneTree)
+    sandbox_test.gd                  # teste headless de ponta a ponta: menu + Sandbox na cena real
+    visual_test.gd                   # teste headless das poses/animações dos visuais por código
+    sentinel_test.gd                 # teste headless da Sentinela: mecânica portada do HTML + visual
+    backdrop_test.gd                 # teste headless do fundo animado (inclui "nada flutua")
+    menu_click_test.gd               # cliques reais de mouse no menu (Sandbox ida e volta)
+    shadow_visual_test.gd            # regra visual das sombras (u_* = sombra; viva continua normal)
+    paladin_test.gd                  # Paladino: stats/mecânica do HTML, visual, Sandbox, luta de referência
+    paladin_sprite_test.gd           # Paladino Vivo por sprites: SpriteFrames, pivô, estados, Sandbox
 ```
 
 Arquivos `*.import` e `*.uid` são gerados pela Godot e **devem ser versionados**. A pasta `.godot/` é cache
@@ -83,21 +146,45 @@ e fica fora do Git.
 ## Cenas
 
 ```
-Main (Node)                      main.gd — atalhos globais (F3, F4, F9, F11) e avisos
-├─ NoticeLayer (CanvasLayer 110) / NoticeLabel   aviso temporário no rodapé
-└─ Arena (Node2D)                arena.gd — enquadramento; set_debug_visible()
+Main (Node)                      main.gd — troca de tela, atalhos globais (F3, F4, F9, F11) e avisos
+├─ <tela atual>                  uma por vez: MainMenu ou Sandbox (instanciada por Main)
+└─ NoticeLayer (CanvasLayer 110) / NoticeLabel   aviso temporário no rodapé
+
+MainMenu (Control)               main_menu.gd — título + Jogar / Sandbox; sinais play_pressed, sandbox_pressed
+├─ Backdrop (TextureRect)        a arte da arena, escurecida (cover)
+└─ Center / Box                  título, botões, MessageLabel
+
+Sandbox (Node)                   sandbox_controller.gd — montagem, ações, seleção; sinal exit_requested
+├─ Arena                         a MESMA arena.tscn (instância), sem nada específico de Sandbox
+└─ SandboxUI (sandbox_ui.tscn)    faixa inferior com Controls editáveis (ver "Sandbox")
+
+Arena (Node2D)                   arena.gd — enquadramento; set_debug_visible()
    ├─ Camera2D                   posicionada pelo enquadramento
-   ├─ Background (Node2D)        arte fixa; nunca treme nem recebe efeitos
-   │   └─ ArenaArt (Sprite2D)
+   ├─ Background (Node2D)        fundo; nunca treme nem recebe efeitos de gameplay
+   │   └─ Backdrop (ArenaBackdrop, arena_backdrop.tscn) — fundo editável (ver "Fundo da arena")
    ├─ Stage (Node2D)             ← futuro tremor de tela aplicado aqui
    │   ├─ World (Node2D)
    │   │   ├─ Ground             áreas no chão, cadáveres (futuro)
    │   │   └─ Entities           unidades (UnitView, criados por Battle), y_sort_enabled
    │   └─ Effects (Node2D)       efeitos visuais do gameplay (futuro)
-   ├─ Battle (Node)              battle.gd — luta de teste; entities_path → Stage/World/Entities
+   ├─ Battle (Node)              battle.gd — executor do combate; entities_path → Stage/World/Entities
    └─ Debug (Node2D)             debug_overlay.gd — DebugOverlay.set_shown()
-       └─ InfoLayer (CanvasLayer 100) / InfoLabel   janela, mundo visível, escala
+       └─ InfoLayer (CanvasLayer 100) / InfoLabel   janela, mundo visível, escala (topo esquerdo)
 ```
+
+**Troca de tela.** `Main._switch_to()` tira a tela antiga da árvore na hora (a Arena antiga não disputa a
+câmera) e a libera no fim do quadro, depois instancia a nova. Não há `change_scene`: `Main` e o `NoticeLayer`
+continuam vivos entre telas.
+
+O painel do F3 (`InfoLabel`) e o aviso do `Main` ficam no **topo**: a faixa de baixo é da interface do Sandbox.
+
+**Reserva para a interface.** `Arena.set_bottom_inset(px)` enquadra o mundo na área acima de uma faixa de
+interface:
+- se a área útil ficar mais baixa que 490 unidades, a câmera afasta (`zoom < 1`);
+- o fundo continua cobrindo a tela toda, inclusive por trás da faixa.
+
+O Sandbox chama `set_bottom_inset` com a altura da sua faixa sempre que ela muda. Em 1600×896 a faixa ocupa
+22%, o zoom fica em 0,89 e o campo inteiro (y de 210 a 534) aparece acima dela.
 
 `Ground` e `Effects` estão vazios e servem só para fixar a ordem de desenho. `Entities` recebe os `UnitView`.
 
@@ -113,11 +200,14 @@ As ações ficam no **InputMap** (`project.godot`, seção `[input]`) e usam a *
 | `debug_toggle` | F3 | liga/desliga a camada de debug e o painel de informações |
 | `fullscreen_toggle` | F11 | alterna entre janela e tela cheia (`Window.mode`: `MODE_WINDOWED` ↔ `MODE_FULLSCREEN`) |
 | `combat_debug_toggle` | F4 | liga/desliga o debug de combate (alcance, alvo, HP, estado) |
-| `combat_restart` | F9 | reinicia a luta de teste |
+| `combat_restart` | F9 | atalho secundário de **Reiniciar combate** no Sandbox (o principal é o botão) |
 
 - Atalhos globais ficam **só em `Main`** e são tratados em `_input`, antes da interface, para que nenhum
-  controle de UI futuro consiga "engolir" as teclas. A Arena expõe `set_debug_visible()` e `is_debug_visible()`;
-  `Battle` (via `arena.battle`) expõe `set_debug_visible()`, `is_debug_visible()` e `restart()`.
+  controle de UI consiga "engolir" as teclas. Os botões usam `focus_mode = NONE`, então teclas nunca os apertam.
+- `Main` guarda o estado de F3/F4 e o aplica a toda Arena nova, então ele sobrevive a sair e voltar ao Sandbox.
+  No menu, F3/F4 só mudam esse estado guardado.
+- Uma tela com Arena expõe `get_arena()`. A Arena expõe `set_debug_visible()` / `is_debug_visible()`, e
+  `arena.battle` expõe os mesmos métodos para o debug de combate.
 - **Jogo embutido no editor.** A Godot 4.4+ roda o jogo dentro da aba *Game* por padrão:
   - o jogo só recebe teclado quando a área dele está focada;
   - uma janela embutida **não pode** entrar em tela cheia.
@@ -156,22 +246,37 @@ Nesta etapa as grades são **só visuais**: não há ocupação, footprint nem a
 
 ## Combate (núcleo mínimo)
 
-Luta de teste fixa: **1 aliado × 1 inimigo**, que começa sozinha. Não há fase de batalha, ondas nem formação.
+O mesmo combate serve a qualquer modo que use a Arena. Hoje o único é o Sandbox. Não há fase de batalha,
+ondas nem formação.
 
 **Camadas**
 - `CombatUnit` (`RefCounted`) guarda o estado de uma unidade:
   - time, posição, raio;
   - `hp` / `max_hp`, `damage`, `attack_range`, `attack_interval`, `move_speed`;
   - `cooldown`, `target` e `state` (`IDLE / MOVING / ATTACKING / DEAD`).
-- `CombatSim` (`RefCounted`) contém as regras. Não conhece nós. Emite `unit_attacked` e `unit_died`.
-- `Battle` (`Node`, dentro da Arena) é o dono da simulação:
-  - acumula o dt do quadro (limitado a 0,05 s) e avança a simulação em passos fixos de `CombatSim.STEP` = 1/120 s;
-  - cria um `UnitView` por unidade em `Stage/World/Entities`;
-  - emite `finished(winner)` uma vez, quando um lado fica sem ninguém vivo.
-- `UnitView` (`Node2D`, visual temporário) só lê a `CombatUnit`:
-  - círculo com as cores do HTML e barra de HP;
-  - flash ao ser atingido e sumiço gradual ao morrer;
-  - debug com F4.
+- `CombatSim` (`RefCounted`) contém as regras. Não conhece nós. Sinais:
+  - `attack_performed(atacante, alvo)`: o ataque básico ACONTECEU (golpe desferido ou projétil disparado);
+  - `projectile_fired(p)` e `projectile_ended(p, vítima)`;
+  - `unit_attacked(atacante, alvo, dano)`: dano aplicado;
+  - `unit_died(unidade)`.
+- `Battle` (`Node`, dentro da Arena) é o **executor**. Não decide quem luta nem quando.
+  - API: `spawn(def, team, pos, overrides)`, `start()`, `clear()`, `is_running()`, `is_finished()`,
+    `unit_at(ponto)` e `view_of(unit)`.
+  - Nasce vazia e **parada**. Só depois de `start()` acumula o dt do quadro (limitado a 0,05 s) e avança a
+    simulação em passos fixos de `CombatSim.STEP` = 1/120 s.
+  - Cria um `UnitView` por unidade em `Stage/World/Entities`.
+  - Emite `finished(winner_team)` uma vez, quando um lado fica sem ninguém vivo (−1 = ninguém sobrou).
+    A simulação continua rodando depois disso, e os sobreviventes passam a `IDLE`.
+- `UnitView` (`Node2D`) só lê a `CombatUnit` e hospeda o corpo (ver **Visuais de unidade**):
+  - anel de seleção (elipse nos pés) e, com F4, alcance e linha até o alvo;
+  - filho `Body` = o `UnitVisual` da `UnitDef`;
+  - filho `Overlay` = barra de HP e texto do F4, sempre por cima do corpo.
+- A `Battle` repassa os sinais como eventos **só visuais**:
+  - `attack_performed` → `on_attack_performed()` no atacante;
+  - `unit_attacked` → `on_hit()` no alvo;
+  - `projectile_fired` → `on_projectile_fired()` no dono, mais um `ProjectileView` em `Stage/Effects`;
+  - `projectile_ended` → impacto (ou dissipação) no `ProjectileView`, que depois se libera sozinho.
+- `unit_at()` usa a área clicável do visual (`UnitView.contains_point`).
 
 **Regras por passo** (para cada unidade viva, em ordem de criação)
 1. Desconta a recarga.
@@ -183,34 +288,519 @@ Luta de teste fixa: **1 aliado × 1 inimigo**, que começa sozinha. Não há fas
    não age e `is_valid_target()` é falso.
 
 **Referências entre unidades.** `target` forma um ciclo de `RefCounted` (A → B → A). Por isso
-`CombatSim.dispose()` limpa os alvos, e `Battle` o chama ao reiniciar e em `_exit_tree`.
+`CombatSim.dispose()` limpa os alvos, e `Battle` o chama em `clear()` e em `_exit_tree`.
 
-**Stats** (`Battle.ALLY_STATS`, `Battle.ENEMY_STATS`, portados de `UNIT_DEFS`)
+**Ataque à distância e habilidades (por unidade; o corpo a corpo não muda).**
+- `CombatUnit.projectile` (vindo de `UnitDef.projectile_kind`) torna o ataque básico um disparo. No passo do
+  ataque, a `CombatSim` cria um `CombatProjectile`, e o dano só é aplicado quando ele acerta. Regras do HTML
+  (`fireProjectile` / `updateProjectiles`):
+  - nasce na borda do corpo;
+  - persegue o alvo travado enquanto ele for válido;
+  - acerta o alvo a raio + 6, ou qualquer inimigo no caminho a raio + 5;
+  - some após 2,6 s ou ao sair do mundo.
+  - Velocidades: orbe 340, lâmina 520.
+- Unidades à distância param a **0,92 × alcance** (HTML); o corpo a corpo continua em 0,85.
+- `CombatUnit.swords` (`SentinelSwords`, de `abilities = ["arcane_swords"]`) roda a cada passo, antes do alvo.
+  É uma porta fiel de `SENTINEL_CONFIG` / `updateArcaneSwords` / `launchSword`:
+  - 2 lâminas; disparam quando o inimigo vivo mais próximo está a ≤ 115;
+  - reação de 0,55 s (aproximação lenta) até 0,08 s (aproximação ≥ 55 px/s);
+  - 0,10 s de antecipação (`blade.windup`); uma de cada vez, com 0,35 s entre elas;
+  - dano = ataque básico × 1; cada lâmina volta após 10 s;
+  - partem da âncora (x ± 0,82 r, y − 1,9 r) como projétil perseguidor a 520 px/s.
+- A lâmina e o orbe **não** interferem na recarga do ataque básico, como no HTML.
+- `CombatUnit.paladin` (`PaladinTaunt`, de `abilities = ["paladin_taunt_shield"]`): porta fiel de
+  `PALADIN_CONFIG` / `tickPaladinCombat` / `paladinShieldDamage` / `lockPaladinShieldFacing`:
+  - roda numa **passada antes de todas as unidades** (`CombatSim._tick_paladins`, como o HTML chama
+    `tickPaladinCombat` antes de `updateUnit`): desconta `taunt_t` de todos e os timers dos Paladinos;
+  - pronto (recarga 0 — começa em 0) e com inimigo vivo a ≤ **115**: provoca todos eles por **2,5 s**
+    (`taunted_by`/`taunt_t`, alvo = o Paladino), recarga **15 s**, e começa a espera de **1 s**;
+  - ao fim da espera sobe o **Escudo Sagrado** por **1,5 s** (descontando o excesso do passo), com a direção
+    travada no alvo/provocado/mais próximo;
+  - com o escudo, todo dano recebido é reduzido em **75%** (`CombatSim._apply_damage`);
+  - provocado: `nearest_foe` devolve o Paladino enquanto a provocação vale (HTML: `tauntTarget` dentro de
+    `nearestFoe`); morto o Paladino, quem ele provocou é liberado (HTML: `killUnit` → `clearTaunt`).
+  - Sinais só de apresentação: `paladin_taunted`, `paladin_shield_raised`, `paladin_shield_blocked`
+    (a `Battle` repassa como `UnitView.on_ability_event(taunt/shield/block)`).
+  - Quem não tem a habilidade não muda: a luta de referência (Guerreiro × Guerreiro) é idêntica.
 
-| Unidade | Início | HP | Dano | Alcance | cd | Vel. | r |
-|---|---|---|---|---|---|---|---|
-| Aliado `u_warrior` | (150, 380) | 74 | 10 | 32 | 1,0 | 56 | 12 |
-| Inimigo `warrior` | (850, 380) | 70 | 9 | 32 | 1,0 | 56 | 12 |
-
-A semente fixa (97) torna a luta determinística: o aliado vence com 20/74 HP em ≈12,0 s.
-
-**Teste headless**
-```
-godot --headless --import                      # uma vez, gera o cache de classes (.godot/)
-godot --headless -s res://tests/combat_test.gd # sai com 0 se passar, 1 se falhar
-```
+**Semente.** `Battle.rng_seed = 97` sorteia a primeira recarga de cada unidade. Assim, a mesma montagem sempre
+produz a mesma luta, e o **Reiniciar** do Sandbox repete a luta exatamente igual.
 
 As simplificações em relação ao HTML estão em `MIGRATION_NOTES.md`, seção 6.
 
 ---
 
+## Visuais de unidade (desenho 100% por código)
+
+Nenhum PNG, SVG, sprite sheet ou asset externo. Cadeia: `CombatUnit` → `UnitView` → `UnitVisual`.
+
+- `UnitVisual` (`Node2D`) é a base. Recebe `setup(unit, def)` e, a cada quadro, `update_visual(delta)`
+  (chamado pelo `UnitView`).
+  - Eventos: `on_attack_performed()`, `on_projectile_fired(p)` e `on_hit()`.
+  - Para projéteis: `muzzle_point(p)` (de onde o disparo PARECE sair) e `projectile_style(p)` (cores).
+  - Informa `top_y()` (barra de HP), `pick_rect()` (clique) e `ground_point()` (anel de seleção).
+  - Só **lê** a `CombatUnit`; não tem regra de combate.
+- `UnitDef.visual_scene` (cena cuja raiz estende `UnitVisual`, ex.: sprites) tem prioridade; senão
+  `UnitDef.visual_script` (desenho por código); vazio = `CircleUnitVisual`, o círculo das etapas anteriores.
+- **`WarriorVisual`** tem o rig e a animação:
+  - O rig é uma cadeia de `Transform2D`: raiz (pés; espelho pela direção; `RIG_SCALE = 0.9`) → quadril →
+    pernas / tronco → cabeça, ombros e braços → mão → espada.
+  - Cada parte é um conjunto de polígonos no próprio espaço local, com contorno escuro.
+  - Ordem de desenho: sombra · capa · braço e ombreira de trás · pernas · saiote/cinto · peitoral
+    · elmo (pluma, fenda) · espada · braço, ombreira e mão da frente.
+  - Tamanho: ≈ 36 unidades do mundo de altura (≈ 58 px em 1600×896). Os pés ficam 9 abaixo do centro lógico.
+- A cada quadro, `update_visual` recalcula uma **pose** (`p_*`: ângulos e deslocamentos) a partir do estado real,
+  e `_draw()` só a aplica.
+
+| Estado | Como é lido | O que acontece |
+|---|---|---|
+| IDLE | sempre, atenuado ao andar | respiração (sobe/desce e leve escala), cabeça e braços oscilam, capa balança |
+| MOVING | fase dos passos avança pela **distância real percorrida** | pernas alternam, corpo sobe quando elas cruzam, braços em oposição, cabeça compensa, capa vai para trás; parado = pernas não andam |
+| ATTACKING (preparação) | últimos `windup_time` s da **recarga real** (`unit.cooldown`) | braço e espada recuam, tronco inclina para trás |
+| golpe | evento `on_attack_performed()`, no **mesmo passo** em que a `CombatSim` executa o golpe (e aplica o dano) | golpe rápido (`strike_time`), avanço do corpo (`lunge`), depois retorno suave (`recover_time`) |
+| HIT | evento `on_hit()` | 0,16 s de recuo, achatamento sutil, cabeça para trás e clarão |
+| DEAD | `unit.state == DEAD` | queda até o chão; o corpo **permanece deitado** e escurece um pouco |
+
+- A espada tem inércia: segue o ângulo-alvo com suavização exponencial, exceto no golpe.
+- A direção vem de `unit.target` (espelhamento instantâneo); sem alvo, a unidade mantém a última direção.
+
+**Guerreiro × Guerreiro Sombra.** `ShadowWarriorVisual extends WarriorVisual`: mesmo rig; a paleta viva é
+convertida pela regra `ShadowStyle` (ver "Versões sombra") e os detalhes entram por pontos de extensão
+(`_draw_plume`, `_draw_visor`, `_draw_torso_wear`, `_draw_helmet_wear`, `_blade_shape`, `_draw_blade_extra`,
+`_draw_fx_front`).
+
+| | Guerreiro | Guerreiro Sombra |
+|---|---|---|
+| Paleta | metal claro, capa e pluma vermelhas | armadura grafite violeta, capa quase preta com um resto do vermelho |
+| Silhueta | contorno escuro | borda roxa só na silhueta externa + contorno interno violeta escuro |
+| Detalhes | — | olhos roxos na fenda, fissuras de energia no peitoral e no elmo, pluma → chama espectral, fio da espada aceso, capa rasgada com fio de energia, lâmina lascada |
+| Ambiente | sombra preta | névoa roxa no chão, aura suave, poucos fiapos de fumaça (capa, ombros, pés) |
+| Postura | ereta | tronco +4°, cabeça +5° (pesada, ameaçadora — não cambaleante) |
+| Walk | pernas em oposição perfeita | quase em oposição (0,94π), perna de trás um pouco mais curta |
+| Ataque | recua a espada e estoca na horizontal | ergue a espada acima da cabeça e golpeia para baixo; o fio brilha no golpe |
+| Queda | de costas, pesada (acelera), um quique | joelhos cedem, desaba para frente; a energia se apaga e o corpo solta fumaça |
+
+**Sincronia do ataque.**
+- O golpe visual não é previsto: ele começa quando a `CombatSim` emite `attack_performed`, no mesmo passo em que
+  aplica o dano.
+- A preparação é lida da recarga real, então termina exatamente quando o golpe chega.
+- Nada disso altera dano, recarga nem alcance.
+
+**Quadro de atraso.** A `Battle` processa depois das `Entities` no mesmo quadro, então o visual reage no quadro
+seguinte ao passo da simulação (≈ 16 ms).
+
+---
+
+### Sentinela Arcana (viva) e Sentinela Arcana Sombra
+
+Referência: a arte conceitual "Sentinela Arcano Vivo / Sombra". O desenho é novo, feito por código; não é uma
+porta 1:1 de `drawArcaneSentinel`.
+
+- **Estrutura.** `CodeDrawnUnitVisual` concentra os utilitários de desenho que o Guerreiro já usava.
+  - `SentinelVisual` monta a Sentinela.
+  - `SentinelShadowVisual extends SentinelVisual`: mesmo rig; paleta convertida pela regra `ShadowStyle`
+    (o selo arcano continua azul — identidade da classe), borda roxa na silhueta, olhos, fissuras de energia na
+    saia, aura, névoa no chão, fumaça nas bordas e no capelete; estilo e pontos de extensão próprios
+    (barra rasgada, capelete, HIT etéreo, morte).
+- **Silhueta** (rig espelhado pela direção, origem nos pés):
+  - chapéu largo e pontudo, com a ponta dobrada para trás e uma joia na faixa;
+  - manto triangular em camadas: manto de trás, vestido, painel frontal com o símbolo arcano, abas com
+    acabamento prateado;
+  - capelete com pontas, gola alta e joia em losango no peito;
+  - rosto em 3/4 com cabelo escuro e olhos brilhantes;
+  - pés quase escondidos.
+  - Altura ≈ 40 unidades do mundo; os pés ficam 10 abaixo do centro lógico.
+- **Lâminas.** Duas `ArcaneBlade` pairam ladeando a copa do chapéu.
+  - São desenhadas **sem espelhar** (a lâmina 0 fica sempre à esquerda, como no HTML) e apontam pela mira
+    suavizada (HTML: `swordAim`, 4,5 rad/s).
+  - O mesmo desenho é usado pelo `ProjectileView` quando a lâmina parte.
+  - O visual lê de `unit.swords` a recarga e a antecipação de cada lâmina.
+- **Partida dos projéteis.** O `ProjectileView` desenha a partida a partir de `muzzle_point` (a mão, ou a lâmina
+  pairando) e converge para a posição real em 0,12 s (HTML: `sentinelHand`). A simulação não muda.
+
+| Animação | Viva | Sombra |
+|---|---|---|
+| Idle | respiração, barra e ponta do chapéu balançam, lâminas flutuam (sen(t·2,2 + i·1,7), como no HTML) | + tremor arcano, fumaça roxa nas bordas, lâminas instáveis, olhos pulsando |
+| Movimento | desliza (fase pela distância real), inclina 4°, manto e ponta do chapéu ficam para trás, botas aparecem, lâminas atrasam | inclina 6°, mais arrastado e irregular, fumaça arrasta |
+| Ataque | preparação pela recarga real (últimos 0,30 s): mão recolhe à frente do corpo com energia azul, joia acende; no `attack_performed` o braço aponta ao alvo, o manto abre e as lâminas dão um tranco; retorno de 0,34 s | energia roxa crepitando na mão, orbe escuro com borda violeta e espinhos, inclinação maior |
+| Habilidade | lâmina em antecipação (estado real) recua, vibra, brilha, com elo de energia até a joia e a cabeça erguida; na partida, anel de clarão na âncora, a outra lâmina estremece; em recarga fica um vulto que ganha força e reforma com clarão | lâminas com energia sombria saindo do fio, rastro roxo |
+| Hit | 0,2 s: recuo, compressão, clarão, ponta do chapéu treme, lâminas desestabilizam | clarão lilás, o corpo tremula (translúcido) e a fumaça explode |
+| Morte | perde a sustentação, a magia se apaga, o manto colapsa com peso, o chapéu cai ao lado; as lâminas caem girando e se desfazem em faíscas; o monte fica no chão | sobe e se agita, colapsa se desfazendo (fica translúcida), fumaça sobe e as lâminas se partem em fragmentos |
+
+### Paladino Vivo por sprite sheet (visual padrão do `sac_paladin`)
+
+A arte aprovada (`assets/sprites/paladin_live/source/paladin_live_sheet_source.png`, 1125 × 844, fundo
+transparente, frames de larguras diferentes, sem grade) é fatiada por `tools/sprites/slice_paladin_live.py`:
+- cada linha é uma faixa de y e cada frame um intervalo de x, medidos por projeção do alfa;
+- os pedaços opacos (alfa > 100) vão inteiros para o frame onde está o centro — os arcos do golpe e os brilhos
+  não são cortados nem aparecem no vizinho; pedaços que tocam dois frames são divididos na linha de corte
+  (no ataque, uma polilinha que contorna a capa que passa por baixo do arco); o brilho fraco segue o pixel
+  opaco mais próximo; lascas soltas pequenas são descartadas;
+- **pivô** de cada frame = centro entre os pés no chão (base do corpo sólido; x = meio das últimas 8 linhas);
+  na morte (deitado), x = meio do corpo;
+- todos os frames vão para **células de 320 × 208 com o pivô em (160, 192)**, sem redimensionar a arte
+  (atlas 8 × 7); o teste confere que os pés ficam no pivô (±4 px) em todos os frames de pé.
+
+| Animação | Frames (linha da sheet) | FPS | Loop | Uso (estado real) |
+|---|---|---|---|---|
+| `idle` | 6 (linha 1) | 6 | sim | parado |
+| `walk` | 8 (linha 2) | 10 × (velocidade real ÷ 44) | sim | andando |
+| `attack` | 6 (linha 3) | 12 | não | golpe; **frame 3 = impacto**, mostrado no evento real de dano |
+| `defend` | 4 (linha 4, esq.) | 10 | não (segura o último) | espera do escudo (frame 0), escudo sobe / bloqueio (1–2 clarão), guarda (3) |
+| `taunt` | 3 (linha 4, dir.) | 8 | não | evento real da provocação |
+| `hit` | 3 (linha 5) | 12 | não | dano recebido |
+| `death` | 6 (linha 6) | 8 | não (para no último) | morto; o último frame é o corpo no campo |
+
+`PaladinSpriteVisual` (cena `scenes/units/paladin_sprite_visual.tscn`: `Shadow` · `Sprite` · `Effects`):
+- só lê o estado: morto → death; provocação → taunt; golpe → attack; bloqueio → defend (clarão);
+  dano → hit (no golpe, na provocação e na guarda do escudo só pisca); espera/escudo → defend; andando →
+  walk; resto → idle. A animação só troca quando o estado muda (não reinicia a cada quadro);
+- **sincronia do golpe:** a preparação começa quando falta ≤ 3 frames (0,25 s) para o dano previsto — a
+  recarga real no alcance, ou a distância que falta ÷ velocidade ao chegar — e segura o frame anterior ao
+  impacto; o frame de impacto entra no `attack_performed` (o mesmo passo do dano). O timing é da lógica;
+- a arte olha para a direita; o inimigo usa `flip_h` (o pivô está no centro da célula em x);
+- efeitos da habilidade compartilhados com o visual por código (`PaladinFx`): barreira sagrada, anel da
+  provocação (raio real 115) e anel do escudo;
+- Inspector: `sprite_scale` (0,35 → ~47 unidades até a auréola; Guerreiro ~35), `foot_y`, `frame_pivot`,
+  `frame_size`, `art_height`/`art_body_width` (barra de HP e clique), `attack_impact_frame`,
+  `walk_reference_speed`, `effects_glow`, `show_taunt_ring`;
+- filtragem: atlas importado com mipmaps e sprite em `LINEAR_WITH_MIPMAPS` — a arte (~135 px) aparece a
+  ~67 px na tela (redução ~2×): sem serrilhado e sem borrar além do necessário.
+- O `PaladinVisual` (por código) continua no `.tres` como `visual_script` (alternativa); o Paladino Sombra
+  segue no visual por código.
+
+### Paladino e Paladino Sombra (visual por código)
+
+Referência: a arte conceitual "Paladino Vivo / Paladino Sombra" (o desenho é novo, por código); tempos e
+intenção de pose do rig do HTML (`drawPaladinArt`, perfil `heavyMelee`, `paladinCue`, `drawPaladinBarrier`,
+cadáver com escudo e espada soltos).
+
+- **Estrutura.** `PaladinVisual extends CodeDrawnUnitVisual`; `ShadowPaladinVisual extends PaladinVisual`
+  (mesmo rig; regra `ShadowStyle`). Parâmetros no Inspector: `PaladinLook` (`data/visuals/paladin_look.tres`,
+  via `UnitDef.visual_look`): `scale`, `shield_offset`, `sword_offset`, cores, `glow`, `show_taunt_ring`,
+  `secondary_speed`. A intensidade da sombra fica no `ShadowStyle`.
+- **Rig** (origem nos pés, espelhado pela direção): raiz → quadril → pernas (joelho dobra com `p_crouch`) /
+  tronco → cabeça (auréola atrás do elmo) · ombro de trás → braço → espada · ombro da frente → braço → escudo.
+  Ordem: sombra · capa · braço da espada e ombreira de trás · pernas · tabardo partido e cinto · peitoral ·
+  elmo · espada · braço do escudo, escudo e ombreira da frente · efeitos. No golpe a espada passa **na frente**
+  do escudo.
+- **Silhueta:** ~47 unidades até a estrela da auréola (Guerreiro ~35), área clicável 26 × 43 (Guerreiro
+  20 × 40): maior e mais largo pelos ombros, escudo e armadura — sem virar chefe.
+
+| Estado | Como é lido | Paladino |
+|---|---|---|
+| Idle | sempre | firme: respiração mínima (0,25), capa reage de leve, escudo sustentado, espada em pé, pronta |
+| Walk | fase pela distância real | passada curta e pesada (13 por ciclo, 18°), corpo sobe pouco, tronco e ombros juntos, escudo quase parado, espada com inércia |
+| Preparação | últimos 0,20 s da recarga real; e ao chegar a < 2r do alcance com a recarga pronta (HTML) | espada recua acima da cabeça, tronco inclina para trás |
+| Golpe | `attack_performed` (mesmo passo do dano) | desce em 0,12 s com o corpo afundando (peso), avanço, rastro no arco da espada; retorno à guarda até 0,46 s |
+| Provocação | `paladin_taunted` | batida do escudo à frente, peito ergue, anel no raio real de 115 |
+| Espera do escudo | `paladin.delay` (estado real) | ergue a guarda aos poucos |
+| Escudo ativo | `paladin.shield_t` | guarda firme (joelhos dobram, inclina, escudo à frente), barreira sagrada à frente na direção travada (HTML: entra 0,2 s, some 0,16 s) |
+| Bloqueio | `paladin_shield_blocked` (dano realmente reduzido) | 0,28 s: o braço cede, recuo curto, clarão no escudo e na barreira |
+| Hit | `on_hit` | 0,25 s: recuo pequeno, cabeça recua, clarão curto |
+| Morte | `unit.state == DEAD` | joelhos cedem, a espada escapa da mão e cai solta ao lado, o escudo pesa e cai ao lado do corpo, tomba de costas (0,72 s, acelera), quica e fica no chão |
+
+| | Paladino | Paladino Sombra |
+|---|---|---|
+| Armadura | marfim, sombra na metade de trás | grafite violeta (`convert`) |
+| Dourado | auréola, crista, filetes, guarda e pomo, borda do escudo | **preservado** (só um pouco mais escuro) |
+| Sol (escudo/tabardo) | dourado | energia roxa pulsando |
+| Tecidos | tabardo e capa claros | tabardo desbotado e rasgado; capa quase preta, rasgada, com fio roxo |
+| Detalhes | — | olhos roxos no visor, fissuras roxas no peitoral e no escudo, chama roxa no fio da espada |
+| Ambiente | sombra | borda roxa na silhueta, aura, névoa no chão, pouca fumaça; na morte a energia se apaga e o corpo solta fumaça |
+| Efeitos | rastro, barreira e anéis dourados | roxos com resto do dourado |
+
+### Protótipo: sprite sheet 3/4 do Paladino Vivo (frame a frame)
+
+Validação do estilo 2.5D/3/4 em animação por frames. **Não está ligado ao jogo** (o Paladino em combate continua
+o `PaladinVisual`); só a cena `scenes/prototypes/paladin_sprite_pilot.tscn` usa a sheet.
+- Gerada por `tools/sprites/render_paladin_pilot.gd`: o personagem é pintado por código num rig 3/4 (ombro da
+  espada perto da câmera, escudo à frente com espessura, auréola atrás do elmo, sombreado de volume com luz fixa
+  do alto à esquerda), com pés por IK plantados no chão e keyframes feitos à mão; cada pose é renderizada numa
+  `SubViewport` transparente em supersampling 3× e reduzida.
+- Contrato (`paladin_live_pilot.json`): frames 256 × 256, fundo transparente, **pivô = (128, 240)** (centro entre
+  os pés, no chão) em todos os frames; linhas idle (6, 8 fps, loop) · walk (8, 14 fps, loop) · attack (8, 12 fps).
+  Sombra num PNG separado com o mesmo pivô. `paladin_live_pilot_frames.tres` = `SpriteFrames` (AtlasTexture).
+- Escala de jogo: o personagem tem ~152 px no frame → `47 / 152 ≈ 0,31` (mesma altura do Paladino atual).
+  Walk no lugar: o pé de apoio recua 24 px em 4 frames; a 14 fps isso dá 84 px/s no sprite, então
+  `speed_scale = velocidade / (84 × escala)` faz os pés não deslizarem.
+- Inimigo = a mesma sheet com `flip_h` (o pivô fica no centro do frame em x).
+
+### Versões sombra (unidades revividas pelo necromante)
+
+Regra do projeto: **versão viva = aparência normal da classe; versão sombra (`u_*`) = a mesma classe convertida
+em "sombra necromântica"**. A classe continua legível pela silhueta e pelos elementos-chave; a sombra se
+reconhece de longe pelo corpo escuro com borda roxa e pelos olhos acesos.
+
+- **`ShadowStyle`** (`Resource`, `data/visuals/shadow_style.tres`, editável no Inspector):
+  - `convert(cor, keep)`: leva uma cor da versão viva para a sombra — corpo entre `body_dark` e `body_light`
+    (grafite violeta), com `keep_hue` do tom original; `keep` > 0 preserva acentos da classe (ouro de paladino,
+    runas, símbolos sagrados) mais escuros, mas com o matiz;
+  - `edge` (contorno interno), `rim`/`rim_width` (borda roxa só na silhueta externa);
+  - `energy`, `energy_core`, `eye`, `smoke` e as intensidades `aura`, `smoke_amount`, `cracks`, `pulse_speed`.
+  - `UnitDef.shadow_style` pode apontar outro estilo (ex.: sombra de elite); vazio = o padrão.
+- **`ShadowFX`**: `aura`, `ground_mist`, `smoke`, `crack`, `eye`, `pulse` — desenho determinístico pelo tempo
+  (sem partículas nem nós), barato com dezenas de unidades.
+- **`CodeDrawnUnitVisual`**: a subclasse marca `shadow = true` em `_init`; o `setup()` resolve o estilo e chama
+  `_apply_shadow_style(style)`, onde a unidade converte a **sua** paleta viva. `_draw_with_rim(corpo)` desenha
+  o corpo duas vezes: primeiro engordado em roxo (`_rim_pass`), depois normal — só a silhueta externa fica roxa
+  (contornar cada peça em roxo deixava a unidade inteira roxa no tamanho real).
+- **Nova unidade sombra:** herde o visual vivo, `shadow = true` em `_init`, converta a paleta em
+  `_apply_shadow_style`, envolva o corpo com `_draw_with_rim` e use `ShadowFX` nos pontos da classe (olhos,
+  fissuras, fumaça). Na morte, `_life()` → 0 apaga a energia.
+
+## Fundo da arena (`ArenaBackdrop`) — cena de nós editáveis
+
+`scenes/arena/arena_backdrop.tscn` é uma **árvore de nós** (cerca de 190), em que cada parte visual é um nó que se
+seleciona, move e ajusta no editor.
+- O fundo distante é 100% Godot, sem nada da arte antiga: céu, lua, nuvens, montanhas, névoa, castelo e ruínas.
+- Do `novocenario.png` vêm só o chão e a arquitetura lateral, extraídos por `build_layers.py`:
+  `arena.png`, `architecture_left/right.png`, estandartes e velas.
+
+```
+ArenaBackdrop (arena_backdrop.gd)            profundidade de parallax (metadado parallax_depth)
+├─ Sky (Node2D)          └─ Gradient (ColorRect + sky.gdshader)                        0
+├─ Moon (BackdropMoon)   └─ Disc (ColorRect + moon.gdshader) — disco + halo            0,02
+├─ FarClouds (BackdropDrift) └─ Cloud1…7 (BackdropCloud)                               0,05
+├─ MidClouds (BackdropDrift) └─ Cloud1…6                                               0,09
+├─ NearClouds (BackdropDrift) └─ Cloud1…4                                              0,14
+├─ FarMountains  └─ Peak1…10 (Polygon2D, cor por vértice) └─ Rim (Line2D, luz da lua)  0,2
+├─ FarFog        └─ Band (BackdropFog: ColorRect + fog.gdshader)                        0,25
+├─ MidMountains  └─ Peak1…11                                                            0,32
+├─ MidFog        └─ Band                                                                0,38
+├─ CastleBack    ├─ MainCastle └─ Cliff, Wall, Tower1…9, Bridge (Polygon2D) └─ Rim, Finial 0,45
+│                └─ EastKeep   └─ Hill, Wall, Tower1…3, Bridge
+├─ CastleLights (CastleLights) └─ Window1…24 (CastleWindow)                             0,45
+├─ Ruins         └─ Aqueduct, BrokenTower1…3 (Polygon2D) └─ Rubble                     0,5
+├─ NearMountains └─ Peak1…8                                                             0,58
+├─ NearFog       └─ Band                                                                0,68
+├─ LeftArchitecture / RightArchitecture (Sprite2D)                                      0,95
+├─ LeftBanner / RightBanner (BannerSway: Sprite2D + banner_sway.gdshader)               0,95
+├─ LeftCandles / RightCandles └─ Glow (CandleGlow) + Flame1…n (CandleFlame)             0,95
+└─ ArenaFloor (Sprite2D) — chão, desenho roxo e muro                                    1
+```
+
+**O que cada nó faz** (`scripts/visuals/backdrop/nodes/`)
+
+| Nó | Editável no Inspector | No jogo |
+|---|---|---|
+| `BackdropMoon` (@tool) | posição, `radius`, pulsação, halo | brilho pulsa ±3,5% em 6,5 s; oscila < 1 px |
+| `BackdropCloud` (@tool, desenhada por código e visível no editor) | `length`, `height`, `lumps`, `seed`, 4 cores | corpo, faixa iluminada no topo e barriga escura; borda prateada perto da lua |
+| `BackdropDrift` (grupo de nuvens) | `speed`, faixa de volta `wrap_left/right`, `bob` | desliza os filhos → direita; reaparecem do outro lado fora da tela; oscilação vertical de 1,5 px |
+| `BackdropFog` (@tool) | posição/tamanho, `speed` (negativo = ←), `opacity`, `breath`; forma e cor no material | desliza e "respira" (opacidade ±18%, ~11 s) |
+| `Polygon2D` de montanha, torre, penhasco e ponte | vértices (ferramenta de polígono), cores por vértice, posição | estático (a névoa passa na frente) |
+| `Line2D` `Rim` | pontos, largura, gradiente | luz de borda da lua |
+| `CastleLights` + `CastleWindow` (@tool) | posição de cada janela, tamanho, cores, `can_light`; `lit_share`, `speed`, `intensity` no grupo | cada janela acende e apaga devagar no seu ritmo; em média de 4 a 7 acesas de 24 |
+| `BannerSway` | `amplitude`, `speed`, `phase`, `top_px` | vento suave que desce pelo tecido (cada altura repete o movimento de cima com atraso), rajadas lentas, ondulação pequena até a ponta, a barra sobe um pouco quando o pano se afasta |
+| `CandleFlame` (@tool) + `CandleGlow` | posição, `flame_height`, cores, força | flicker sutil: altura ±7%, largura ±4%, brilho ±8% (chama e reflexos ±12%), lento — não pisca |
+| `BackdropShaderRect` (@tool) | posição/tamanho | mantém `rect_origin/rect_size` do shader iguais ao nó |
+
+No editor nada se move (as animações só rodam no jogo). As nuvens, a lua, as janelas e as chamas aparecem
+desenhadas.
+
+**Coerência da composição** (garantida por `backdrop_test`):
+- o castelo principal (`MainCastle`: rochedo, muralha, torres e ponte) fica 18 px mais baixo (`position` do nó);
+  o rochedo tem um platô mais largo que as muralhas, e muralhas e torres descem alguns px para dentro da rocha —
+  a base de toda torre externa fica **dentro** do polígono do rochedo (idem `EastKeep`/`Hill`);
+- as pontes presas ao castelo são filhas do próprio castelo (mesmo parallax) e os pilares descem até o chão
+  (y 372, atrás do chão da arena); o aqueduto e os pilares partidos também, com entulho (`Rubble`) no pé e duas
+  colinas baixas (`NearMountains/Peak7…8`) na frente — nada flutua.
+
+**`ArenaBackdrop`** (script da raiz) só coordena:
+- `animated` e `master_intensity` (repassados a todos os nós do grupo `backdrop_animated`);
+- a posição da lua para as nuvens;
+- o parallax: cada filho com `parallax_depth` desloca `view_offset × (1 − profundidade)` a partir da posição do
+  editor. `parallax_preview` faz um vaivém só para visualizar.
+
+**Como editar**
+- **Mover ou redimensionar:** selecione o nó na árvore e arraste.
+  - Montanhas, torres e pontes são `Polygon2D`: a ferramenta de polígono edita os vértices.
+  - O **nó fica na base da peça**, então arrastar move o pico ou a torre inteira.
+- **Nova nuvem:** duplique uma `Cloud` (Ctrl+D) dentro do grupo e mude `seed`, `length` e `height`.
+- **Nova janela ou chama:** duplique `WindowN` ou `FlameN` e posicione.
+- **Nova montanha:** duplique um `PeakN`. A luz de borda (`Rim`) é gerada para a silhueta original e pode ser
+  editada ou apagada à mão.
+- **Velocidades e intensidades:** ficam no nó animado (ou no grupo, para nuvens e janelas).
+- **Recomeçar do zero:** `tools/arena_backdrop/generate_backdrop_scene.gd` gera a cena de novo, **sobrescrevendo
+  as edições**.
+
+## Dados de unidade (`UnitDef` + `UnitCatalog`)
+
+- `UnitDef` (`Resource`) define uma unidade: um `.tres` por unidade em `res://data/units/`.
+  - Campos: `id` (a chave do HTML), `display_name`, `side` (em que lista aparece);
+  - combate: `max_hp`, `damage`, `attack_range`, `attack_interval`, `move_speed`, `radius`,
+    `projectile_kind` (vazio = corpo a corpo) e `abilities`;
+  - visual: `visual_script` (um `UnitVisual`; vazio = círculo), `body_color` e `trim_color` (cores do círculo).
+- `to_stats(overrides)` gera o dicionário que `CombatUnit` consome. A `CombatSim` **não conhece** `UnitDef`.
+- `UnitCatalog` lê a pasta (`all()`, `for_side()`, `get_def(id)`). As listas do Sandbox vêm daqui: para
+  adicionar uma unidade basta criar um `.tres`, sem mexer em código.
+
+| `.tres` | Nome | Lado | HP | Dano | Alcance | cd | Vel. | r |
+|---|---|---|---|---|---|---|---|---|
+| `u_warrior` | Guerreiro Sombra | PLAYER | 74 | 10 | 32 | 1,0 | 56 | 12 |
+| `warrior` | Guerreiro | ENEMY | 70 | 9 | 32 | 1,0 | 56 | 12 |
+| `arc_battlemage` | Sentinela Arcana | ENEMY | 43 | 18 | 150 | 1,25 | 54 | 13 |
+| `u_arc_battlemage` | Sentinela Arcana Sombra | PLAYER | 40 | 18 | 150 | 1,25 | 54 | 13 |
+| `sac_paladin` | Paladino | ENEMY | 120 | 13 | 34 | 1,2 | 44 | 14 |
+| `u_sac_paladin` | Paladino Sombra | PLAYER | 113 | 13 | 34 | 1,2 | 44 | 14 |
+
+As duas Sentinelas têm `projectile_kind = "orb"` e `abilities = ["arcane_swords"]`. A Sombra é a versão
+morta-viva do HTML (`registerFactionUnits`: mesmos stats, HP × 0,94).
+Os dois Paladinos têm `abilities = ["paladin_taunt_shield"]` (HTML: `FACTION_UNITS.sac_paladin`; a Sombra é o
+`u_sac_paladin` de `registerFactionUnits`, HP round(120 × 0,94) = 113) e `visual_look = paladin_look.tres`.
+
+---
+
+## Sandbox
+
+Fluxo: **Menu → Sandbox → Arena + SandboxUI + combate real.** O menu Jogar só mostra "em construção".
+
+**Responsabilidades**
+
+| Parte | Faz | Não faz |
+|---|---|---|
+| `MainMenu` | mostra botões, emite sinais | trocar de tela |
+| `Main` | troca de tela, atalhos globais | nada de combate |
+| `SandboxController` | guarda a **montagem**, chama `Battle`, seleção, liga a UI | regras de combate |
+| `SandboxUI` | painéis, listas, botões, painel da unidade; só emite sinais | conhecer `Battle`/`CombatSim` |
+| `Battle` / `CombatSim` / `CombatUnit` / `UnitView` | o combate real (os mesmos do jogo) | nada de Sandbox |
+
+**Montagem.** Uma lista de `Placement` (`def`, `team`, `position`, `overrides`, e a `unit` viva atual).
+- **Reiniciar** faz `battle.clear()` e recria cada `Placement` com `battle.spawn(...)`: HP cheio, posição
+  original, mesmas edições e mesma semente.
+- **Limpar** esvazia a montagem.
+
+**Modos do controller:** `PREP` → (Iniciar) → `RUNNING` → (fim) → `FINISHED` → (Reiniciar) → `PREP`.
+- Criar tropas e editar atributos: só em `PREP`.
+- Iniciar: só em `PREP`, e com pelo menos 1 aliado e 1 inimigo.
+- Reiniciar e Limpar: em qualquer modo, desde que haja tropas.
+
+**Posições automáticas.** Colunas a partir da divisa, a 100 de x=500 e com passo de 45; linhas na ordem
+y = 380, 330, 430, 280, 480.
+- Aliados crescem para a esquerda e inimigos para a direita.
+- Limite de 8 colunas × 5 linhas = 40 por lado.
+
+**Seleção.** Um clique que nenhum painel consumiu chega a `SandboxController._unhandled_input`.
+- A posição do evento vira coordenada do mundo (`arena.make_input_local`), e `battle.unit_at()` escolhe a
+  unidade (vivas têm prioridade).
+- Um clique no vazio desfaz a seleção. A seleção segue o `Placement` e sobrevive a Reiniciar e a edições.
+
+**Painel da unidade selecionada.**
+- Mostra nome, lado, estado, HP atual/máx., dano, alcance, intervalo, velocidade e alvo, atualizado a cada quadro.
+- Tem 5 campos editáveis por instância, só em `PREP`: HP máx., dano, alcance, intervalo e velocidade.
+  - A edição grava em `Placement.overrides` e recria a montagem, então vale desde o início da luta.
+  - A `UnitDef` não muda.
+
+**Layout** (`scenes/sandbox/sandbox_ui.tscn`, tudo em Controls editáveis). Há uma faixa inferior ancorada ao
+rodapé (`anchor_top = 0,78`, 22% da altura), e o resto da tela fica livre para a arena e o fundo:
+
+```
+SandboxUI (CanvasLayer 50)
+└─ Root (Control, tela toda, ignora o mouse; tema sandbox_theme.tres)
+   └─ %BottomBar (PanelContainer, variação de tema "BottomBar")
+      └─ Columns (HBoxContainer)
+         ├─ AlliesPanel   └─ VBox: %AlliesHeader, Hint, Scroll/%AlliesList  (botões gerados do catálogo)
+         ├─ ControlsPanel └─ VBox: Buttons (Grid 2×2: %StartButton %ResetButton %ClearButton %MenuButton), %StatusLabel
+         ├─ SelectedPanel └─ VBox: %SelectedTitle, %SelectedInfo, %EditRow (HpSpin, DmgSpin, RangeSpin, CdSpin, SpeedSpin)
+         └─ EnemiesPanel  └─ VBox: %EnemiesHeader, Hint, Scroll/%EnemiesList
+```
+
+- Os nós com `%` são nomes únicos: o script os encontra pelo nome, então dá para **mover para outro pai** sem
+  mudar código.
+- Largura das colunas: `size_flags_stretch_ratio` (1 · 1,3 · 2 · 1).
+- Altura da faixa: `anchor_top` da `BottomBar`. A Arena se reenquadra sozinha pelo sinal `layout_changed`.
+- Campos de edição: cada `SpinBox` de `EditRow` tem o metadado `stat_key` (hp, dmg, range, cd, speed); mínimo,
+  máximo, passo e prefixo ficam no Inspector.
+- Cores, bordas e fonte: `sandbox_theme.tres`.
+- Gerados por código: só os botões das listas (um por `UnitDef`).
+
+---
+
+## Testes headless
+
+```
+godot --headless --import                       # uma vez, gera o cache de classes (.godot/)
+godot --headless -s res://tests/combat_test.gd  # regras de combate + catálogo
+godot --headless -s res://tests/sandbox_test.gd # ponta a ponta na cena real (menu → Sandbox → menu)
+godot --headless -s res://tests/visual_test.gd  # poses/animações dos visuais por código
+godot --headless -s res://tests/sentinel_test.gd  # Sentinela: mecânica do HTML + visual
+godot --headless -s res://tests/backdrop_test.gd  # fundo: camadas, profundidade, movimento, janelas, parallax, nada flutua
+godot --headless -s res://tests/menu_click_test.gd  # cliques reais de mouse no menu: Sandbox → menu → Sandbox, Jogar
+godot --headless -s res://tests/shadow_visual_test.gd  # regra "sombra": u_* = sombra convertida da viva
+godot --headless -s res://tests/paladin_test.gd  # Paladino: mecânica do HTML, visual, Sandbox, luta de referência
+godot --headless -s res://tests/paladin_sprite_test.gd  # Paladino Vivo por sprites: frames, pivô, estados, Sandbox
+```
+Cada teste sai com código 0 se passar e 1 se falhar.
+
+`sandbox_test` aperta os botões reais e faz um clique de verdade no viewport. Ele verifica:
+- abertura no menu;
+- criação de tropas e combate parado antes de Iniciar;
+- combate real, Reiniciar, Limpar e F9;
+- F3/F4 e seleção com edição;
+- voltar ao menu e entrar/sair 3 vezes sem acumular nós;
+- que cada tropa usa o visual da sua `UnitDef`, que o golpe real chega ao visual e que os mortos executam a queda.
+
+`visual_test` dirige os dois visuais quadro a quadro com `CombatUnit` reais. Ele verifica:
+- idle;
+- walk só com deslocamento;
+- preparação, golpe e retorno;
+- hit curto;
+- queda e permanência no chão;
+- que o visual não altera stats;
+- o círculo padrão para `UnitDef` sem `visual_script`.
+
+`sentinel_test` verifica a Sentinela:
+- stats do HTML nas duas versões;
+- ataque à distância: para a 0,92 × alcance, o dano vem no impacto e não no disparo, orbe a 340;
+- orbe acerta quem estiver no caminho quando o alvo morre, e expira;
+- lâminas: reação 0,55 s, antecipação, uma de cada vez, âncora, 520 px/s, dano, volta em 10 s, reação rápida
+  da 2ª lâmina e nada fora de 115;
+- visual das duas versões: idle, movimento, preparação/disparo/retorno, antecipação/partida/recarga/reforma
+  da lâmina, hit, morte e permanência no chão; e que o visual não altera stats.
+
+`sandbox_test` também verifica que a UI está na faixa inferior (15–30% da altura) e que o campo inteiro aparece
+acima dela.
+
+`shadow_visual_test` verifica a regra das sombras:
+- o estilo padrão vem de `data/visuals/shadow_style.tres`; `convert` escurece o corpo e `keep` preserva o matiz
+  de acentos; a energia é roxa;
+- toda `u_*` do catálogo usa visual de sombra e toda unidade viva, visual normal;
+- em cada par vivo/sombra: estilo só na sombra, contorno da regra, **mesma silhueta** (área clicável e altura da
+  barra de HP), corpo bem mais escuro, brilho roxo, o visual não altera a unidade e a energia se apaga na morte.
+
+`backdrop_test` também garante a coerência do fundo: a base de toda torre externa e das muralhas fica dentro do
+rochedo, as pontes do castelo são filhas do castelo e todo pilar/ponte desce até o chão.
+
+`paladin_test` verifica o Paladino:
+- stats do HTML nas duas versões e `PALADIN_CONFIG` (115 · 2,5 s · 1 s · 1,5 s · 75% · 15 s);
+- provocação no 1º passo, alvo forçado mesmo com outro inimigo mais perto, fora do raio (116) não provoca,
+  expira em 2,5 s, não repete antes de 15 s e repete depois; escudo 1 s depois, travado na direção do inimigo,
+  20 → 5 de dano, dura 1,5 s, só vale para o próprio Paladino; morte libera os provocados;
+- 3 × 3 Paladinos + Guerreiros até o fim; a **luta de referência** Guerreiro Sombra × Guerreiro (semente 97)
+  dá exatamente o mesmo resultado medido antes desta etapa (`ally 20/74 12.025 13`);
+- visual das duas versões: idle firme, walk curto pela distância, preparação/golpe/retorno, provocação,
+  espera/escudo/bloqueio, hit curto, morte de costas com espada e escudo soltos, permanência no chão, e que o
+  visual não altera stats; regra da sombra com o dourado preservado; maior que o Guerreiro sem virar chefe;
+- Sandbox real: botões dos dois Paladinos, vários Paladinos + Guerreiros + Sentinela, combate até o fim com
+  provocações, Reiniciar e Limpar.
+
+`sandbox_test` também cobre as Sentinelas no fluxo real:
+- visual próprio;
+- disparo criando `ProjectileView`;
+- Reiniciar e Limpar limpando projéteis;
+- sair do Sandbox com projéteis em voo sem vazar nós.
+
+---
+
 ## Próximas etapas (planejadas)
 
-1. ~~Esqueleto + arena~~ ✔ · ~~núcleo mínimo de combate (1 × 1)~~ ✔
-2. Máquina de fases (`MENU/PREP/BATTLE/NECROMANCY/VICTORY/DEAD`) + autoloads `GameState` e `Events`, e menu mínimo.
-3. Resources de dados (`UnitDef`, `FactionDef`…) + unidade placeholder + posicionamento na grade.
-4. Batalha completa sobre o núcleo: velocidade 1x/2x/3x, IA de formação, unidades à distância/projéteis,
-   integração com a fase de batalha. (Passo fixo, movimento, alvo e ataque básico já existem.)
+1. ~~Esqueleto + arena~~ ✔ · ~~núcleo mínimo de combate (1 × 1)~~ ✔ · ~~menu inicial + Sandbox~~ ✔
+2. Máquina de fases (`MENU/PREP/BATTLE/NECROMANCY/VICTORY/DEAD`) + autoloads `GameState` e `Events`; ligar o
+   botão Jogar.
+3. Mais `UnitDef` (facções do HTML), `FactionDef`… + posicionamento na grade. (`UnitDef`/`UnitCatalog` já existem.)
+4. Batalha completa sobre o núcleo: velocidade 1x/2x/3x, IA de formação (inclui recuo das unidades à distância),
+   integração com a fase de batalha. (Passo fixo, movimento, alvo, ataque básico, projéteis e as lâminas da
+   Sentinela já existem.)
 5. Cadáveres, Necromancia e portal.
 6. Essência, capacidade, lojas, Relíquias, Escola e HUD.
-7. Áudio, configurações e ferramentas (sandbox, bot).
+7. Áudio, configurações e ferramentas (evoluir o Sandbox, bot/Run Lab).

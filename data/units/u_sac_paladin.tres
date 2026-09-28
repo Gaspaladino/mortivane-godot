@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="UnitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/unit_def.gd" id="1_unitdef"]
+[ext_resource type="Script" path="res://scripts/visuals/units/shadow_paladin_visual.gd" id="2_visual"]
+[ext_resource type="Resource" path="res://data/visuals/paladin_look.tres" id="3_look"]
+
+[resource]
+script = ExtResource("1_unitdef")
+id = &"u_sac_paladin"
+display_name = "Paladino Sombra"
+side = 0
+max_hp = 113.0
+damage = 13.0
+attack_range = 34.0
+attack_interval = 1.2
+move_speed = 44.0
+radius = 14.0
+abilities = Array[StringName]([&"paladin_taunt_shield"])
+visual_script = ExtResource("2_visual")
+body_color = Color(0.7882, 0.7608, 0.6784, 1)
+trim_color = Color(0.3608, 0.3373, 0.2784, 1)
+visual_look = ExtResource("3_look")

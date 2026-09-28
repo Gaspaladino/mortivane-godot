@@ -175,6 +175,9 @@ res://
       battle_clock.gd        # acumulador de passo fixo + velocidade
     combat/                  # núcleo de combate (implementado: ver seção 6)
       combat_unit.gd  combat_sim.gd  unit_view.gd  battle.gd
+    data/                    # unit_def.gd (Resource) + unit_catalog.gd (implementados)
+    sandbox/                 # sandbox_controller.gd + sandbox_ui.gd (implementados)
+    menu/                    # main_menu.gd (implementado)
     arena/
       battlefield.gd         # limites, clamp, point_inside, grids
       formation_grid.gd      # máscara, células, footprints
@@ -204,11 +207,15 @@ Como o HTML desenha tudo proceduralmente, há duas rotas:
 - **A)** portar os desenhos para `_draw()` do Godot (API muito parecida com Canvas 2D) — fiel, trabalhoso;
 - **B)** substituir por sprites/animações — mais "Godot", exige arte nova.
 Sugestão: placeholders simples primeiro, decidir A/B quando o combate for migrado.
+**Em teste (seção 6):** rota A para Guerreiro e Guerreiro Morto-Vivo. É desenho novo, não uma porta 1:1 de
+`drawUnit`, com rig de partes e animação por estado.
 
 ### Ordem sugerida de etapas
 1. **Esqueleto do projeto + arena**: config, fundo, escala/aspecto, limites do campo, debug overlay, grades. ✔ (ver seção 6)
    - **Núcleo mínimo de combate** (1 × 1: alvo, movimento, ataque, dano, HP, morte). ✔ Feito antes da etapa 2,
      a pedido; adianta parte da etapa 4 (ver seção 6).
+   - **Menu inicial + Sandbox** (monta lutas com o combate real) + `UnitDef`/`UnitCatalog`. ✔ Adianta parte das
+     etapas 3 e 8 (ver seção 6).
 2. Máquina de fases + menu mínimo + HUD vazia.
 3. Resources de dados (unidades/facções) + placeholder de unidade e posicionamento na grade.
 4. Simulação de batalha: ~~movimento, alvo, ataque e passo fixo~~ (núcleo feito) → falta velocidade 1x/2x/3x,
@@ -306,3 +313,454 @@ Diferenças conscientes em relação ao HTML (simplificações desta etapa):
 
 Fora do escopo: máquina de fases, menu, GameState/Events, cadáveres, Necromancia, Relíquias, ondas, HUD final,
 formação, drag-and-drop, footprint, IA avançada, projéteis, habilidades, Sandbox, Run Lab, velocidade 1x/2x/3x.
+
+### Menu inicial + Sandbox ✔
+Feito antes da máquina de fases, a pedido. Referência do HTML: Sandbox/Admin (linhas 13584–15030). Aqui só a
+parte mínima foi portada: montar uma luta e inspecionar ou editar unidades por instância.
+
+Feito:
+- **Menu inicial** (`scenes/menu/main_menu.tscn`): título MORTIVANE sobre a arte escurecida e dois botões.
+  - **Jogar** só mostra "fluxo principal em construção" e o jogo continua no menu.
+  - **Sandbox** abre o modo Sandbox.
+- **Main** agora troca de tela (Menu ↔ Sandbox). A Arena deixou de ser filha fixa de `main.tscn`.
+- **Sandbox** (`scenes/sandbox/sandbox.tscn`) = a **mesma** `arena.tscn` + `SandboxUI` + `SandboxController`.
+  - Não há cópia da Arena nem do combate.
+  - As tropas são `CombatUnit` da `CombatSim` da `Battle` da Arena, e o desenho é o mesmo `UnitView`.
+- **`Battle` virou executor genérico.** Nasce vazia e parada, com `spawn/start/clear`. A luta de teste automática
+  1 × 1 saiu do jogo; a mesma luta segue como referência em `tests/combat_test.gd`.
+- **Dados:** `UnitDef` (Resource) + `data/units/u_warrior.tres` e `warrior.tres` (stats e cores do HTML).
+  `UnitCatalog` lê a pasta. As listas do Sandbox são geradas daí: nova unidade = novo `.tres`.
+- **Painel do Sandbox**, no céu da arte, sem cobrir o campo:
+  - listas ALIADOS e INIMIGOS; um clique cria a unidade no lado certo, na próxima posição automática;
+  - botões Iniciar combate, Reiniciar combate, Limpar arena e Voltar ao menu;
+  - linha de estado (preparação, combate com tempo e vivos, resultado).
+- **Regras do Sandbox:**
+  - o combate **não** começa sozinho;
+  - Iniciar exige pelo menos 1 aliado e 1 inimigo;
+  - criar tropas e editar atributos só na preparação;
+  - Reiniciar recria a montagem no estado inicial, com a mesma semente, então a luta se repete igual.
+- **Unidade selecionada** (clique na arena):
+  - anel de destaque;
+  - painel com nome, lado, estado, HP atual/máx., dano, alcance, intervalo, velocidade e alvo, ao vivo;
+  - **edição por instância** de HP máx., dano, alcance, intervalo e velocidade, só na preparação. A edição
+    vale desde o início da luta, sobrevive a Reiniciar e não altera a `UnitDef`.
+- **Atalhos:**
+  - F3/F4/F11 preservados, e o estado de F3/F4 é lembrado entre entradas no Sandbox;
+  - F9 virou atalho secundário de "Reiniciar combate";
+  - o painel do F3 foi para o rodapé esquerdo.
+
+Validado:
+- `tests/sandbox_test.gd` (novo, ponta a ponta na cena real): os 14 itens pedidos.
+  - Inclui um clique real de mouse no viewport para a seleção.
+  - Inclui entrar e sair do Sandbox 3 vezes sem acumular nós.
+- `tests/combat_test.gd`: agora lê os stats de `data/units`; mesmo resultado de antes (20/74 HP, 12,03 s).
+- Cena real em 1600×896 (Xvfb): capturas do menu, da preparação com seleção, do combate 4 × 3 com F4 e do resultado.
+  - F11 entra e sai da tela cheia.
+  - Voltar ao menu funciona.
+  - Nenhum erro nem vazamento ao sair.
+
+Limitações atuais:
+- **Sem separação entre corpos.** Com várias unidades, todas convergem para o mesmo ponto e se sobrepõem.
+  O núcleo não tem colisão; a IA de formação do HTML (`TARGET_AI`) também faz falta aqui.
+- Posições só automáticas: sem arrastar, grade funcional ou footprint. Limite de 40 unidades por lado.
+- Só 2 unidades no catálogo, e o painel é só texto e campos numéricos.
+- Não dá para remover **uma** unidade (só Limpar tudo), nem trocar a semente pela interface.
+- Sem pausa/velocidade 1x/2x/3x e sem os presets em `localStorage` que o Admin do HTML tinha.
+- Edições por instância não são salvas entre sessões.
+
+Fora do escopo: campanha/Jogar, máquina de fases, GameState/Events, cadáveres, Necromancia, Relíquias, Rituais,
+Escolas, loja, ondas, capacidade, formação, footprints, drag-and-drop, rotação, swap, IA avançada, habilidades,
+projéteis, versões Sombra, Run Lab.
+
+### Teste visual: unidades desenhadas 100% por código ✔
+Objetivo: medir até onde o visual melhora sem sprites. Só duas unidades, usando o combate real sem nenhuma
+mudança de regra. O combate de referência continua dando 20/74 HP em 12,03 s.
+
+Feito:
+- `UnitVisual` (base) + `CircleUnitVisual` (o círculo, agora padrão para `UnitDef` sem `visual_script`).
+- `WarriorVisual`: Guerreiro montado em partes com uma cadeia de `Transform2D`:
+  - elmo fechado com fenda horizontal e pluma;
+  - ombreiras arredondadas e peitoral segmentado;
+  - braçadeiras, grevas com joelheira e botas;
+  - espada, capa vermelha e sombra.
+- `UndeadWarriorVisual`: o **mesmo rig**, com outra paleta e desgaste:
+  - metal escuro, verde-musgo, pluma desbotada;
+  - capa rasgada, lâmina lascada, amassado no elmo e rachadura no peitoral;
+  - brilho verde na fenda;
+  - postura torta.
+- Animações por estado real: IDLE, MOVING (pelo deslocamento real), preparação de ataque (pela recarga real),
+  golpe (no evento real de dano), HIT (só visual) e DEAD (queda, e o corpo fica no chão).
+  O Morto-Vivo anima de forma perceptivelmente mais irregular e bruta.
+- `UnitDef.visual_script` escolhe o visual: `warrior.tres` → `WarriorVisual`, `u_warrior.tres` →
+  `UndeadWarriorVisual`.
+- `UnitView` ficou enxuto:
+  - cuida só de seleção (elipse nos pés), barra de HP (acima do elmo, pelo `top_y()` do visual) e debug F4;
+  - o corpo é o filho `Body`.
+- `Battle` agora repassa eventos visuais: golpe para o atacante, hit para o alvo. (Desde a etapa da Sentinela:
+  `attack_performed` → golpe, `unit_attacked` → hit.)
+  O clique usa a área do visual, porque o corpo ficou mais alto que o antigo círculo.
+
+Validado:
+- `tests/visual_test.gd` (novo): idle, walk sem "deslizar", preparação/golpe/retorno, hit, queda e permanência
+  no chão, que o visual não altera stats, e o círculo padrão.
+- `tests/sandbox_test.gd`: +3 verificações: visual certo por `UnitDef`, golpe real chegando ao visual e queda
+  dos mortos. `combat_test` inalterado e OK. Nenhum erro nem vazamento.
+- Cena real em 1600×896 (Xvfb), com capturas de:
+  - preparação/idle 3 × 3, seleção + F4, movimento, ataque e morte do Guerreiro;
+  - uma folha de poses ampliada;
+  - tiras de quadros de walk, ataque (vivo e morto-vivo) e queda do Morto-Vivo.
+
+Limitações atuais:
+- **Sobreposição de corpos:** continua (o núcleo não tem separação). Com o corpo mais alto, fica mais visível
+  quando dois atacam o mesmo alvo.
+- A direção vira na hora (espelhamento), sem animação de giro. Sem alvo, a unidade mantém a última direção.
+- O visual reage 1 quadro depois do passo da simulação (≈ 16 ms), por causa da ordem de processamento.
+- O primeiro golpe ao entrar no alcance pode vir sem preparação completa se a recarga já estiver quase zerada.
+  O braço salta para a pose de preparação e golpeia.
+- O "cadáver" é só a pose final da queda: não é o sistema de cadáveres. Ele some em Reiniciar e Limpar, como
+  toda unidade.
+- Contornos de ~1,5 px e detalhes finos (rachadura, amassado) só são bem visíveis de perto. Na arena, a leitura
+  vem da silhueta, da pluma, da capa e da espada.
+- Não há sistema geral de animação: os parâmetros vivem em `WarriorVisual` e o Morto-Vivo os sobrescreve.
+  Outras unidades continuam como círculo até ganharem um visual.
+
+### Sentinela Arcana e Sentinela Arcana Sombra (mecânica do HTML + visual por código) ✔
+Pedido: rework visual das duas versões, preservando a função da unidade. **A unidade não existia no Godot**, e o
+núcleo de combate não tinha ataque à distância, projéteis nem habilidades. Para "preservar a função atual", a
+mecânica foi **portada do HTML**, só o necessário e só para quem declara. O corpo a corpo não mudou: o
+`combat_test` continua dando 20/74 HP em 12,03 s.
+
+Mecânica portada (referências no HTML):
+- `arc_battlemage` (linha ~2469): Sentinela Arcana. HP 43, dano 18, alcance 150, recarga 1,25, velocidade 54,
+  r 13, `proj:'orb'`, `arcaneSwords`.
+- A Sombra é o `u_arc_battlemage` que `registerFactionUnits` gera: mesmos stats, HP round(43 × 0,94) = 40.
+  No HTML ela se chama "Sentinela Arcana Morto-Vivo" e tem estado visual `shadow`; aqui o nome é
+  "Sentinela Arcana Sombra".
+- **Projétil** (`CombatProjectile`, de `fireProjectile` / `updateProjectiles`):
+  - velocidades de `PROJ_STYLE` (orbe 340, lâmina 520);
+  - persegue o alvo travado, acerta o alvo (r + 6) ou quem estiver no caminho (r + 5);
+  - vida de 2,6 s, some fora do mundo (+40), no máximo 200 projéteis.
+  - O dano do ataque básico à distância é aplicado **no impacto**.
+- **Parada à distância:** 0,92 × alcance (HTML: `dd > range*0.92`).
+- **Lâminas** (`SentinelSwords`, de `SENTINEL_CONFIG` / `updateArcaneSwords` / `launchSword` / `swordAnchor`):
+  todos os valores e a lógica de ameaça, reação, antecipação, intervalo e recarga iguais ao HTML.
+
+Diferenças conscientes:
+- **1ª lâmina lenta (peculiaridade mantida).** No quadro em que o inimigo entra nos 115, o HTML mede aproximação 0
+  (`anterior = pd`). Por isso a 1ª lâmina sempre usa a reação lenta (0,55 s) e só a 2ª pode ser rápida. Mantido
+  igual e documentado no teste.
+- **Antecipação zerada quando a ameaça sai dos 115.** No HTML o `windup` ficava "preso"; aqui ele é zerado.
+  Isso só afeta o visual.
+- **Âncora sem flutuação/recuo.** A âncora de partida da lâmina na simulação ignora os deslocamentos visuais
+  que o `swordAnchor` do HTML somava (flutuação e recuo, < 0,5 r).
+- **Partida suavizada.** As lâminas pairam mais alto no desenho do que a âncora da simulação, porque o corpo é
+  maior que o do HTML. O `ProjectileView` suaviza a partida em 0,12 s.
+- **Sem recuo à distância (kite).** O recuo das unidades à distância quando expostas (`aiKiteVector`, V88) é IA
+  avançada e não foi portado; a Sentinela para e atira.
+- **Fora do escopo:** relíquias, rituais e escola que interagem com projéteis (perfuração, ricochete, `extra`…)
+  e som (`sword_cast`).
+
+Visual (detalhes em `ARCHITECTURE.md`, "Sentinela Arcana"):
+- `SentinelVisual` / `SentinelShadowVisual` desenhados por código, a partir da arte conceitual;
+- `ArcaneBlade` (a mesma lâmina pairando e em voo), `ProjectileView` (orbe, lâmina, impacto);
+- `CodeDrawnUnitVisual`: utilitários comuns extraídos do Guerreiro, sem mudar o visual dele.
+
+Validado:
+- `tests/sentinel_test.gd` (novo, 8 grupos): mecânica do HTML e visual das duas versões;
+- `sandbox_test` com as Sentinelas no fluxo real (projéteis limpos em Reiniciar, Limpar e ao sair);
+- `combat_test` e `visual_test` inalterados e OK; nenhum erro nem vazamento;
+- Sandbox real em 1600×896 (Xvfb): folha de poses das duas versões; combate misto (Sentinelas + Guerreiros) com
+  preparação, movimento, disparo (tiras de quadros), habilidade das lâminas, morte da viva e morte da Sombra.
+
+Limitações atuais:
+- Brilho sem shader: halos são contornos translúcidos, sem mistura aditiva nem partículas.
+- Os projéteis ficam na camada `Effects`, sempre acima das unidades (sem y-sort).
+- Na escala da arena (≈ 64 px de altura) o rosto e os olhos são pequenos. A leitura vem do chapéu, do manto,
+  da joia e das lâminas.
+- O chapéu cai sempre para trás. Os restos ficam até Reiniciar ou Limpar (não é o sistema de cadáveres).
+- Sem som.
+
+### Fundo animado da arena ✔
+Pedido: recriar o cenário da referência como fundo animado em camadas, sem trocar a composição. A referência é
+a própria arte da arena (`novocenario.png`; diferença média de 1,6/255, só compressão). Por isso a arte foi
+**decomposta em camadas** por uma ferramenta, em vez de redesenhada à mão: essa é a forma de preservar
+exatamente a identidade, a perspectiva e as cores.
+
+Feito:
+- `tools/arena_backdrop/build_layers.py`: gera as máscaras (céu, vale, castelo, estandartes, velas), a camada de
+  cenário com a área atrás dos estandartes reconstruída (inpaint), os recortes e `arena_layers_data.gd`.
+- `ArenaBackdrop` (`scenes/arena/arena_backdrop.tscn`) no lugar do antigo `Sprite2D` estático.
+  - Camadas: céu (nuvens pintadas fluindo, lua respirando), halo da lua, dois planos de nuvens procedurais em
+    parallax (atrás das montanhas), cenário estático, luzes do castelo, dois planos de neblina no vale,
+    estandartes balançando, velas e seus halos tremulando.
+  - Prioridade de movimento, como pedido: nuvens > neblina > estandartes > velas > castelo > lua.
+- **Ajustável:** intensidade global, liga/desliga e força/velocidade por elemento (exportados).
+- **Chão e área de combate:** sem nenhuma animação.
+
+Validado:
+- `tests/backdrop_test.gd` (novo):
+  - ordem das camadas e alinhamento com a arte;
+  - camadas que não capturam cliques;
+  - posições geradas e importação das máscaras;
+  - tempo avançando;
+  - intensidade 0 = estático;
+  - pausa e ajustes por elemento.
+- As outras 4 suítes continuam OK. O Sandbox segue selecionando unidades por clique através do fundo.
+- Cena real em 1600×896:
+  - quadros em instantes diferentes e comparação do céu estático × animado;
+  - recortes de estandarte, velas e castelo;
+  - combate sobre o fundo;
+  - mapa de movimento: cerca de 3,6% dos pixels mudam entre dois instantes, **0% no chão**.
+
+Limitações:
+- As nuvens **pintadas** só oscilam (±7 px); quem atravessa o céu são as nuvens procedurais. Um deslocamento
+  contínuo das pintadas exigiria reconstruir o céu por trás delas.
+- A lua não se move de verdade; só o halo deriva, menos de 1 px. Mover o disco borraria a lua ao filtrar.
+- As árvores secas ficam paradas.
+- O menu inicial continua com a arte estática.
+- A ferramenta precisa de Python com OpenCV/SciPy, apenas para regenerar as camadas; o jogo não depende disso.
+
+### Fundo da arena reconstruído do zero ✔ (substitui o "fundo animado" anterior)
+Pedido: descartar o fundo antigo (céu, lua, nuvens, montanhas, neblina, castelo, torres, ruínas e arcos) e
+reconstruí-lo no Godot, mantendo a composição e a identidade da referência. Preservar a arena e os elementos
+laterais.
+
+Feito:
+- `build_layers.py` passou a extrair **só o primeiro plano**.
+  - Critério: pedra, madeira e chão são neutros, e o fundo antigo é azulado. Fica o que é neutro e está ligado
+    ao chão ou às bordas.
+  - O estandarte é reconstruído por trás (inpaint).
+  - As camadas antigas (`scenery.png`, `masks.png`, `sky_flow` e `castle_glow`) foram removidas.
+- **Fundo novo, 100% Godot**, em 13 camadas com profundidade de parallax (detalhes em `ARCHITECTURE.md`):
+  - céu em gradiente frio com poucas estrelas;
+  - lua cheia branco-azulada com halo e pulsação lenta;
+  - duas camadas de nuvens estilizadas (bancos longos, topo em escamas, borda prateada perto da lua) deslizando
+    da esquerda para a direita;
+  - duas cordilheiras góticas;
+  - castelo principal e forte menor, com janelas roxas que acendem e apagam uma a uma;
+  - pontes em arco e torres partidas;
+  - três camadas de neblina, uma no sentido contrário;
+  - estandartes com balanço pendular pesado e chamas calmas.
+- **Paleta fria** (azul-acinzentado, azul profundo, preto azulado). O roxo aparece só nas janelas, velas,
+  estandartes e no desenho do chão.
+- **Menu inicial:** usa o mesmo fundo, escurecido. Nenhuma cena usa mais `novocenario.png`.
+
+Validado:
+- `tests/backdrop_test.gd` (reescrito):
+  - estrutura: ordem das 13 camadas, profundidades crescentes, nenhum uso da arte antiga, geometria das
+    silhuetas, lua no alto à direita, camadas sem clique e nada animado entrando no campo;
+  - movimento: nuvens para a direita com a do meio mais rápida, neblina em sentidos opostos, velocidades
+    baixas, pulsação da lua de 5 a 8 s;
+  - janelas: acendem, mas nunca todas juntas;
+  - ajustes e parallax.
+- As outras 4 suítes seguem OK.
+- Cena real em 1600×896:
+  - fundo em três instantes;
+  - mapa de movimento: cerca de 5% dos pixels mudam em 20 s, **0% no chão**;
+  - parallax com ±40 px;
+  - menu e combate sobre o fundo.
+
+Limitações:
+- A extração do primeiro plano é por cor. Pequenos restos azulados nas bordas do muro podem ter ficado de fora;
+  onde isso acontece, o fundo novo aparece e não há buraco.
+- Não há câmera móvel ainda: o parallax está pronto, mas só é visto com `view_offset` ou `parallax_preview`.
+- As árvores secas laterais são as da arte e ficam paradas.
+- Castelo, montanhas e ruínas têm formas fixas no código (listas de picos e peças). Mudar a composição = editar
+  essas listas ou os parâmetros das cordilheiras na cena.
+
+### Fundo em nós editáveis + interface do Sandbox na faixa inferior ✔
+Pedido: reconstruir o fundo distante e deixar cenário e interface **editáveis no editor do Godot** (nós
+separados, Controls reais em `.tscn`), com a UI do Sandbox numa faixa inferior.
+
+Feito:
+- **Fundo** (`arena_backdrop.tscn`): antes eram 4 scripts que desenhavam camadas inteiras; agora é uma árvore de
+  cerca de 190 nós (ver `ARCHITECTURE.md`, "Fundo da arena").
+  - Montanhas (3 profundidades), castelo (penhasco e torres), forte leste e ruínas: um `Polygon2D` por peça, com
+    gradiente por vértice e luz de borda em `Line2D`.
+  - Nuvens: 3 grupos (Far/Mid/Near) de nuvens individuais `@tool`, mais volumosas, deslizando para a direita
+    com velocidades 1,6 · 3,2 · 5 px/s.
+  - Névoa: 3 faixas (a do meio em sentido contrário) que respiram.
+  - Lua `@tool` com pulsação lenta.
+  - Castelo: 24 janelas `CastleWindow` (poucas acesas por vez).
+  - Chamas `CandleFlame` como nós.
+- Um **gerador** (`tools/arena_backdrop/generate_backdrop_scene.gd`) montou a cena uma vez; a partir de agora a
+  `.tscn` é a fonte de verdade.
+- **Arquitetura lateral** separada em `LeftArchitecture` e `RightArchitecture` (sai `sides.png`).
+- **Interface do Sandbox** em `sandbox_ui.tscn` + `sandbox_theme.tres`:
+  - faixa inferior (22%) com Aliados · Controles · Unidade selecionada · Inimigos;
+  - o script só liga os nós aos sinais; a API do `SandboxUI` não mudou.
+- **`Arena.set_bottom_inset`:** o mundo é enquadrado acima da faixa, com zoom 0,89 em 1600×896, e o campo inteiro
+  fica visível.
+- F3 (painel) e avisos do `Main` voltaram para o topo.
+
+Validado:
+- `backdrop_test` (reescrito):
+  - estrutura: ordem das 21 camadas; nada criado em runtime (todo nó pertence à cena); montanhas como
+    `Polygon2D` com gradiente, as distantes mais claras;
+  - nuvens: individuais, com velocidades crescentes e volta fora da tela;
+  - névoa em sentidos opostos, fora do campo;
+  - lua; janelas com poucas acesas;
+  - intensidade 0 e parallax.
+- `sandbox_test`: +3 verificações da faixa inferior e do campo visível acima dela.
+- As outras 3 suítes seguem OK. Nenhum erro nem vazamento.
+- Cena real em 1600×896: menu, Sandbox vazio e com seleção, combate, F3+F4, mapa de movimento (cerca de 6% dos
+  pixels mudam em 20 s, **0% no chão**) e parallax.
+
+Limitações:
+- **Não foi possível abrir o editor do Godot neste ambiente** (sem Vulkan). As cenas foram validadas no jogo e
+  nos testes, mas não visualmente dentro do editor.
+- Os scripts `@tool` (nuvem, lua, janela, chama, névoa) só desenham e sincronizam; as animações não rodam no
+  editor.
+- A luz de borda (`Rim`) é calculada para a composição gerada. Depois de mover muito um pico, ela pode aparecer
+  por dentro de outro pico; ajuste ou apague a `Line2D`.
+- A interface é pensada para o viewport de 1000 unidades de largura; em janelas muito estreitas os painéis
+  apertam (os textos longos quebram linha).
+- A imagem de referência mencionada não veio anexada; a composição seguiu a das etapas anteriores.
+
+### Investigação: cliques no menu (relato de regressão)
+Relato: após a etapa anterior, clicar em Jogar/Sandbox não entrava. Com cliques reais de mouse (X virtual +
+xdotool), o commit 7ea0e22 entra no Sandbox rodando sozinho **e** embutido no editor (F5, aba Game); não foi
+possível reproduzir. Ficou o teste `menu_click_test` (eventos de mouse pelo viewport, pressionar e soltar em
+quadros separados; falha se um Control invisível tomar o clique).
+
+### Sombras necromânticas + coerência do cenário ✔
+Pedido (com imagens de referência no clima dos "soldados sombra"): unidades revividas com identidade forte de
+"sombra necromântica" — corpo escuro, energia roxa, aura/fumaça/olhos, sem virar mancha e sem perder a classe —
+como regra reutilizável; cenário mais coerente (castelo encaixado na montanha, nada flutuando); estandartes mais
+fluidos e luzes menos chamativas. Sem mudar combate, números nem fluxo do Sandbox.
+
+Feito:
+- **Regra reutilizável** (ver `ARCHITECTURE.md`, "Versões sombra"): `ShadowStyle` (`data/visuals/shadow_style.tres`)
+  converte a paleta viva (`convert`), `ShadowFX` desenha aura, névoa no chão, fumaça, fissuras e olhos, e
+  `CodeDrawnUnitVisual` ganhou `shadow`/`_apply_shadow_style`/`_draw_with_rim` (borda roxa só na silhueta
+  externa). `UnitDef.shadow_style` permite um estilo por unidade.
+- **Guerreiro Sombra** (era "Guerreiro Morto-Vivo" verde): `ShadowWarriorVisual` (renomeado de
+  `UndeadWarriorVisual`), mesmo rig; armadura grafite violeta, capa quase preta com resto do vermelho, olhos
+  roxos na fenda, fissuras de energia no peitoral e no elmo, pluma → chama espectral, fio da espada aceso,
+  névoa/aura/fumaça; postura pesada em vez de cambaleante; ao morrer a energia se apaga e o corpo solta fumaça.
+  Nome exibido: "Guerreiro Sombra" (stats inalterados).
+- **Sentinela Arcana Sombra**: paleta agora convertida pela mesma regra (selo arcano azul mantido), borda roxa,
+  olhos pela regra, fissuras na saia, aura, névoa no chão e fumaça no capelete; animações e mecânica iguais.
+- **Cenário** (gerador + cena regenerada; só os `unique_id` e as peças abaixo mudam):
+  - `MainCastle` 18 px mais baixo; rochedo com platô mais largo; muralha e torres assentam na rocha (antes a
+    ponta direita da muralha ficava sobre a encosta, com vão embaixo); idem torre esquerda do `EastKeep`;
+  - pontes do castelo passam a ser filhas do castelo (mesmo parallax) e descem até o chão; aqueduto e pilares
+    partidos descem até o chão, com entulho no pé e duas colinas baixas na frente.
+- **Animações:** estandarte com vento que propaga pelo tecido (atraso por altura), rajadas lentas, ondulação
+  na ponta e barra que sobe um pouco; velas com flicker sutil (antes ±10–40%, agora ±4–12%, mais lento);
+  tremor das janelas do castelo reduzido (±10% rápido → ±5% lento).
+
+Validado:
+- 7 suítes OK: combat, visual, sentinel, sandbox, backdrop, menu_click e a nova `shadow_visual_test`.
+- `backdrop_test` ganhou as verificações "nada flutua"; rodadas contra a cena antiga, elas falham exatamente
+  nos problemas relatados (muralha/torres fora da rocha, pontes e pilares acabando no ar).
+- Capturas no jogo real (1600×896): sombras legíveis no tamanho da arena (corpo escuro, borda roxa, olhos) e em
+  close 5×–14×; vivas inalteradas; combate e mortes; fundo antes/depois.
+- O editor do Godot abre neste ambiente com `--rendering-driver opengl3` (X virtual): o jogo foi rodado pelo
+  editor (F5, embutido); a edição das cenas dentro do editor não foi exercitada.
+
+Limitações:
+- Regenerar o fundo pelo gerador sobrescreve edições feitas na `.tscn` (até agora não havia nenhuma: a
+  regeneração da versão anterior só mudava os `unique_id`).
+- O efeito "sombra" é por código (sem shader de contorno): a borda da silhueta é o corpo desenhado duas vezes,
+  o que dobra o custo de desenho das sombras (ainda barato).
+- Só existem duas classes hoje (Guerreiro e Sentinela); paladino/healer etc. usarão a mesma regra quando
+  forem criados (`convert(cor, keep)` para os acentos da classe).
+
+### Paladino (vivo e Sombra) ✔
+Pedido (com a arte conceitual "Paladino Vivo / Paladino Sombra"): portar o Paladino **exatamente como no
+HTML** — sem mudar mecânica, números ou função — com visual por código fiel à referência, animações pesadas e
+legíveis, versão Sombra pela regra necromântica (dourado preservado) e integração ao Sandbox.
+
+Portado do HTML (`MortivaneV97.html`):
+- `FACTION_UNITS.sac_paladin`: HP 120, dano 13, alcance 34, recarga 1,2, velocidade 44, raio 14, corpo a
+  corpo, `ability: 'paladin_taunt_shield'`. O `u_sac_paladin` sai de `registerFactionUnits` (mesmos stats e
+  habilidade, HP round(120 × 0,94) = **113**). Nome no Godot: "Paladino Sombra" (no HTML, "Paladino Morto-Vivo").
+- `PALADIN_CONFIG` + `tickPaladinCombat` + `paladinShieldDamage` + `lockPaladinShieldFacing` + `tauntTarget`/
+  `clearTaunt` (em `nearestFoe` e em `killUnit`) → `PaladinTaunt` + ganchos na `CombatSim` (ver
+  `ARCHITECTURE.md`, "Combate"). Mesma ordem do HTML: a passada do Paladino roda antes das unidades.
+- Fora do escopo (ainda não existem no Godot, então não entram): `cost`/`essence`/`wc`/`from`/`tier`
+  (economia e ondas), `stun` e `controlImmune` (nenhuma unidade atual tem), relíquias (`relicShield`), métricas
+  (`behaviorMetric`), sons (`paladinCue` toca sons no HTML) e as camadas de dano que o Paladino não usa
+  (`incomingMul`, `shield`, `tempHp`, espinhos). O corpo a corpo segue o núcleo mínimo (sem separação
+  entre unidades).
+- Diferença de apresentação consciente: o HTML desenha o Paladino num rig 3/4 com lado do escudo fixo
+  (nunca espelha a arte) e o cadáver é um PNG; aqui ele segue a convenção das outras unidades (espelha pela
+  direção) e o cadáver é o próprio rig no chão, com escudo e espada soltos.
+
+Feito:
+- `PaladinVisual` / `ShadowPaladinVisual` (desenho 100% por código) e `PaladinLook` (Inspector); tabelas de
+  animação e de diferenças Vivo × Sombra em `ARCHITECTURE.md`.
+- Eventos de habilidade para o visual: `UnitVisual.on_ability_event(kind)` (via `Battle`/`UnitView`).
+- `UnitDef.visual_look` (opcional, genérico).
+- Sandbox: "Paladino" (inimigos) e "Paladino Sombra" (aliados) aparecem sozinhos (o catálogo lê a pasta).
+
+Validado:
+- 8 suítes OK (combat, visual, sentinel, sandbox, backdrop, menu_click, shadow_visual e a nova paladin_test);
+  `shadow_visual_test` agora cobre também o par Paladino/Paladino Sombra. Nenhum vazamento.
+- `paladin_test`: mutação de teste (redução 75% → 50%) faz o teste falhar; a luta de referência do Guerreiro
+  bate com a medida no commit anterior (`ally 20/74 12.025 13`).
+- Capturas em 1600×896 no Sandbox real (provocação, golpes, mortes) e folha de poses ampliada (idle, walk,
+  preparação, golpe, provocação, escudo, bloqueio, hit, caindo, no chão), mais comparação de escala.
+
+Limitações:
+- O anel da provocação é desenhado no raio real (115); em telas cheias de Paladinos isso pode poluir —
+  `PaladinLook.show_taunt_ring` desliga.
+- Ainda não há sistema de cadáveres: o corpo no chão é só apresentação do visual.
+- Os parâmetros do Inspector ficam num recurso (`paladin_look.tres`); as partes do corpo continuam no código
+  (não são nós separados).
+
+### Protótipo: sprite sheet piloto do Paladino Vivo (3/4, frame a frame) — aguardando validação
+Pedido: sprite sheet piloto do Paladino Vivo, fiel às pranchas aprovadas (A/B/C), em 3/4 estilizado 2.5D,
+só Idle (6), Walk (8) e Attack (8), para validar no Godot escala, fluidez, silhueta e perspectiva.
+Decisão (com o usuário): **renderizar pelo próprio Godot** em vez de gerar com IA — consistência e alinhamento
+garantidos entre frames; acabamento ilustrado/vetorial (não é pintura à mão como as pranchas).
+
+Feito:
+- `tools/sprites/render_paladin_pilot.gd`: pintor 3/4 (proporções da prancha: elmo grande com visor em T e
+  crista, auréola com estrelas, ombreiras em lâminas com bordas douradas, peitoral pesado, tabardo com sol,
+  saiote, capa com forro, escudo grande com espessura e sol, espada larga), IK nos pés e no braço da espada,
+  keyframes: idle (respiração ~1 px), walk (passada curta, 2 px de subida, escudo estável, espada com atraso,
+  capa/tabardo atrasados), attack (guarda · preparação · espada recua · tronco gira · início · impacto com arco
+  dourado sutil · follow-through · recuperação).
+- `assets/sprites/paladin_live_pilot/`: sheet 2048 × 768, 22 frames avulsos, sombra separada, JSON do contrato,
+  `SpriteFrames`.
+- `scenes/prototypes/paladin_sprite_pilot.tscn`: arena real, as 3 animações na escala de jogo ao lado do
+  Paladino atual, um Paladino andando a 44/s com o walk sincronizado, versões ampliadas com o pivô marcado
+  (Espaço pausa, ←/→ frame a frame, S sombra).
+
+Não feito (por pedido): Hit, Defesa, Provocação, Morte, Paladino Sombra; nada ligado ao combate/Sandbox.
+
+Limitações: acabamento vetorial com sombreado por vértice (sem textura pintada); o escudo é visto sempre pela
+face (3/4 fixo); a espada no frame "espada recua" passa por cima da ombreira; 256 px de frame é pouco para
+ampliar muito além de 2×.
+
+### Paladino Vivo com a sprite sheet aprovada ✔ (aguardando validação)
+Pedido: integrar a sprite sheet do Paladino Vivo (arte aprovada) no lugar do visual por código, com
+AnimatedSprite2D/SpriteFrames, sem mudar mecânica; Paladino Sombra fica como está.
+
+Leitura da sheet (1125 × 844, fundo transparente, sem grade): 36 frames em 6 linhas — idle 6 · walk 8 ·
+attack 6 · linha 4 com defend 4 (ergue o escudo, dois clarões, guarda) + taunt 3 (espada erguida com halo,
+depois apontando) · hit 3 · death 6. **O ataque tem 6 frames** (não 8); defend e taunt dividem a mesma linha;
+o 1º frame do hit já tem o clarão do impacto. Nenhum frame foi inventado.
+
+Feito:
+- `tools/sprites/slice_paladin_live.py` fatia a sheet (ver `ARCHITECTURE.md`): atlas 320 × 208 por célula com
+  pivô (160, 192) nos pés, frames avulsos, JSON com retângulos e pivôs de origem, `paladin_live_frames.tres`.
+- `PaladinSpriteVisual` + cena; `UnitDef.visual_scene` (tem prioridade sobre `visual_script`); `UnitView`
+  instancia a cena. `sac_paladin` usa a cena; o `PaladinVisual` fica como alternativa no mesmo `.tres`.
+- `PaladinFx`: barreira/anéis extraídos do `PaladinVisual` (os dois visuais usam o mesmo código).
+- Mecânica, stats, provocação, Escudo Sagrado, seleção, barra de HP, debug e Sandbox inalterados.
+
+Validado: 9 suítes OK (nova `paladin_sprite_test`: recursos e loops, pivô ±4 px em todos os frames de pé,
+escala, cada estado pela lógica real, impacto no instante do dano, morte parada no último frame, Sandbox com
+seleção/combate/Reiniciar/Limpar); capturas 1600×896 dos estados e do Sandbox.
+
+Limitações:
+- A arte é de ~135 px de altura; no jogo aparece reduzida ~2× (mipmaps). Ampliar muito acima de 1× borra.
+- O walk da sheet é um ciclo no lugar sem medida de passada; o ritmo segue a velocidade real
+  (`walk_reference_speed` = 44), mas um leve deslizar dos pés pode aparecer — ajustável no Inspector.
+- Frame de impacto escolhido na arte (3º frame com o arco = índice 3) — ajustável (`attack_impact_frame`).
+- A morte na sheet cai para a direita da arte; espelhada no inimigo. Sem sistema de cadáveres (só visual).
+- A sheet piloto renderizada por código (`assets/sprites/paladin_live_pilot/`, cena de protótipo) continua no
+  repositório como referência; não é usada pelo jogo.
