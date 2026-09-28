@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://cxlxjiqtcqhpa" path="res://scripts/arena/arena.gd" id="1_arena"]
 [ext_resource type="Texture2D" uid="uid://bja6jdmwwej65" path="res://assets/art/novocenario.png" id="2_art"]
 [ext_resource type="Script" uid="uid://sljo74cslvlx" path="res://scripts/arena/debug_overlay.gd" id="3_debug"]
+[ext_resource type="Script" uid="uid://belf6jm8b3652" path="res://scripts/combat/battle.gd" id="4_battle"]
 
 [node name="Arena" type="Node2D"]
 script = ExtResource("1_arena")
@@ -26,6 +27,10 @@ centered = false
 y_sort_enabled = true
 
 [node name="Effects" type="Node2D" parent="Stage"]
+
+[node name="Battle" type="Node" parent="."]
+script = ExtResource("4_battle")
+entities_path = NodePath("../Stage/World/Entities")
 
 [node name="Debug" type="Node2D" parent="."]
 script = ExtResource("3_debug")

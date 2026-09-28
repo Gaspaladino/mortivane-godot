@@ -7,10 +7,12 @@ extends Node2D
 ##   Stage/World — gameplay (Ground, Entities com y-sort). Futuro tremor vai em Stage.
 ##   Stage/Effects — efeitos visuais do gameplay.
 ##   Debug — sobreposição de referência (atalho F3 tratado em Main).
+##   Battle — teste mínimo de combate; cria os visuais em Stage/World/Entities.
 
 @onready var camera: Camera2D = $Camera2D
 @onready var arena_art: Sprite2D = $Background/ArenaArt
 @onready var debug_overlay: DebugOverlay = $Debug
+@onready var battle: Battle = $Battle
 
 ## Parte do mundo visível na janela atual (coordenadas do mundo).
 var visible_world_rect := Rect2(Vector2.ZERO, WorldConfig.SIZE)

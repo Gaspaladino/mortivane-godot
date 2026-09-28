@@ -161,7 +161,7 @@ As duas imagens podem ser extraídas do base64 para `res://assets/` sem perdas (
 res://
   project.godot
   assets/
-    art/arena_background.webp
+    art/novocenario.png
     art/corpses/paladin_corpse.png
   data/                      # Resources (.tres) — etapas futuras
     units/  factions/  relics/  rituals/  schools/
@@ -173,6 +173,8 @@ res://
     core/
       phase_machine.gd       # MENU/PREP/BATTLE/NECROMANCY/VICTORY/DEAD
       battle_clock.gd        # acumulador de passo fixo + velocidade
+    combat/                  # núcleo de combate (implementado: ver seção 6)
+      combat_unit.gd  combat_sim.gd  unit_view.gd  battle.gd
     arena/
       battlefield.gd         # limites, clamp, point_inside, grids
       formation_grid.gd      # máscara, células, footprints
@@ -205,9 +207,12 @@ Sugestão: placeholders simples primeiro, decidir A/B quando o combate for migra
 
 ### Ordem sugerida de etapas
 1. **Esqueleto do projeto + arena**: config, fundo, escala/aspecto, limites do campo, debug overlay, grades. ✔ (ver seção 6)
+   - **Núcleo mínimo de combate** (1 × 1: alvo, movimento, ataque, dano, HP, morte). ✔ Feito antes da etapa 2,
+     a pedido; adianta parte da etapa 4 (ver seção 6).
 2. Máquina de fases + menu mínimo + HUD vazia.
 3. Resources de dados (unidades/facções) + placeholder de unidade e posicionamento na grade.
-4. Simulação de batalha (movimento, alvo, ataque), relógio fixo e velocidade.
+4. Simulação de batalha: ~~movimento, alvo, ataque e passo fixo~~ (núcleo feito) → falta velocidade 1x/2x/3x,
+   IA de formação, à distância/projéteis e integração com a fase de batalha.
 5. Cadáveres + Necromancia (erguer/sacrificar, portal).
 6. Essência, capacidade, lojas, Relíquias, Escola.
 7. Áudio (sintetizado via `AudioStreamGenerator` ou arquivos gerados), configurações.
@@ -250,3 +255,54 @@ Diferenças conscientes em relação ao HTML:
 
 Fora do escopo (próximas etapas): unidades, combate, IA, HP, cadáveres, Necromancia, Relíquias, HUD, ondas,
 drag-and-drop, footprint.
+
+Correção de documentação: a estrutura de pastas proposta (seção 5) ainda citava `arena_background.webp`;
+agora cita `novocenario.png`.
+
+### Núcleo mínimo de combate ✔
+Feito antes da máquina de fases, a pedido. Uma luta de teste começa sozinha ao abrir o jogo:
+**1 aliado × 1 inimigo**.
+
+Feito:
+- `CombatUnit` (dado puro): time, posição, raio, HP/HP máx., dano, alcance, intervalo de ataque, velocidade,
+  recarga, alvo e estado `IDLE / MOVING / ATTACKING / DEAD`.
+- `CombatSim` (dado puro, sem nós): roda em passo fixo de 1/120 s (`BATTLE_STEP` do HTML), com acumulador em
+  `Battle` e dt do quadro limitado a 0,05 s como no `frame()` do HTML.
+  - **Alvo:** inimigo vivo mais próximo (distância centro a centro), reavaliado a cada passo.
+  - **Movimento:** fora do alcance → `MOVING`, anda em linha reta até o alvo e para um pouco dentro do alcance
+    (0,85 × alcance, como o corpo a corpo do HTML). A posição é presa à área jogável.
+  - **Ataque:** no alcance → `ATTACKING`, não se move; golpeia quando a recarga zera e recarrega com `cd`.
+    A primeira recarga é sorteada entre 0 e 40% de `cd` (HTML: `rnd(0, d.cd*0.4)`), com semente fixa (97).
+  - **Dano/HP:** `take_damage` tira no máximo o HP restante; morto não recebe dano.
+  - **Morte:** HP 0 → `DEAD`: perde o alvo, para de agir e deixa de ser alvo válido. Sem inimigo vivo → `IDLE`.
+- Stats do HTML, sem scaling de onda:
+  - aliado = `u_warrior` (Guerreiro Morto-Vivo: HP 74, dano 10, alcance 32, cd 1,0, vel. 56, r 12), em (150, 380);
+  - inimigo = `warrior` (Guerreiro: HP 70, dano 9, alcance 32, cd 1,0, vel. 56, r 12), em (850, 380).
+- Visual temporário (`UnitView`): círculo na cor do corpo do HTML, marca de direção, barra de HP sempre visível,
+  flash branco ao ser atingido e sumiço gradual ao morrer.
+- Debug de combate (**F4**, desligado por padrão): círculo de alcance, linha até o alvo, e texto com HP, alcance,
+  estado e alvo atual. O morto fica marcado com um ✕ e o estado `DEAD`.
+- **F9** reinicia a luta. Ao fim, um aviso no rodapé diz quem venceu.
+- Teste headless `tests/combat_test.gd` cobrindo aquisição, movimento, ataque só dentro do alcance, dano exato,
+  HP 0, `DEAD`, remoção como alvo e o sobrevivente em `IDLE`.
+
+Resultado da luta de teste (determinística): o Guerreiro Morto-Vivo vence com 20/74 HP em ≈12,0 s.
+São 13 golpes: 7 × 10 no inimigo e 6 × 9 no aliado.
+
+Validado:
+- teste headless com Godot 4.7: OK;
+- capturas reais em 1600×896 (Xvfb) andando, atacando e depois da morte, com e sem F4, e após F9;
+- nenhum objeto vazado ao sair.
+
+Diferenças conscientes em relação ao HTML (simplificações desta etapa):
+- **Sem `TARGET_AI`:** nada de alinhamento, saturação, "stickiness", provocação ou vanguarda. É só a distância.
+- **Parar para atacar:** o HTML golpeia assim que `dist ≤ range`, mesmo ainda se aproximando. Aqui o estado é
+  exclusivo, `MOVING` ou `ATTACKING`, e a unidade para antes de golpear.
+- **Sem separação/colisão entre corpos:** as unidades podem se sobrepor.
+- **Clamp simplificado:** usa o raio da unidade, não o envelope do sprite.
+- **Sem alvo reserva:** o Necromante não existe ainda, então não há o fallback "inimigo sem alvo mira o Necromante".
+- **Estado `IDLE` a mais:** existe além dos três pedidos, para quem ficou sem inimigo vivo.
+- **Stats como constantes:** ficam em `Battle` até a etapa de Resources de dados.
+
+Fora do escopo: máquina de fases, menu, GameState/Events, cadáveres, Necromancia, Relíquias, ondas, HUD final,
+formação, drag-and-drop, footprint, IA avançada, projéteis, habilidades, Sandbox, Run Lab, velocidade 1x/2x/3x.
