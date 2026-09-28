@@ -11,8 +11,6 @@ signal finished(winner_team: int)
 
 ## Limite do dt de um quadro (HTML: frame() limita dt a 0,05 s).
 const MAX_FRAME_DT := 0.05
-## Folga, em unidades do mundo, para acertar uma unidade com o mouse.
-const PICK_SLACK := 4.0
 
 @export var entities_path: NodePath
 ## Semente da primeira recarga de cada unidade: a mesma montagem sempre produz a mesma luta.
@@ -77,14 +75,16 @@ func view_of(unit: CombatUnit) -> UnitView:
 	return _views.get(unit.id) if unit else null
 
 
-## Unidade sob o ponto (coordenadas do mundo); vivas têm prioridade sobre mortas.
+## Unidade sob o ponto (coordenadas do mundo), pela área clicável do visual.
+## Vivas têm prioridade sobre mortas; entre iguais, a de centro mais próximo.
 func unit_at(point: Vector2) -> CombatUnit:
 	var best: CombatUnit = null
 	var best_score := INF
 	for unit in sim.units:
-		var d := unit.position.distance_to(point)
-		if d > unit.radius + PICK_SLACK:
+		var view := view_of(unit)
+		if view == null or not view.contains_point(point):
 			continue
+		var d := unit.position.distance_to(point)
 		var score := d + (0.0 if unit.is_alive() else 1000.0)
 		if score < best_score:
 			best_score = score
@@ -123,7 +123,12 @@ func _winner_team() -> int:
 	return -1
 
 
-func _on_unit_attacked(_attacker: CombatUnit, target: CombatUnit, _amount: float) -> void:
-	var view := view_of(target)
-	if view:
-		view.flash_hit()
+## Eventos puramente visuais, no instante exato em que a CombatSim aplica o golpe:
+## o atacante executa o golpe da espada e o alvo reage ao dano.
+func _on_unit_attacked(attacker: CombatUnit, target: CombatUnit, _amount: float) -> void:
+	var attacker_view := view_of(attacker)
+	if attacker_view:
+		attacker_view.on_attack_landed()
+	var target_view := view_of(target)
+	if target_view:
+		target_view.on_hit()

@@ -19,7 +19,10 @@ extends Resource
 @export var move_speed := 50.0
 @export var radius := 12.0
 
-@export_group("Visual temporário")
+@export_group("Visual")
+## Script do visual desenhado por código (estende UnitVisual). Vazio = círculo padrão.
+@export var visual_script: Script
+## Cores do círculo padrão (CircleUnitVisual).
 @export var body_color := Color(0.5, 0.5, 0.5)
 @export var trim_color := Color(0.9, 0.9, 0.9)
 

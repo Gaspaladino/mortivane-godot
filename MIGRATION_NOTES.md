@@ -207,6 +207,8 @@ Como o HTML desenha tudo proceduralmente, há duas rotas:
 - **A)** portar os desenhos para `_draw()` do Godot (API muito parecida com Canvas 2D) — fiel, trabalhoso;
 - **B)** substituir por sprites/animações — mais "Godot", exige arte nova.
 Sugestão: placeholders simples primeiro, decidir A/B quando o combate for migrado.
+**Em teste (seção 6):** rota A para Guerreiro e Guerreiro Morto-Vivo. É desenho novo, não uma porta 1:1 de
+`drawUnit`, com rig de partes e animação por estado.
 
 ### Ordem sugerida de etapas
 1. **Esqueleto do projeto + arena**: config, fundo, escala/aspecto, limites do campo, debug overlay, grades. ✔ (ver seção 6)
@@ -369,3 +371,54 @@ Limitações atuais:
 Fora do escopo: campanha/Jogar, máquina de fases, GameState/Events, cadáveres, Necromancia, Relíquias, Rituais,
 Escolas, loja, ondas, capacidade, formação, footprints, drag-and-drop, rotação, swap, IA avançada, habilidades,
 projéteis, versões Sombra, Run Lab.
+
+### Teste visual: unidades desenhadas 100% por código ✔
+Objetivo: medir até onde o visual melhora sem sprites. Só duas unidades, usando o combate real sem nenhuma
+mudança de regra. O combate de referência continua dando 20/74 HP em 12,03 s.
+
+Feito:
+- `UnitVisual` (base) + `CircleUnitVisual` (o círculo, agora padrão para `UnitDef` sem `visual_script`).
+- `WarriorVisual`: Guerreiro montado em partes com uma cadeia de `Transform2D`:
+  - elmo fechado com fenda horizontal e pluma;
+  - ombreiras arredondadas e peitoral segmentado;
+  - braçadeiras, grevas com joelheira e botas;
+  - espada, capa vermelha e sombra.
+- `UndeadWarriorVisual`: o **mesmo rig**, com outra paleta e desgaste:
+  - metal escuro, verde-musgo, pluma desbotada;
+  - capa rasgada, lâmina lascada, amassado no elmo e rachadura no peitoral;
+  - brilho verde na fenda;
+  - postura torta.
+- Animações por estado real: IDLE, MOVING (pelo deslocamento real), preparação de ataque (pela recarga real),
+  golpe (no evento real de dano), HIT (só visual) e DEAD (queda, e o corpo fica no chão).
+  O Morto-Vivo anima de forma perceptivelmente mais irregular e bruta.
+- `UnitDef.visual_script` escolhe o visual: `warrior.tres` → `WarriorVisual`, `u_warrior.tres` →
+  `UndeadWarriorVisual`.
+- `UnitView` ficou enxuto:
+  - cuida só de seleção (elipse nos pés), barra de HP (acima do elmo, pelo `top_y()` do visual) e debug F4;
+  - o corpo é o filho `Body`.
+- `Battle` agora repassa `unit_attacked` como eventos visuais: golpe para o atacante, hit para o alvo.
+  O clique usa a área do visual, porque o corpo ficou mais alto que o antigo círculo.
+
+Validado:
+- `tests/visual_test.gd` (novo): idle, walk sem "deslizar", preparação/golpe/retorno, hit, queda e permanência
+  no chão, que o visual não altera stats, e o círculo padrão.
+- `tests/sandbox_test.gd`: +3 verificações: visual certo por `UnitDef`, golpe real chegando ao visual e queda
+  dos mortos. `combat_test` inalterado e OK. Nenhum erro nem vazamento.
+- Cena real em 1600×896 (Xvfb), com capturas de:
+  - preparação/idle 3 × 3, seleção + F4, movimento, ataque e morte do Guerreiro;
+  - uma folha de poses ampliada;
+  - tiras de quadros de walk, ataque (vivo e morto-vivo) e queda do Morto-Vivo.
+
+Limitações atuais:
+- **Sobreposição de corpos:** continua (o núcleo não tem separação). Com o corpo mais alto, fica mais visível
+  quando dois atacam o mesmo alvo.
+- A direção vira na hora (espelhamento), sem animação de giro. Sem alvo, a unidade mantém a última direção.
+- O visual reage 1 quadro depois do passo da simulação (≈ 16 ms), por causa da ordem de processamento.
+- O primeiro golpe ao entrar no alcance pode vir sem preparação completa se a recarga já estiver quase zerada.
+  O braço salta para a pose de preparação e golpeia.
+- O "cadáver" é só a pose final da queda: não é o sistema de cadáveres. Ele some em Reiniciar e Limpar, como
+  toda unidade.
+- Contornos de ~1,5 px e detalhes finos (rachadura, amassado) só são bem visíveis de perto. Na arena, a leitura
+  vem da silhueta, da pluma, da capa e da espada.
+- Não há sistema geral de animação: os parâmetros vivem em `WarriorVisual` e o Morto-Vivo os sobrescreve.
+  Outras unidades continuam como círculo até ganharem um visual.

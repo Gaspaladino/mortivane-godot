@@ -90,14 +90,26 @@ func _run() -> void:
 		_check(p.unit in battle.sim.units and p.unit is CombatUnit, "unidade pertence à CombatSim da Arena")
 		_check(p.unit.target != null and p.unit.target.team != p.unit.team, "alvo real adquirido (%s)" % p.unit.label())
 	_check(sandbox.placements.any(func(p): return p.unit.state == CombatUnit.State.MOVING), "unidades se movem")
+	# o evento real de dano dispara o golpe no visual do atacante no mesmo passo
+	var strikes := [0]
+	battle.sim.unit_attacked.connect(func(attacker: CombatUnit, _t: CombatUnit, _a: float) -> void:
+		if battle.view_of(attacker).visual._strike_t == 0.0:
+			strikes[0] += 1)
 	var start := Time.get_ticks_msec()
 	while sandbox.mode != SandboxController.Mode.FINISHED and Time.get_ticks_msec() - start < MAX_FIGHT_SECONDS * 1000:
 		await _frames(1)
 	_check(sandbox.mode == SandboxController.Mode.FINISHED, "combate termina")
+	await _frames(1)   # os visuais leem o estado no quadro seguinte ao passo da simulação
 	var dead := sandbox.placements.filter(func(p): return not p.unit.is_alive())
 	_check(dead.size() >= 2, "houve mortes (%d)" % dead.size())
 	for p in dead:
 		_check(p.unit.hp == 0.0 and p.unit.state == CombatUnit.State.DEAD, "morto com HP 0 e DEAD")
+		_check(battle.view_of(p.unit).visual._death_t > 0.0, "visual executa a queda (%s)" % p.unit.label())
+	for p in sandbox.placements:
+		var vis := battle.view_of(p.unit).visual
+		var expected: Script = UndeadWarriorVisual if p.def.id == &"u_warrior" else WarriorVisual
+		_check(vis.get_script() == expected, "visual desenhado por código da UnitDef (%s)" % p.unit.label())
+	_check(strikes[0] > 0, "golpes reais chegam ao visual do atacante (%d)" % strikes[0])
 	_check(ui.status_label.text.begins_with("FIM"), "estado mostra o resultado")
 
 	# 9. Reiniciar restaura a montagem

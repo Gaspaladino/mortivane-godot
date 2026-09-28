@@ -1,6 +1,7 @@
 # Mortivane (Godot 4) — Arquitetura
 
-Estado: **Etapa 1 (esqueleto + arena) + núcleo mínimo de combate + menu inicial + Sandbox.**
+Estado: **Etapa 1 (esqueleto + arena) + núcleo mínimo de combate + menu inicial + Sandbox
++ teste visual: Guerreiro e Guerreiro Morto-Vivo desenhados 100% por código.**
 Ainda não há campanha, fases, HUD de jogo, ondas, formação nem Necromancia.
 Referência funcional/visual: `MortivaneV97.html` (não é editado). Análise do HTML: `MIGRATION_NOTES.md`.
 
@@ -73,7 +74,11 @@ res://
     arena/debug_overlay.gd           # class_name DebugOverlay — desenho de referência
     combat/combat_unit.gd            # class_name CombatUnit — estado de uma unidade (dado puro)
     combat/combat_sim.gd             # class_name CombatSim — alvo, movimento, ataque, dano, morte (dado puro)
-    combat/unit_view.gd              # class_name UnitView — visual temporário + barra de HP + debug
+    combat/unit_view.gd              # class_name UnitView — seleção + barra de HP + debug; hospeda o visual
+    visuals/units/unit_visual.gd     # class_name UnitVisual — base/interface do "corpo" de uma unidade
+    visuals/units/circle_unit_visual.gd     # class_name CircleUnitVisual — círculo padrão (sem visual_script)
+    visuals/units/warrior_visual.gd         # class_name WarriorVisual — Guerreiro por código (rig + animação)
+    visuals/units/undead_warrior_visual.gd  # class_name UndeadWarriorVisual — herda o Guerreiro
     combat/battle.gd                 # class_name Battle — executor: CombatSim + UnitView + passo fixo
     data/unit_def.gd                 # class_name UnitDef (Resource) — definição de unidade
     data/unit_catalog.gd             # class_name UnitCatalog — carrega data/units/*.tres
@@ -84,6 +89,7 @@ res://
   tests/
     combat_test.gd                   # teste headless do combate (SceneTree)
     sandbox_test.gd                  # teste headless de ponta a ponta: menu + Sandbox na cena real
+    visual_test.gd                   # teste headless das poses/animações dos visuais por código
 ```
 
 Arquivos `*.import` e `*.uid` são gerados pela Godot e **devem ser versionados**. A pasta `.godot/` é cache
@@ -203,11 +209,14 @@ ondas nem formação.
   - Cria um `UnitView` por unidade em `Stage/World/Entities`.
   - Emite `finished(winner_team)` uma vez, quando um lado fica sem ninguém vivo (−1 = ninguém sobrou).
     A simulação continua rodando depois disso, e os sobreviventes passam a `IDLE`.
-- `UnitView` (`Node2D`, visual temporário) só lê a `CombatUnit`:
-  - círculo com as cores da `UnitDef` e barra de HP;
-  - flash ao ser atingido e sumiço gradual ao morrer;
-  - anel de seleção;
-  - debug com F4.
+- `UnitView` (`Node2D`) só lê a `CombatUnit` e hospeda o corpo (ver **Visuais de unidade**):
+  - anel de seleção (elipse nos pés) e, com F4, alcance e linha até o alvo;
+  - filho `Body` = o `UnitVisual` da `UnitDef`;
+  - filho `Overlay` = barra de HP e texto do F4, sempre por cima do corpo.
+- A `Battle` repassa o sinal `CombatSim.unit_attacked` como eventos **só visuais**:
+  - `on_attack_landed()` vai para o atacante;
+  - `on_hit()` vai para o alvo.
+- `unit_at()` usa a área clicável do visual (`UnitView.contains_point`).
 
 **Regras por passo** (para cada unidade viva, em ordem de criação)
 1. Desconta a recarga.
@@ -228,12 +237,66 @@ As simplificações em relação ao HTML estão em `MIGRATION_NOTES.md`, seção
 
 ---
 
+## Visuais de unidade (desenho 100% por código)
+
+Nenhum PNG, SVG, sprite sheet ou asset externo. Cadeia: `CombatUnit` → `UnitView` → `UnitVisual`.
+
+- `UnitVisual` (`Node2D`) é a base. Recebe `setup(unit, def)` e, a cada quadro, `update_visual(delta)`
+  (chamado pelo `UnitView`).
+  - Eventos: `on_attack_landed()` e `on_hit()`.
+  - Informa `top_y()` (barra de HP), `pick_rect()` (clique) e `ground_point()` (anel de seleção).
+  - Só **lê** a `CombatUnit`; não tem regra de combate.
+- `UnitDef.visual_script` escolhe o visual. Vazio = `CircleUnitVisual`, o círculo das etapas anteriores.
+- **`WarriorVisual`** tem o rig e a animação:
+  - O rig é uma cadeia de `Transform2D`: raiz (pés; espelho pela direção; `RIG_SCALE = 0.9`) → quadril →
+    pernas / tronco → cabeça, ombros e braços → mão → espada.
+  - Cada parte é um conjunto de polígonos no próprio espaço local, com contorno escuro.
+  - Ordem de desenho: sombra · capa · braço e ombreira de trás · pernas · saiote/cinto · peitoral
+    · elmo (pluma, fenda) · espada · braço, ombreira e mão da frente.
+  - Tamanho: ≈ 36 unidades do mundo de altura (≈ 58 px em 1600×896). Os pés ficam 9 abaixo do centro lógico.
+- A cada quadro, `update_visual` recalcula uma **pose** (`p_*`: ângulos e deslocamentos) a partir do estado real,
+  e `_draw()` só a aplica.
+
+| Estado | Como é lido | O que acontece |
+|---|---|---|
+| IDLE | sempre, atenuado ao andar | respiração (sobe/desce e leve escala), cabeça e braços oscilam, capa balança |
+| MOVING | fase dos passos avança pela **distância real percorrida** | pernas alternam, corpo sobe quando elas cruzam, braços em oposição, cabeça compensa, capa vai para trás; parado = pernas não andam |
+| ATTACKING (preparação) | últimos `windup_time` s da **recarga real** (`unit.cooldown`) | braço e espada recuam, tronco inclina para trás |
+| golpe | evento `on_attack_landed()`, no **mesmo passo** em que a `CombatSim` aplica o dano | golpe rápido (`strike_time`), avanço do corpo (`lunge`), depois retorno suave (`recover_time`) |
+| HIT | evento `on_hit()` | 0,16 s de recuo, achatamento sutil, cabeça para trás e clarão |
+| DEAD | `unit.state == DEAD` | queda até o chão; o corpo **permanece deitado** e escurece um pouco |
+
+- A espada tem inércia: segue o ângulo-alvo com suavização exponencial, exceto no golpe.
+- A direção vem de `unit.target` (espelhamento instantâneo); sem alvo, a unidade mantém a última direção.
+
+**Guerreiro × Morto-Vivo.** `UndeadWarriorVisual extends WarriorVisual` e muda só parâmetros e detalhes:
+
+| | Guerreiro | Morto-Vivo |
+|---|---|---|
+| Paleta | metal claro, capa e pluma vermelhas | metal escuro/gasto, tecido verde-musgo, pluma desbotada |
+| Detalhes | — | capa rasgada, lâmina lascada, amassado no elmo, rachadura no peitoral, brilho verde pulsante na fenda |
+| Postura | ereta | tronco +7°, cabeça +13° e afundada |
+| Idle | estável | irregular (`jitter`: soma de senos) |
+| Walk | pernas em oposição perfeita | defasadas (0,78π), perna de trás arrasta, tronco balança |
+| Ataque | recua a espada e estoca na horizontal | ergue a espada acima da cabeça e golpeia para baixo; avanço maior, retorno mais lento |
+| Queda | de costas, pesada (acelera), um quique | joelhos cedem, depois desaba para frente com tremores |
+
+**Sincronia do ataque.**
+- O golpe visual não é previsto: ele começa quando a `CombatSim` emite `unit_attacked`, que é o momento real do dano.
+- A preparação é lida da recarga real, então termina exatamente quando o golpe chega.
+- Nada disso altera dano, recarga nem alcance.
+
+**Quadro de atraso.** A `Battle` processa depois das `Entities` no mesmo quadro, então o visual reage no quadro
+seguinte ao passo da simulação (≈ 16 ms).
+
+---
+
 ## Dados de unidade (`UnitDef` + `UnitCatalog`)
 
 - `UnitDef` (`Resource`) define uma unidade: um `.tres` por unidade em `res://data/units/`.
   - Campos: `id` (a chave do HTML), `display_name`, `side` (em que lista aparece);
   - combate: `max_hp`, `damage`, `attack_range`, `attack_interval`, `move_speed`, `radius`;
-  - visual temporário: `body_color`, `trim_color`.
+  - visual: `visual_script` (um `UnitVisual`; vazio = círculo), `body_color` e `trim_color` (cores do círculo).
 - `to_stats(overrides)` gera o dicionário que `CombatUnit` consome. A `CombatSim` **não conhece** `UnitDef`.
 - `UnitCatalog` lê a pasta (`all()`, `for_side()`, `get_def(id)`). As listas do Sandbox vêm daqui: para
   adicionar uma unidade basta criar um `.tres`, sem mexer em código.
@@ -298,6 +361,7 @@ y = 380, 330, 430, 280, 480.
 godot --headless --import                       # uma vez, gera o cache de classes (.godot/)
 godot --headless -s res://tests/combat_test.gd  # regras de combate + catálogo
 godot --headless -s res://tests/sandbox_test.gd # ponta a ponta na cena real (menu → Sandbox → menu)
+godot --headless -s res://tests/visual_test.gd  # poses/animações dos visuais por código
 ```
 Cada teste sai com código 0 se passar e 1 se falhar.
 
@@ -306,7 +370,17 @@ Cada teste sai com código 0 se passar e 1 se falhar.
 - criação de tropas e combate parado antes de Iniciar;
 - combate real, Reiniciar, Limpar e F9;
 - F3/F4 e seleção com edição;
-- voltar ao menu e entrar/sair 3 vezes sem acumular nós.
+- voltar ao menu e entrar/sair 3 vezes sem acumular nós;
+- que cada tropa usa o visual da sua `UnitDef`, que o golpe real chega ao visual e que os mortos executam a queda.
+
+`visual_test` dirige os dois visuais quadro a quadro com `CombatUnit` reais. Ele verifica:
+- idle;
+- walk só com deslocamento;
+- preparação, golpe e retorno;
+- hit curto;
+- queda e permanência no chão;
+- que o visual não altera stats;
+- o círculo padrão para `UnitDef` sem `visual_script`.
 
 ---
 
