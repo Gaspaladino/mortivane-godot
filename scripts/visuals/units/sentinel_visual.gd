@@ -48,7 +48,6 @@ var core := Color("eef7ff")
 var wisp := Color(0, 0, 0, 0)              # fumaça sombria (transparente = não tem)
 
 # --- Estilo de animação (a Sombra sobrescreve) ------------------------------------------
-var shadow := false
 var breath := 0.012
 var hem_idle := 0.6
 var stride := 16.0
@@ -103,8 +102,8 @@ var p_wisp := 0.0         # intensidade extra da fumaça
 
 
 func setup(p_unit: CombatUnit, p_def: UnitDef) -> void:
+	outline = Color("10121c")   # a Sombra troca pelo contorno roxo do ShadowStyle (no super)
 	super(p_unit, p_def)
-	outline = Color("10121c")
 	_seed = float(unit.id) * 1.618
 	_time = fmod(_seed * 3.1, TAU)
 	_facing = 1.0 if unit.team == CombatUnit.Team.PLAYER else -1.0
@@ -397,6 +396,19 @@ func _draw() -> void:
 	_draw_shadow()
 	_with(root)
 	_draw_wisps(false)
+	_draw_with_rim(_draw_body.bind(root, head, hat))   # na sombra: silhueta roxa por baixo
+	if p_charge > 0.0:
+		_with(root * Transform2D(deg_to_rad(p_arm), SHOULDER))
+		_draw_hand_charge()
+	_with(root)
+	_draw_wisps(true)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+	_draw_blades()
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+func _draw_body(root: Transform2D, head: Transform2D, hat: Transform2D) -> void:
+	_with(root)
 	_draw_back_cloak()
 	_draw_boots()
 	_draw_robe()
@@ -416,14 +428,6 @@ func _draw() -> void:
 	_draw_head()
 	_with(hat)
 	_draw_hat()
-	if p_charge > 0.0:
-		_with(root * Transform2D(deg_to_rad(p_arm), SHOULDER))
-		_draw_hand_charge()
-	_with(root)
-	_draw_wisps(true)
-	draw_set_transform_matrix(Transform2D.IDENTITY)
-	_draw_blades()
-	draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 func _draw_shadow() -> void:
@@ -459,6 +463,8 @@ func _draw_robe() -> void:
 	var body := PackedVector2Array([Vector2(-5.4, -16.8), Vector2(5.4, -16.8)])
 	body.append_array(_hem_points(h))
 	_poly(body, _c(robe))
+	if _rim_pass:
+		return
 	var hem := _hem_points(h)
 	draw_polyline(hem, _c(trim), 0.9, true)
 	# painel frontal com o símbolo arcano
@@ -529,6 +535,8 @@ func _draw_capelet() -> void:
 	for side in [-1.0, 1.0]:
 		var half := _capelet_half(side)
 		_poly(half, _c(robe_light if side > 0.0 else robe, 1.0))
+		if _rim_pass:
+			continue
 		var edge := half.slice(3)
 		edge.append(half[0])
 		draw_polyline(edge, _c(trim), 0.9, true)
@@ -536,6 +544,8 @@ func _draw_capelet() -> void:
 	_poly(PackedVector2Array([
 		Vector2(-3.6, -18.8), Vector2(-4.2, -21.4), Vector2(-1.4, -20.0), Vector2(1.6, -20.0), Vector2(4.4, -21.4), Vector2(3.8, -18.8),
 	]), _c(robe_dark))
+	if _rim_pass:
+		return
 	# joia do peito: moldura prateada, pedra azul e brilho
 	var g := GEM
 	var glow_a := clampf(0.16 + 0.34 * p_gem, 0.0, 0.8) * p_alpha
@@ -554,9 +564,11 @@ func _draw_head() -> void:
 		var a := i * TAU / 16.0
 		face.append(fc + Vector2(cos(a) * 3.3, sin(a) * 3.4))
 	_poly(face, _c(skin))
-	_draw_face_shade(fc)
+	if not _rim_pass:
+		_draw_face_shade(fc)
 	_poly(PackedVector2Array([Vector2(-2.6, -5.9), Vector2(4.1, -6.0), Vector2(3.6, -5.0), Vector2(2.2, -5.3), Vector2(0.8, -4.6), Vector2(-0.8, -5.2), Vector2(-2.4, -3.6)]), _c(hair))
-	_draw_eyes()
+	if not _rim_pass:
+		_draw_eyes()
 
 
 ## Ponto de extensão: a Sombra escurece a parte de baixo do rosto.
@@ -588,6 +600,8 @@ func _draw_hat() -> void:
 	_poly(PackedVector2Array([Vector2(1.4, -2.2), Vector2(4.6, -2.4), Vector2(3.2, -6.2), Vector2(1.2, -9.2)]), _c(robe_light))
 	_poly(PackedVector2Array([Vector2(-5.3, -1.3), Vector2(5.5, -1.5), Vector2(5.1, -3.4), Vector2(-5.0, -3.2)]), _c(robe_dark))
 	_line(Vector2(-5.2, -3.2), Vector2(5.1, -3.4), _c(trim), 0.7)
+	if _rim_pass:
+		return
 	var g := Vector2(1.8, -2.4)
 	var glow_a := (0.2 + 0.3 * p_gem) * p_alpha * (1.0 - p_hat_fall)
 	draw_circle(g, 2.6, Color(glow, glow_a * 0.6))

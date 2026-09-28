@@ -1,12 +1,12 @@
 [gd_resource type="Resource" script_class="UnitDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_def.gd" id="1_unitdef"]
-[ext_resource type="Script" path="res://scripts/visuals/units/undead_warrior_visual.gd" id="2_visual"]
+[ext_resource type="Script" path="res://scripts/visuals/units/shadow_warrior_visual.gd" id="2_visual"]
 
 [resource]
 script = ExtResource("1_unitdef")
 id = &"u_warrior"
-display_name = "Guerreiro Morto-Vivo"
+display_name = "Guerreiro Sombra"
 side = 0
 max_hp = 74.0
 damage = 10.0

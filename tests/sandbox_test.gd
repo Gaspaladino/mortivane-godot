@@ -76,7 +76,7 @@ func _run() -> void:
 	_click_world(sandbox, ally0.unit.position)
 	await _frames(1)
 	_check(sandbox.selected == ally0, "clique seleciona a unidade")
-	_check(ui.selected_title.text.contains("Guerreiro Morto-Vivo") and ui.selected_title.text.contains("Aliado"), "painel: nome e lado")
+	_check(ui.selected_title.text.contains("Guerreiro Sombra") and ui.selected_title.text.contains("Aliado"), "painel: nome e lado")
 	_check(ui.selected_info.text.contains("HP 74/74") and ui.selected_info.text.contains("Alcance 32")
 		and ui.selected_info.text.contains("Intervalo 1 s") and ui.selected_info.text.contains("Velocidade 56"), "painel: atributos")
 	_check(battle.view_of(ally0.unit).selected, "unidade selecionada destacada")
@@ -116,7 +116,7 @@ func _run() -> void:
 		_check(battle.view_of(p.unit).visual._death_t > 0.0, "visual executa a queda (%s)" % p.unit.label())
 	for p in sandbox.placements:
 		var vis := battle.view_of(p.unit).visual
-		var expected: Script = UndeadWarriorVisual if p.def.id == &"u_warrior" else WarriorVisual
+		var expected: Script = ShadowWarriorVisual if p.def.id == &"u_warrior" else WarriorVisual
 		_check(vis.get_script() == expected, "visual desenhado por código da UnitDef (%s)" % p.unit.label())
 	_check(strikes[0] > 0, "golpes reais chegam ao visual do atacante (%d)" % strikes[0])
 	_check(ui.status_label.text.begins_with("FIM"), "estado mostra o resultado")

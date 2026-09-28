@@ -1,7 +1,10 @@
 class_name SentinelShadowVisual
 extends SentinelVisual
-## Sentinela Arcana Sombra: "a mesma vigília, agora eterna". MESMO rig da viva; muda:
-##   - paleta preta/violeta/azul frio, olhos roxos brilhando, símbolo ainda azul;
+## Sentinela Arcana Sombra: "a mesma vigília, agora eterna". MESMO rig e mesma leitura de classe
+## (chapéu pontudo, manto em camadas, joia, selo arcano, duas lâminas) convertidos pela regra
+## ShadowStyle:
+##   - paleta viva convertida para grafite violeta; o selo arcano continua azul (identidade);
+##   - silhueta com borda roxa, olhos roxos, fissuras de energia na saia, aura e névoa no chão;
 ##   - manto e capelete com bordas rasgadas e fumaça roxa animada;
 ##   - idle com tremor arcano, lâminas instáveis e agressivas;
 ##   - deslizar mais arrastado; disparo roxo com aura; HIT etéreo (o corpo tremula);
@@ -9,20 +12,6 @@ extends SentinelVisual
 
 
 func _init() -> void:
-	robe = Color("242035")
-	robe_light = Color("3f2d58")
-	robe_dark = Color("100f1a")
-	trim = Color("8e86a6")
-	skin = Color("a79cbd")
-	hair = Color("120f1c")
-	glow = Color("c486ff")
-	gem_color = Color("a76cff")
-	symbol = Color("5f8ee0")          # o selo continua azul nas duas versões
-	eye = Color("e3c4ff")
-	core = Color("f3e6ff")
-	wisp = Color(0.55, 0.28, 0.9, 0.55)
-	flash_color = Color("d9b8ff")
-
 	shadow = true
 	jitter = 0.35
 	breath = 0.009
@@ -39,6 +28,46 @@ func _init() -> void:
 	sword_wobble = 0.09
 	sword_jitter = 0.12
 	death_time = 1.1
+
+
+## A paleta viva da Sentinela, convertida pela regra da sombra.
+func _apply_shadow_style(st: ShadowStyle) -> void:
+	robe = st.convert(robe, 0.1)
+	robe_light = st.convert(robe_light, 0.12).lightened(0.06)
+	robe_dark = st.convert(robe_dark)
+	trim = st.convert(trim, 0.15)
+	skin = st.convert(skin, 0.1)
+	hair = st.body_dark
+	glow = st.energy
+	gem_color = st.energy
+	symbol = Color("5f8ee0")          # o selo arcano continua azul nas duas versões
+	eye = st.eye
+	core = st.energy_core
+	wisp = st.smoke
+	flash_color = st.energy_core
+
+
+func _life() -> float:
+	return 1.0 - clampf(p_dim / 0.2, 0.0, 1.0)
+
+
+## Névoa roxa no chão + aura atrás do corpo.
+func _draw_shadow() -> void:
+	ShadowFX.ground_mist(self, Vector2(0, FOOT_Y), 11.0 * (1.0 + 0.5 * p_hat_fall), shadow_style, _time + _seed)
+	var k := _life() * p_alpha
+	if k > 0.0:
+		ShadowFX.aura(self, Vector2(0, FOOT_Y - 17.0) + Vector2(p_offset.x * _facing, p_offset.y), Vector2(14.0, 22.0), shadow_style, _time + _seed, k)
+
+
+## Fissuras de energia subindo da barra do vestido.
+func _draw_robe() -> void:
+	super()
+	if _rim_pass:
+		return
+	var p := ShadowFX.pulse(shadow_style, _time, _seed)
+	var h := p_hem
+	ShadowFX.crack(self, PackedVector2Array([Vector2(-7.0 + h * 0.5, 0.2), Vector2(-5.8 + h * 0.4, -2.8), Vector2(-6.6 + h * 0.3, -5.0), Vector2(-5.4 + h * 0.2, -7.4)]), shadow_style, p, _life() * p_alpha)
+	ShadowFX.crack(self, PackedVector2Array([Vector2(7.2 + h * 0.4, 0.4), Vector2(6.2 + h * 0.3, -2.4), Vector2(7.0 + h * 0.2, -4.6)]), shadow_style, 1.0 - p, _life() * p_alpha * 0.8)
 
 
 func _hem_points(h: float) -> PackedVector2Array:
@@ -71,14 +100,10 @@ func _draw_face_shade(fc: Vector2) -> void:
 
 
 func _draw_eyes() -> void:
-	var lit := 1.0 - clampf(p_dim * 3.0, 0.0, 1.0)
-	var pulse := 0.8 + 0.2 * sin(_time * 3.1 + _seed)
+	var lit := (1.0 - clampf(p_dim * 3.0, 0.0, 1.0)) * p_alpha
+	var pulse := 0.75 + 0.25 * ShadowFX.pulse(shadow_style, _time, _seed)
 	for c in [Vector2(1.7, -2.9), Vector2(3.6, -2.95)]:
-		if lit > 0.0:
-			draw_circle(c, 2.3, Color(glow, 0.28 * lit * pulse * p_alpha))
-			draw_circle(c, 1.3, Color(glow, 0.5 * lit * p_alpha))
-		var e := eye.lerp(robe_dark, 1.0 - lit)
-		draw_colored_polygon(PackedVector2Array([c + Vector2(-0.8, 0), c + Vector2(0, -0.55), c + Vector2(0.8, 0), c + Vector2(0, 0.45)]), Color(e, p_alpha))
+		ShadowFX.eye(self, c, 0.7, shadow_style, pulse, lit)
 
 
 func _hit_extra(k: float) -> void:
@@ -113,6 +138,9 @@ func _draw_wisps(front: bool) -> void:
 			foot + Vector2(-1.3, 0), foot + Vector2(1.3, 0),
 			foot + Vector2(lean * 0.5 + 0.6, -h * 0.55), foot + Vector2(lean, -h),
 		]), Color(base, base.a * (0.5 + 0.5 * f)))
+	if front:
+		# fumaça subindo das pontas do capelete (pouca: não esconde a silhueta)
+		ShadowFX.smoke(self, PackedVector2Array([Vector2(-9.0, -12.6), Vector2(9.4, -12.0)]), shadow_style, _time, _seed, 8.0, 1.3, 1, _life() * p_alpha * boost)
 	if not front:
 		# fiapos subindo pelas laterais do manto
 		for side in [-1.0, 1.0]:

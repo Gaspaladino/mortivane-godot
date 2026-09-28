@@ -2,7 +2,7 @@
 class_name CandleFlame
 extends Node2D
 ## Chama calma de uma vela (visível no editor). A origem é a base da chama.
-## No jogo varia de leve em altura/largura, a ponta balança pouco e o brilho respira.
+## No jogo: flicker sutil — altura, largura e brilho variam pouco e devagar; a ponta balança pouco.
 
 @export var flame_height := 9.0:
 	set(v):
@@ -31,10 +31,11 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var h := flame_height
 	var k := global_intensity if BackdropAnimated.running() else 0.0
-	var hh := h * 0.62 * (1.0 + (0.1 * sin(_t * 2.1) + 0.04 * sin(_t * 4.7)) * k)
-	var ww := maxf(1.4, h * 0.2) * (1.0 + 0.08 * sin(_t * 1.6) * k)
-	var sway := 0.45 * sin(_t * 1.8) * k
-	var glow := 0.85 + 0.15 * sin(_t * 1.3) * k
+	# flicker sutil: variações pequenas e lentas (a chama não "pisca")
+	var hh := h * 0.62 * (1.0 + (0.05 * sin(_t * 1.9) + 0.02 * sin(_t * 4.3)) * k)
+	var ww := maxf(1.4, h * 0.2) * (1.0 + 0.04 * sin(_t * 1.4) * k)
+	var sway := 0.3 * sin(_t * 1.5) * k
+	var glow := 0.92 + 0.06 * sin(_t * 1.1) * k + 0.02 * sin(_t * 3.7) * k
 	draw_circle(Vector2(0, -hh * 0.4), h * 1.3, Color(flame_color, 0.06 * strength * glow))
 	draw_colored_polygon(_tongue(ww, hh, sway), Color(flame_color, 0.38 * strength))
 	draw_colored_polygon(_tongue(ww * 0.5, hh * 0.62, sway * 0.6), Color(core_color, 0.55 * strength))

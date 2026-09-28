@@ -40,7 +40,39 @@ func _run() -> void:
 	_check(far_col.get_luminance() > near_col.get_luminance(), "montanhas distantes mais claras que as próximas")
 	var towers := bd.get_node("CastleBack").find_children("Tower*", "Polygon2D", true, false)
 	_check(towers.size() >= 8, "castelo: torres como nós separados (%d)" % towers.size())
-	_check(bd.get_node("Ruins").get_child_count() >= 4, "ruínas: pontes e torres partidas")
+	_check(bd.get_node("Ruins").get_child_count() >= 4, "ruínas: aqueduto e torres partidas")
+	# coerência: nada flutua — torres e muralhas assentam na rocha, pilares descem até o chão
+	for keep in [["MainCastle", "Cliff"], ["EastKeep", "Hill"]]:
+		var group: Node2D = bd.get_node("CastleBack/" + keep[0])
+		var rock: Polygon2D = group.get_node(keep[1])
+		var rock_pts := _world_poly(rock)
+		for piece in group.get_children():
+			if piece is Polygon2D and (String(piece.name).begins_with("Tower") or piece.name == &"Wall"):
+				var pts := _world_poly(piece)
+				var bottom := -INF
+				var left := INF
+				var right := -INF
+				for p in pts:
+					bottom = maxf(bottom, p.y)
+				for p in pts:
+					if p.y > bottom - 0.5:
+						left = minf(left, p.x)
+						right = maxf(right, p.x)
+				if bottom > 150.0:   # torres internas (no alto da muralha) não tocam a rocha
+					var ok := Geometry2D.is_point_in_polygon(Vector2(left + 0.5, bottom - 0.5), rock_pts) \
+						and Geometry2D.is_point_in_polygon(Vector2(right - 0.5, bottom - 0.5), rock_pts)
+					_check(ok, "%s/%s assenta na rocha (base %.0f, x %.0f–%.0f)" % [keep[0], piece.name, bottom, left, right])
+	var supported := bd.get_node("Ruins").get_children()
+	for path in ["CastleBack/MainCastle/Bridge", "CastleBack/EastKeep/Bridge"]:
+		var bridge := bd.get_node_or_null(path)
+		_check(bridge is Polygon2D, "%s: ponte presa ao castelo (mesmo grupo)" % path)
+		if bridge is Polygon2D:
+			supported.append(bridge)
+	for piece in supported:
+		var low := -INF
+		for p in _world_poly(piece):
+			low = maxf(low, p.y)
+		_check(low >= 365.0, "%s desce até o chão (base %.0f)" % [piece.name, low])
 
 	# nuvens: 3 grupos com nuvens individuais, mais rápidas quanto mais perto
 	var speeds := []
@@ -115,6 +147,19 @@ func _run() -> void:
 	bd.free()
 	print("backdrop_test: %s" % ("OK" if _failures == 0 else "%d falha(s)" % _failures))
 	quit(1 if _failures > 0 else 0)
+
+
+## Pontos do polígono no espaço do ArenaBackdrop (sem parallax: view_offset = 0 aqui).
+func _world_poly(poly: Polygon2D) -> PackedVector2Array:
+	var xf := poly.get_global_transform()
+	var bd_xf := poly.get_parent()
+	while not bd_xf is ArenaBackdrop:
+		bd_xf = bd_xf.get_parent()
+	var inv := (bd_xf as Node2D).get_global_transform().affine_inverse()
+	var out := PackedVector2Array()
+	for p in poly.polygon:
+		out.append(inv * (xf * p))
+	return out
 
 
 func _check(condition: bool, what: String) -> void:

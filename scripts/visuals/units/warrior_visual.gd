@@ -14,8 +14,8 @@ extends CodeDrawnUnitVisual
 ##   sombra · capa · braço de trás · perna de trás · perna da frente · saiote/cinto · tronco
 ##   · cabeça (elmo, fenda, pluma) · espada · braço da frente + ombreira + mão
 ##
-## O Guerreiro Morto-Vivo (UndeadWarriorVisual) herda este rig e troca só paleta, estilo de
-## animação e alguns detalhes de desgaste.
+## O Guerreiro Sombra (ShadowWarriorVisual) herda este rig: converte a paleta pelo
+## ShadowStyle e acrescenta os efeitos necromânticos pelos pontos de extensão.
 
 # --- Geometria do rig (unidades do rig; RIG_SCALE converte para o mundo) ----------------
 const RIG_SCALE := 0.9
@@ -30,7 +30,7 @@ const SHOULDER_BACK := Vector2(-2.2, -10.8)
 const ARM_LENGTH := 9.0
 const HIT_TIME := 0.16
 
-# --- Paleta (o Morto-Vivo sobrescreve em _init) -----------------------------------------
+# --- Paleta (a Sombra converte em _apply_shadow_style) -----------------------------------------
 var metal := Color("b8bfc9")
 var metal_dark := Color("6c7481")
 var metal_light := Color("e6ebf1")
@@ -42,7 +42,7 @@ var blade := Color("dde3ea")
 var visor := Color("111116")
 var visor_glow := Color(0, 0, 0, 0)     # transparente = sem brilho
 
-# --- Estilo de animação (o Morto-Vivo sobrescreve em _init) -----------------------------
+# --- Estilo de animação (a Sombra sobrescreve em _init) -----------------------------
 var idle_bob := 0.45            # amplitude da respiração (unidades do rig)
 var idle_speed := 2.0           # rad/s
 var posture_lean := 0.0         # graus; + = tronco para frente
@@ -257,7 +257,7 @@ func _death_pose() -> void:
 		p_leg_f = -18.0 * fall
 		p_cape = 30.0 * fall
 	else:
-		# morto-vivo: joelhos cedem, depois desaba para frente sem controle
+		# sombra: joelhos cedem, depois desaba para frente sem controle
 		var buckle := _ease_out(clampf(t / (death_time * 0.35), 0.0, 1.0))
 		var topple := clampf((t - death_time * 0.35) / (death_time * 0.65), 0.0, 1.0)
 		var fall := topple * topple
@@ -280,6 +280,11 @@ func _death_pose() -> void:
 # --- Desenho -----------------------------------------------------------------------------
 
 func _draw() -> void:
+	_draw_shadow()
+	_draw_with_rim(_draw_rig)   # na sombra: silhueta roxa por baixo do corpo
+
+
+func _draw_rig() -> void:
 	var root := Transform2D(0.0, Vector2(_facing, 1.0) * RIG_SCALE, 0.0, Vector2(0, FOOT_Y)) \
 		* Transform2D(deg_to_rad(p_rot), p_scale, 0.0, p_offset)
 	var hip := root * Transform2D(0.0, HIP)
@@ -287,7 +292,6 @@ func _draw() -> void:
 	var arm_f_local := _tf(SHOULDER_FRONT, p_arm_f)
 	var hand_f := arm_f_local * Vector2(0, ARM_LENGTH)
 
-	_draw_shadow()
 	_draw_cape(torso)
 	_with(torso * _tf(SHOULDER_BACK, p_arm_b))
 	_draw_arm(0.78)
@@ -311,7 +315,13 @@ func _draw() -> void:
 	_draw_pauldron(1.0)
 	_with(torso * _tf(hand_f, 0.0))
 	_draw_hand()
+	_draw_fx_front(root, torso)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+## Ponto de extensão: efeitos por cima do corpo (a Sombra: fumaça subindo).
+func _draw_fx_front(_root: Transform2D, _torso: Transform2D) -> void:
+	pass
 
 
 func _draw_shadow() -> void:
@@ -333,7 +343,7 @@ func _draw_cape(torso: Transform2D) -> void:
 	_line(Vector2(-3.6, -11.2), Vector2(-7.0 + sw * 0.7, 2.0), _c(cloth_dark), 1.0)
 
 
-## Ponto de extensão: o Morto-Vivo rasga a barra.
+## Ponto de extensão: a Sombra rasga a barra.
 func _cape_shape(pts: PackedVector2Array) -> PackedVector2Array:
 	return pts
 
@@ -367,17 +377,14 @@ func _draw_torso() -> void:
 	_draw_torso_wear()
 
 
-## Ponto de extensão: desgaste do Morto-Vivo.
+## Ponto de extensão: fissuras de energia da Sombra.
 func _draw_torso_wear() -> void:
 	pass
 
 
 func _draw_head() -> void:
 	# elmo fechado (origem na base do pescoço), aba inferior, fenda horizontal, pluma
-	_poly(PackedVector2Array([
-		Vector2(-1.4, -12.6), Vector2(-3.4, -14.8), Vector2(-7.0, -15.0), Vector2(-9.6, -12.4),
-		Vector2(-10.2, -8.8), Vector2(-7.4, -10.6), Vector2(-4.0, -11.8),
-	]), _c(plume))
+	_draw_plume()
 	var helm := PackedVector2Array([
 		Vector2(-5.0, -0.8), Vector2(5.4, -0.8), Vector2(6.1, -4.8), Vector2(5.7, -8.8),
 		Vector2(3.6, -11.6), Vector2(0.0, -12.6), Vector2(-3.6, -11.9), Vector2(-5.5, -9.0), Vector2(-5.7, -4.2),
@@ -388,6 +395,14 @@ func _draw_head() -> void:
 	_poly(PackedVector2Array([Vector2(-2.6, -11.6), Vector2(-0.6, -12.2), Vector2(-0.4, -9.4), Vector2(-2.2, -9.3)]), _c(metal_light))
 	_draw_visor()
 	_draw_helmet_wear()
+
+
+## Pluma (a Sombra troca por uma chama espectral).
+func _draw_plume() -> void:
+	_poly(PackedVector2Array([
+		Vector2(-1.4, -12.6), Vector2(-3.4, -14.8), Vector2(-7.0, -15.0), Vector2(-9.6, -12.4),
+		Vector2(-10.2, -8.8), Vector2(-7.4, -10.6), Vector2(-4.0, -11.8),
+	]), _c(plume))
 
 
 func _draw_visor() -> void:
@@ -402,7 +417,7 @@ func _draw_visor() -> void:
 			draw_colored_polygon(PackedVector2Array([Vector2(3.0, -6.7), Vector2(6.0, -6.9), Vector2(6.0, -6.0), Vector2(3.0, -5.9)]), glow)
 
 
-## Ponto de extensão: amassado do Morto-Vivo.
+## Ponto de extensão: fissura no elmo da Sombra.
 func _draw_helmet_wear() -> void:
 	pass
 
@@ -438,8 +453,14 @@ func _draw_sword() -> void:
 	_poly(_blade_shape(), _c(blade))
 	_line(Vector2(0, -2.6), Vector2(0, -12.0), _c(metal_dark), 0.6)
 	_poly(PackedVector2Array([Vector2(-3.2, -2.0), Vector2(3.2, -2.0), Vector2(3.2, -0.7), Vector2(-3.2, -0.7)]), _c(metal_dark))
+	_draw_blade_extra()
 
 
-## Ponto de extensão: o Morto-Vivo lasca a lâmina.
+## Ponto de extensão: detalhe sobre a lâmina (a Sombra acende o fio).
+func _draw_blade_extra() -> void:
+	pass
+
+
+## Ponto de extensão: a Sombra lasca a lâmina.
 func _blade_shape() -> PackedVector2Array:
 	return PackedVector2Array([Vector2(-1.25, -1.9), Vector2(1.25, -1.9), Vector2(1.1, -13.6), Vector2(0.0, -16.2), Vector2(-1.1, -13.6)])

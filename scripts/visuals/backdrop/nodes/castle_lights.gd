@@ -31,7 +31,7 @@ func window_level(i: int, time: float) -> float:
 	var f1 := lerpf(0.05, 0.16, _hash(float(i), 3.0))
 	var f2 := lerpf(0.11, 0.3, _hash(float(i), 7.0))
 	var s := sin(time * f1 + h * 40.0) + 0.6 * sin(time * f2 + h * 91.0) + bias - 0.6
-	return smoothstep(-0.45, 0.45, s) * (0.9 + 0.1 * sin(time * 5.3 + h * 120.0))
+	return smoothstep(-0.45, 0.45, s) * (0.95 + 0.05 * sin(time * 2.2 + h * 120.0))   # tremor leve de chama
 
 
 func windows() -> Array[CastleWindow]:

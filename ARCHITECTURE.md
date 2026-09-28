@@ -1,7 +1,8 @@
 # Mortivane (Godot 4) — Arquitetura
 
 Estado: **Etapa 1 (esqueleto + arena) + núcleo mínimo de combate + menu inicial + Sandbox
-+ Guerreiro, Guerreiro Morto-Vivo, Sentinela Arcana e Sentinela Arcana Sombra desenhados 100% por código.**
++ Guerreiro, Guerreiro Sombra, Sentinela Arcana e Sentinela Arcana Sombra desenhados 100% por código
++ regra visual "sombra necromântica" (ShadowStyle + ShadowFX) para as unidades revividas.**
 Ainda não há campanha, fases, HUD de jogo, ondas, formação nem Necromancia.
 Referência funcional/visual: `MortivaneV97.html` (não é editado). Análise do HTML: `MIGRATION_NOTES.md`.
 
@@ -63,10 +64,11 @@ res://
   tools/arena_backdrop/build_layers.py  # extrai o primeiro plano (Python, só desenvolvimento)
   tools/arena_backdrop/generate_backdrop_scene.gd  # gera arena_backdrop.tscn UMA vez (depois: editar no editor)
   data/
-    units/u_warrior.tres             # UnitDef — Guerreiro Morto-Vivo (aliado)
+    units/u_warrior.tres             # UnitDef — Guerreiro Sombra (aliado)
     units/warrior.tres               # UnitDef — Guerreiro (inimigo)
     units/arc_battlemage.tres        # UnitDef — Sentinela Arcana (inimiga)
     units/u_arc_battlemage.tres      # UnitDef — Sentinela Arcana Sombra (aliada)
+    visuals/shadow_style.tres        # ShadowStyle padrão: a conversão "sombra" de TODAS as unidades revividas
   scenes/
     main/main.tscn                   # raiz do jogo: troca de tela + avisos
     menu/main_menu.tscn              # menu inicial (Jogar / Sandbox)
@@ -98,7 +100,9 @@ res://
                                             # CastleWindow, CastleLights, CandleFlame, CandleGlow, BannerSway, BackdropShaderRect
     visuals/backdrop/shaders/*.gdshader     # céu, lua, nuvens, neblina, estandarte, velas (+ noise.gdshaderinc)
     visuals/units/warrior_visual.gd         # class_name WarriorVisual — Guerreiro por código (rig + animação)
-    visuals/units/undead_warrior_visual.gd  # class_name UndeadWarriorVisual — herda o Guerreiro
+    visuals/units/shadow_warrior_visual.gd  # class_name ShadowWarriorVisual — Guerreiro Sombra (herda o Guerreiro)
+    visuals/units/shadow_style.gd           # class_name ShadowStyle (Resource) — regra de conversão viva → sombra
+    visuals/units/shadow_fx.gd              # class_name ShadowFX — aura, névoa, fumaça, fissuras, olhos
     combat/battle.gd                 # class_name Battle — executor: CombatSim + UnitView + passo fixo
     data/unit_def.gd                 # class_name UnitDef (Resource) — definição de unidade
     data/unit_catalog.gd             # class_name UnitCatalog — carrega data/units/*.tres
@@ -111,7 +115,9 @@ res://
     sandbox_test.gd                  # teste headless de ponta a ponta: menu + Sandbox na cena real
     visual_test.gd                   # teste headless das poses/animações dos visuais por código
     sentinel_test.gd                 # teste headless da Sentinela: mecânica portada do HTML + visual
-    backdrop_test.gd                 # teste headless do fundo animado
+    backdrop_test.gd                 # teste headless do fundo animado (inclui "nada flutua")
+    menu_click_test.gd               # cliques reais de mouse no menu (Sandbox ida e volta)
+    shadow_visual_test.gd            # regra visual das sombras (u_* = sombra; viva continua normal)
 ```
 
 Arquivos `*.import` e `*.uid` são gerados pela Godot e **devem ser versionados**. A pasta `.godot/` é cache
@@ -325,17 +331,21 @@ Nenhum PNG, SVG, sprite sheet ou asset externo. Cadeia: `CombatUnit` → `UnitVi
 - A espada tem inércia: segue o ângulo-alvo com suavização exponencial, exceto no golpe.
 - A direção vem de `unit.target` (espelhamento instantâneo); sem alvo, a unidade mantém a última direção.
 
-**Guerreiro × Morto-Vivo.** `UndeadWarriorVisual extends WarriorVisual` e muda só parâmetros e detalhes:
+**Guerreiro × Guerreiro Sombra.** `ShadowWarriorVisual extends WarriorVisual`: mesmo rig; a paleta viva é
+convertida pela regra `ShadowStyle` (ver "Versões sombra") e os detalhes entram por pontos de extensão
+(`_draw_plume`, `_draw_visor`, `_draw_torso_wear`, `_draw_helmet_wear`, `_blade_shape`, `_draw_blade_extra`,
+`_draw_fx_front`).
 
-| | Guerreiro | Morto-Vivo |
+| | Guerreiro | Guerreiro Sombra |
 |---|---|---|
-| Paleta | metal claro, capa e pluma vermelhas | metal escuro/gasto, tecido verde-musgo, pluma desbotada |
-| Detalhes | — | capa rasgada, lâmina lascada, amassado no elmo, rachadura no peitoral, brilho verde pulsante na fenda |
-| Postura | ereta | tronco +7°, cabeça +13° e afundada |
-| Idle | estável | irregular (`jitter`: soma de senos) |
-| Walk | pernas em oposição perfeita | defasadas (0,78π), perna de trás arrasta, tronco balança |
-| Ataque | recua a espada e estoca na horizontal | ergue a espada acima da cabeça e golpeia para baixo; avanço maior, retorno mais lento |
-| Queda | de costas, pesada (acelera), um quique | joelhos cedem, depois desaba para frente com tremores |
+| Paleta | metal claro, capa e pluma vermelhas | armadura grafite violeta, capa quase preta com um resto do vermelho |
+| Silhueta | contorno escuro | borda roxa só na silhueta externa + contorno interno violeta escuro |
+| Detalhes | — | olhos roxos na fenda, fissuras de energia no peitoral e no elmo, pluma → chama espectral, fio da espada aceso, capa rasgada com fio de energia, lâmina lascada |
+| Ambiente | sombra preta | névoa roxa no chão, aura suave, poucos fiapos de fumaça (capa, ombros, pés) |
+| Postura | ereta | tronco +4°, cabeça +5° (pesada, ameaçadora — não cambaleante) |
+| Walk | pernas em oposição perfeita | quase em oposição (0,94π), perna de trás um pouco mais curta |
+| Ataque | recua a espada e estoca na horizontal | ergue a espada acima da cabeça e golpeia para baixo; o fio brilha no golpe |
+| Queda | de costas, pesada (acelera), um quique | joelhos cedem, desaba para frente; a energia se apaga e o corpo solta fumaça |
 
 **Sincronia do ataque.**
 - O golpe visual não é previsto: ele começa quando a `CombatSim` emite `attack_performed`, no mesmo passo em que
@@ -355,8 +365,10 @@ porta 1:1 de `drawArcaneSentinel`.
 
 - **Estrutura.** `CodeDrawnUnitVisual` concentra os utilitários de desenho que o Guerreiro já usava.
   - `SentinelVisual` monta a Sentinela.
-  - `SentinelShadowVisual extends SentinelVisual`: mesmo rig; troca paleta, estilo e alguns pontos de extensão
-    (barra rasgada, capelete, olhos, fumaça, morte).
+  - `SentinelShadowVisual extends SentinelVisual`: mesmo rig; paleta convertida pela regra `ShadowStyle`
+    (o selo arcano continua azul — identidade da classe), borda roxa na silhueta, olhos, fissuras de energia na
+    saia, aura, névoa no chão, fumaça nas bordas e no capelete; estilo e pontos de extensão próprios
+    (barra rasgada, capelete, HIT etéreo, morte).
 - **Silhueta** (rig espelhado pela direção, origem nos pés):
   - chapéu largo e pontudo, com a ponta dobrada para trás e uma joia na faixa;
   - manto triangular em camadas: manto de trás, vestido, painel frontal com o símbolo arcano, abas com
@@ -382,6 +394,29 @@ porta 1:1 de `drawArcaneSentinel`.
 | Hit | 0,2 s: recuo, compressão, clarão, ponta do chapéu treme, lâminas desestabilizam | clarão lilás, o corpo tremula (translúcido) e a fumaça explode |
 | Morte | perde a sustentação, a magia se apaga, o manto colapsa com peso, o chapéu cai ao lado; as lâminas caem girando e se desfazem em faíscas; o monte fica no chão | sobe e se agita, colapsa se desfazendo (fica translúcida), fumaça sobe e as lâminas se partem em fragmentos |
 
+### Versões sombra (unidades revividas pelo necromante)
+
+Regra do projeto: **versão viva = aparência normal da classe; versão sombra (`u_*`) = a mesma classe convertida
+em "sombra necromântica"**. A classe continua legível pela silhueta e pelos elementos-chave; a sombra se
+reconhece de longe pelo corpo escuro com borda roxa e pelos olhos acesos.
+
+- **`ShadowStyle`** (`Resource`, `data/visuals/shadow_style.tres`, editável no Inspector):
+  - `convert(cor, keep)`: leva uma cor da versão viva para a sombra — corpo entre `body_dark` e `body_light`
+    (grafite violeta), com `keep_hue` do tom original; `keep` > 0 preserva acentos da classe (ouro de paladino,
+    runas, símbolos sagrados) mais escuros, mas com o matiz;
+  - `edge` (contorno interno), `rim`/`rim_width` (borda roxa só na silhueta externa);
+  - `energy`, `energy_core`, `eye`, `smoke` e as intensidades `aura`, `smoke_amount`, `cracks`, `pulse_speed`.
+  - `UnitDef.shadow_style` pode apontar outro estilo (ex.: sombra de elite); vazio = o padrão.
+- **`ShadowFX`**: `aura`, `ground_mist`, `smoke`, `crack`, `eye`, `pulse` — desenho determinístico pelo tempo
+  (sem partículas nem nós), barato com dezenas de unidades.
+- **`CodeDrawnUnitVisual`**: a subclasse marca `shadow = true` em `_init`; o `setup()` resolve o estilo e chama
+  `_apply_shadow_style(style)`, onde a unidade converte a **sua** paleta viva. `_draw_with_rim(corpo)` desenha
+  o corpo duas vezes: primeiro engordado em roxo (`_rim_pass`), depois normal — só a silhueta externa fica roxa
+  (contornar cada peça em roxo deixava a unidade inteira roxa no tamanho real).
+- **Nova unidade sombra:** herde o visual vivo, `shadow = true` em `_init`, converta a paleta em
+  `_apply_shadow_style`, envolva o corpo com `_draw_with_rim` e use `ShadowFX` nos pontos da classe (olhos,
+  fissuras, fumaça). Na morte, `_life()` → 0 apaga a energia.
+
 ## Fundo da arena (`ArenaBackdrop`) — cena de nós editáveis
 
 `scenes/arena/arena_backdrop.tscn` é uma **árvore de nós** (cerca de 190), em que cada parte visual é um nó que se
@@ -401,11 +436,11 @@ ArenaBackdrop (arena_backdrop.gd)            profundidade de parallax (metadado 
 ├─ FarFog        └─ Band (BackdropFog: ColorRect + fog.gdshader)                        0,25
 ├─ MidMountains  └─ Peak1…11                                                            0,32
 ├─ MidFog        └─ Band                                                                0,38
-├─ CastleBack    ├─ MainCastle └─ Cliff, Wall, Tower1…9 (Polygon2D) └─ Rim, Finial      0,45
-│                └─ EastKeep   └─ Hill, Wall, Tower1…3
+├─ CastleBack    ├─ MainCastle └─ Cliff, Wall, Tower1…9, Bridge (Polygon2D) └─ Rim, Finial 0,45
+│                └─ EastKeep   └─ Hill, Wall, Tower1…3, Bridge
 ├─ CastleLights (CastleLights) └─ Window1…24 (CastleWindow)                             0,45
-├─ Ruins         └─ BridgeWest, BridgeEast, BridgeEastEnd, BrokenTower1…3 (Polygon2D)    0,5
-├─ NearMountains └─ Peak1…6                                                             0,58
+├─ Ruins         └─ Aqueduct, BrokenTower1…3 (Polygon2D) └─ Rubble                     0,5
+├─ NearMountains └─ Peak1…8                                                             0,58
 ├─ NearFog       └─ Band                                                                0,68
 ├─ LeftArchitecture / RightArchitecture (Sprite2D)                                      0,95
 ├─ LeftBanner / RightBanner (BannerSway: Sprite2D + banner_sway.gdshader)               0,95
@@ -424,12 +459,20 @@ ArenaBackdrop (arena_backdrop.gd)            profundidade de parallax (metadado 
 | `Polygon2D` de montanha, torre, penhasco e ponte | vértices (ferramenta de polígono), cores por vértice, posição | estático (a névoa passa na frente) |
 | `Line2D` `Rim` | pontos, largura, gradiente | luz de borda da lua |
 | `CastleLights` + `CastleWindow` (@tool) | posição de cada janela, tamanho, cores, `can_light`; `lit_share`, `speed`, `intensity` no grupo | cada janela acende e apaga devagar no seu ritmo; em média de 4 a 7 acesas de 24 |
-| `BannerSway` | `amplitude`, `speed`, `phase`, `top_px` | balanço pendular a partir da haste |
-| `CandleFlame` (@tool) + `CandleGlow` | posição, `flame_height`, cores, força | chama calma (altura ±10%, largura ±8%), brilho que respira |
+| `BannerSway` | `amplitude`, `speed`, `phase`, `top_px` | vento suave que desce pelo tecido (cada altura repete o movimento de cima com atraso), rajadas lentas, ondulação pequena até a ponta, a barra sobe um pouco quando o pano se afasta |
+| `CandleFlame` (@tool) + `CandleGlow` | posição, `flame_height`, cores, força | flicker sutil: altura ±7%, largura ±4%, brilho ±8% (chama e reflexos ±12%), lento — não pisca |
 | `BackdropShaderRect` (@tool) | posição/tamanho | mantém `rect_origin/rect_size` do shader iguais ao nó |
 
 No editor nada se move (as animações só rodam no jogo). As nuvens, a lua, as janelas e as chamas aparecem
 desenhadas.
+
+**Coerência da composição** (garantida por `backdrop_test`):
+- o castelo principal (`MainCastle`: rochedo, muralha, torres e ponte) fica 18 px mais baixo (`position` do nó);
+  o rochedo tem um platô mais largo que as muralhas, e muralhas e torres descem alguns px para dentro da rocha —
+  a base de toda torre externa fica **dentro** do polígono do rochedo (idem `EastKeep`/`Hill`);
+- as pontes presas ao castelo são filhas do próprio castelo (mesmo parallax) e os pilares descem até o chão
+  (y 372, atrás do chão da arena); o aqueduto e os pilares partidos também, com entulho (`Rubble`) no pé e duas
+  colinas baixas (`NearMountains/Peak7…8`) na frente — nada flutua.
 
 **`ArenaBackdrop`** (script da raiz) só coordena:
 - `animated` e `master_intensity` (repassados a todos os nós do grupo `backdrop_animated`);
@@ -462,7 +505,7 @@ desenhadas.
 
 | `.tres` | Nome | Lado | HP | Dano | Alcance | cd | Vel. | r |
 |---|---|---|---|---|---|---|---|---|
-| `u_warrior` | Guerreiro Morto-Vivo | PLAYER | 74 | 10 | 32 | 1,0 | 56 | 12 |
+| `u_warrior` | Guerreiro Sombra | PLAYER | 74 | 10 | 32 | 1,0 | 56 | 12 |
 | `warrior` | Guerreiro | ENEMY | 70 | 9 | 32 | 1,0 | 56 | 12 |
 | `arc_battlemage` | Sentinela Arcana | ENEMY | 43 | 18 | 150 | 1,25 | 54 | 13 |
 | `u_arc_battlemage` | Sentinela Arcana Sombra | PLAYER | 40 | 18 | 150 | 1,25 | 54 | 13 |
@@ -545,7 +588,9 @@ godot --headless -s res://tests/combat_test.gd  # regras de combate + catálogo
 godot --headless -s res://tests/sandbox_test.gd # ponta a ponta na cena real (menu → Sandbox → menu)
 godot --headless -s res://tests/visual_test.gd  # poses/animações dos visuais por código
 godot --headless -s res://tests/sentinel_test.gd  # Sentinela: mecânica do HTML + visual
-godot --headless -s res://tests/backdrop_test.gd  # fundo: camadas, profundidade, movimento, janelas, parallax
+godot --headless -s res://tests/backdrop_test.gd  # fundo: camadas, profundidade, movimento, janelas, parallax, nada flutua
+godot --headless -s res://tests/menu_click_test.gd  # cliques reais de mouse no menu: Sandbox → menu → Sandbox, Jogar
+godot --headless -s res://tests/shadow_visual_test.gd  # regra "sombra": u_* = sombra convertida da viva
 ```
 Cada teste sai com código 0 se passar e 1 se falhar.
 
@@ -577,6 +622,16 @@ Cada teste sai com código 0 se passar e 1 se falhar.
 
 `sandbox_test` também verifica que a UI está na faixa inferior (15–30% da altura) e que o campo inteiro aparece
 acima dela.
+
+`shadow_visual_test` verifica a regra das sombras:
+- o estilo padrão vem de `data/visuals/shadow_style.tres`; `convert` escurece o corpo e `keep` preserva o matiz
+  de acentos; a energia é roxa;
+- toda `u_*` do catálogo usa visual de sombra e toda unidade viva, visual normal;
+- em cada par vivo/sombra: estilo só na sombra, contorno da regra, **mesma silhueta** (área clicável e altura da
+  barra de HP), corpo bem mais escuro, brilho roxo, o visual não altera a unidade e a energia se apaga na morte.
+
+`backdrop_test` também garante a coerência do fundo: a base de toda torre externa e das muralhas fica dentro do
+rochedo, as pontes do castelo são filhas do castelo e todo pilar/ponte desce até o chão.
 
 `sandbox_test` também cobre as Sentinelas no fluxo real:
 - visual próprio;

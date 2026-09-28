@@ -1,5 +1,5 @@
 extends SceneTree
-## Teste headless dos visuais desenhados por código (Guerreiro e Guerreiro Morto-Vivo).
+## Teste headless dos visuais desenhados por código (Guerreiro e Guerreiro Sombra).
 ## Dirige os visuais quadro a quadro com CombatUnit reais e verifica a pose resultante.
 ## Rodar a partir da raiz do projeto:
 ##   godot --headless -s res://tests/visual_test.gd
@@ -36,7 +36,7 @@ func _test_visual(id: StringName) -> void:
 	var v := _make(id)
 	var u := v.unit
 	var tag := String(id)
-	var expected: Script = WarriorVisual if id == &"warrior" else UndeadWarriorVisual
+	var expected: Script = WarriorVisual if id == &"warrior" else ShadowWarriorVisual
 	_check(v.get_script() == expected, "%s: UnitDef aponta para o visual certo" % tag)
 	var snapshot := [u.hp, u.max_hp, u.damage, u.attack_range, u.attack_interval, u.move_speed, u.cooldown, u.state, u.position]
 

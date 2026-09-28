@@ -14,6 +14,11 @@ const S := "res://scripts/visuals/backdrop/"
 const MOON := Vector2(1228, 92)
 const MOON_R := 66.0
 const RIM := Color(0.66, 0.74, 0.93)
+## O castelo principal (com o rochedo e a ponte) desce este tanto para assentar na montanha.
+const CASTLE_DROP := Vector2(0, 18)
+## Chão atrás do campo: pilares e pontes descem até aqui (escondido pelo chão da arena),
+## então nada fica flutuando.
+const GROUND_Y := 372.0
 
 var bd: ArenaBackdrop
 var _add_mat := CanvasItemMaterial.new()
@@ -47,7 +52,9 @@ func _initialize() -> void:
 	_build_ruins()
 	_build_mountains("NearMountains", 0.58, 356.0, 13.0, 0.22, 4.0,
 		[Vector4(250, 64, 170, 1.2), Vector4(560, 92, 150, 1.3), Vector4(690, 70, 90, 1.5), Vector4(1100, 84, 120, 1.4),
-		Vector4(1185, 118, 70, 1.8), Vector4(1460, 110, 160, 1.4)],
+		Vector4(1185, 118, 70, 1.8), Vector4(1460, 110, 160, 1.4),
+		# colinas baixas na frente dos pilares partidos: a base deles fica apoiada atrás da rocha
+		Vector4(772, 56, 58, 1.3), Vector4(908, 64, 66, 1.3)],
 		Color(0.075, 0.09, 0.14), Color(0.14, 0.17, 0.25), 0.5)
 	_build_fog("NearFog", 0.68, Rect2(-80, 255, 1832, 118), 3.0, 0.3, 0.3, Vector3(262, 338, 372), 41.0, Color(0.58, 0.65, 0.78))
 	_build_architecture("left")
@@ -236,27 +243,34 @@ const ROCK_BASE := Color(0.2, 0.24, 0.33)
 
 func _build_castle() -> void:
 	var castle := _group("CastleBack", 0.45)
+	# MainCastle desce CASTLE_DROP (arraste o nó no editor para reposicionar tudo junto)
 	var main := Node2D.new()
 	main.name = "MainCastle"
+	main.position = CASTLE_DROP
 	castle.add_child(main)
 	var east := Node2D.new()
 	east.name = "EastKeep"
 	castle.add_child(east)
-	_rock(main, "Cliff", [Vector2(200, 372), Vector2(236, 268), Vector2(272, 226), Vector2(318, 196), Vector2(356, 178),
-		Vector2(430, 172), Vector2(528, 173), Vector2(566, 186), Vector2(594, 214), Vector2(616, 252),
-		Vector2(642, 300), Vector2(672, 350), Vector2(690, 372)])
-	_rock(east, "Hill", [Vector2(1250, 372), Vector2(1268, 318), Vector2(1292, 272), Vector2(1318, 250), Vector2(1400, 244),
-		Vector2(1440, 256), Vector2(1478, 290), Vector2(1500, 372)])
-	_wall(main, "Wall", 352, 575, 130, 180)
-	_wall(east, "Wall", 1298, 1392, 180, 254)
-	var towers := [[main, 350, 16, 134, 178, 24], [main, 378, 28, 98, 178, 42], [main, 406, 11, 112, 178, 30],
-		[main, 438, 62, 66, 178, 62], [main, 505, 10, 104, 178, 34], [main, 520, 28, 90, 178, 48], [main, 560, 15, 126, 180, 22],
+	# rochedo com um platô mais largo que as muralhas: a base do castelo fica toda sobre a rocha
+	_rock(main, "Cliff", [Vector2(200, GROUND_Y), Vector2(236, 268), Vector2(272, 226), Vector2(312, 198), Vector2(338, 184),
+		Vector2(430, 176), Vector2(528, 177), Vector2(586, 180), Vector2(606, 196), Vector2(626, 228),
+		Vector2(648, 274), Vector2(670, 324), Vector2(690, GROUND_Y)])
+	_rock(east, "Hill", [Vector2(1250, GROUND_Y), Vector2(1266, 318), Vector2(1280, 276), Vector2(1292, 256), Vector2(1318, 250),
+		Vector2(1400, 246), Vector2(1440, 256), Vector2(1478, 290), Vector2(1500, GROUND_Y)])
+	# muralhas e torres descem alguns px para dentro da rocha (fundação), sem vão embaixo
+	_wall(main, "Wall", 352, 575, 130, 194)
+	_wall(east, "Wall", 1298, 1392, 180, 262)
+	var towers := [[main, 350, 16, 134, 192, 24], [main, 378, 28, 98, 194, 42], [main, 406, 11, 112, 194, 30],
+		[main, 438, 62, 66, 194, 62], [main, 505, 10, 104, 194, 34], [main, 520, 28, 90, 194, 48], [main, 560, 15, 126, 194, 22],
 		[main, 431, 10, 60, 104, 26], [main, 497, 10, 58, 104, 30],
-		[east, 1300, 13, 176, 252, 18], [east, 1326, 26, 116, 252, 42], [east, 1366, 19, 146, 252, 26]]
+		[east, 1300, 13, 176, 262, 18], [east, 1326, 26, 116, 262, 42], [east, 1366, 19, 146, 262, 26]]
 	var n := {main: 0, east: 0}
 	for t in towers:
 		n[t[0]] += 1
 		_tower(t[0], "Tower%d" % n[t[0]], t[1], t[2], t[3], t[4], t[5])
+	# pontes presas ao castelo: mesmo grupo (mesmo parallax) e pilares até o chão
+	_bridge(main, "Bridge", 574, 712, 150, 13, GROUND_Y, 3, 11, false, true)
+	_bridge(east, "Bridge", 1270, 1318, 214, 11, GROUND_Y, 1, 10, true, false)
 	var lights := CastleLights.new()
 	lights.name = "CastleLights"
 	lights.set_meta(&"parallax_depth", 0.45)
@@ -268,7 +282,7 @@ func _build_castle() -> void:
 	for i in windows.size():
 		var w := CastleWindow.new()
 		w.name = "Window%d" % (i + 1)
-		w.position = windows[i]
+		w.position = windows[i] + (CASTLE_DROP if windows[i].x < 700.0 else Vector2.ZERO)
 		w.material = _add_mat
 		lights.add_child(w)
 
@@ -341,10 +355,9 @@ func _tower(parent: Node2D, name: String, x: float, w: float, top: float, base: 
 
 func _build_ruins() -> void:
 	var g := _group("Ruins", 0.5)
-	_bridge(g, "BridgeWest", 574, 712, 150, 13, 272, 3, 11, false, true)
-	_bridge(g, "BridgeEast", 1156, 1242, 206, 11, 300, 2, 10, false, true)
-	_bridge(g, "BridgeEastEnd", 1270, 1318, 214, 11, 300, 1, 10, true, false)
-	var towers := [[900, 18, 246, 318], [1098, 15, 262, 318], [766, 13, 272, 318]]
+	# aqueduto solto: pilares apoiados no chão (a base some atrás do chão da arena)
+	_bridge(g, "Aqueduct", 1156, 1242, 206, 11, GROUND_Y, 2, 10, false, true)
+	var towers := [[900, 18, 246, GROUND_Y], [1098, 15, 262, GROUND_Y], [766, 13, 272, GROUND_Y]]
 	for i in towers.size():
 		var t: Array = towers[i]
 		var x: float = t[0]
@@ -353,8 +366,31 @@ func _build_ruins() -> void:
 		for k in range(1, 4):
 			pts.append(Vector2(x + tw * k / 4.0, t[2] + _hash(int(x) + k, 9.0) * 7.0))
 		pts.append_array([Vector2(x + tw, t[2] + 5.0), Vector2(x + tw, t[3])])
-		_poly(g, "BrokenTower%d" % (i + 1), pts, Vector2(x + tw / 2.0, t[3]),
-			Color(0.075, 0.09, 0.14), Color(0.2, 0.24, 0.33), t[2], t[3] + 20.0)
+		var tower := _poly(g, "BrokenTower%d" % (i + 1), pts, Vector2(x + tw / 2.0, t[3]),
+			Color(0.075, 0.09, 0.14), Color(0.2, 0.24, 0.33), t[2], 340.0)
+		_rubble(tower, x + tw / 2.0, tw, t[3])
+
+
+## Monte de entulho no pé de um pilar partido (ele parece apoiado, não flutuando).
+func _rubble(parent: Polygon2D, cx: float, w: float, ground: float) -> void:
+	var y0 := 326.0 + _hash(int(cx), 5.0) * 8.0
+	var pts := PackedVector2Array([Vector2(cx - w * 1.6, ground)])
+	for k in 7:
+		var u := k / 6.0
+		var x := lerpf(cx - w * 1.4, cx + w * 1.5, u)
+		var bump := sin(u * PI) * (ground - y0) * 0.55 + (_hash(int(cx) + k, 13.0) - 0.5) * 4.0
+		pts.append(Vector2(x, ground - (ground - y0) * 0.45 - bump))
+	pts.append(Vector2(cx + w * 1.7, ground))
+	var anchor := Vector2(cx, ground)
+	var mound := Polygon2D.new()
+	mound.name = "Rubble"
+	mound.antialiased = true
+	mound.polygon = _to_local(pts, anchor)
+	var cols := PackedColorArray()
+	for p in pts:
+		cols.append(Color(0.1, 0.12, 0.18).lerp(Color(0.2, 0.24, 0.33), clampf((p.y - y0) / (ground - y0), 0.0, 1.0)))
+	mound.vertex_colors = cols
+	parent.add_child(mound)
 
 
 func _bridge(parent: Node2D, name: String, x0: float, x1: float, top: float, deck: float, base: float,

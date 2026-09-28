@@ -1,9 +1,10 @@
 class_name BannerSway
 extends Sprite2D
-## Estandarte (Sprite2D com o shader banner_sway): balanço pendular lento a partir da haste.
-## `amplitude` = px na ponta; `speed` multiplica o tempo; `phase` desencontra os dois lados.
+## Estandarte (Sprite2D com o shader banner_sway): vento suave que desce pelo tecido a partir
+## da haste, com rajadas lentas. `amplitude` = px na ponta; `speed` multiplica o tempo;
+## `phase` desencontra os dois lados.
 
-@export var amplitude := 2.4
+@export var amplitude := 2.8
 @export var speed := 1.0
 @export var phase := 0.0
 ## Onde o tecido encontra a haste (px a partir do topo da textura).

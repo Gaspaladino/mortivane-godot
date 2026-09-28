@@ -616,3 +616,53 @@ Limitações:
 - A interface é pensada para o viewport de 1000 unidades de largura; em janelas muito estreitas os painéis
   apertam (os textos longos quebram linha).
 - A imagem de referência mencionada não veio anexada; a composição seguiu a das etapas anteriores.
+
+### Investigação: cliques no menu (relato de regressão)
+Relato: após a etapa anterior, clicar em Jogar/Sandbox não entrava. Com cliques reais de mouse (X virtual +
+xdotool), o commit 7ea0e22 entra no Sandbox rodando sozinho **e** embutido no editor (F5, aba Game); não foi
+possível reproduzir. Ficou o teste `menu_click_test` (eventos de mouse pelo viewport, pressionar e soltar em
+quadros separados; falha se um Control invisível tomar o clique).
+
+### Sombras necromânticas + coerência do cenário ✔
+Pedido (com imagens de referência no clima dos "soldados sombra"): unidades revividas com identidade forte de
+"sombra necromântica" — corpo escuro, energia roxa, aura/fumaça/olhos, sem virar mancha e sem perder a classe —
+como regra reutilizável; cenário mais coerente (castelo encaixado na montanha, nada flutuando); estandartes mais
+fluidos e luzes menos chamativas. Sem mudar combate, números nem fluxo do Sandbox.
+
+Feito:
+- **Regra reutilizável** (ver `ARCHITECTURE.md`, "Versões sombra"): `ShadowStyle` (`data/visuals/shadow_style.tres`)
+  converte a paleta viva (`convert`), `ShadowFX` desenha aura, névoa no chão, fumaça, fissuras e olhos, e
+  `CodeDrawnUnitVisual` ganhou `shadow`/`_apply_shadow_style`/`_draw_with_rim` (borda roxa só na silhueta
+  externa). `UnitDef.shadow_style` permite um estilo por unidade.
+- **Guerreiro Sombra** (era "Guerreiro Morto-Vivo" verde): `ShadowWarriorVisual` (renomeado de
+  `UndeadWarriorVisual`), mesmo rig; armadura grafite violeta, capa quase preta com resto do vermelho, olhos
+  roxos na fenda, fissuras de energia no peitoral e no elmo, pluma → chama espectral, fio da espada aceso,
+  névoa/aura/fumaça; postura pesada em vez de cambaleante; ao morrer a energia se apaga e o corpo solta fumaça.
+  Nome exibido: "Guerreiro Sombra" (stats inalterados).
+- **Sentinela Arcana Sombra**: paleta agora convertida pela mesma regra (selo arcano azul mantido), borda roxa,
+  olhos pela regra, fissuras na saia, aura, névoa no chão e fumaça no capelete; animações e mecânica iguais.
+- **Cenário** (gerador + cena regenerada; só os `unique_id` e as peças abaixo mudam):
+  - `MainCastle` 18 px mais baixo; rochedo com platô mais largo; muralha e torres assentam na rocha (antes a
+    ponta direita da muralha ficava sobre a encosta, com vão embaixo); idem torre esquerda do `EastKeep`;
+  - pontes do castelo passam a ser filhas do castelo (mesmo parallax) e descem até o chão; aqueduto e pilares
+    partidos descem até o chão, com entulho no pé e duas colinas baixas na frente.
+- **Animações:** estandarte com vento que propaga pelo tecido (atraso por altura), rajadas lentas, ondulação
+  na ponta e barra que sobe um pouco; velas com flicker sutil (antes ±10–40%, agora ±4–12%, mais lento);
+  tremor das janelas do castelo reduzido (±10% rápido → ±5% lento).
+
+Validado:
+- 7 suítes OK: combat, visual, sentinel, sandbox, backdrop, menu_click e a nova `shadow_visual_test`.
+- `backdrop_test` ganhou as verificações "nada flutua"; rodadas contra a cena antiga, elas falham exatamente
+  nos problemas relatados (muralha/torres fora da rocha, pontes e pilares acabando no ar).
+- Capturas no jogo real (1600×896): sombras legíveis no tamanho da arena (corpo escuro, borda roxa, olhos) e em
+  close 5×–14×; vivas inalteradas; combate e mortes; fundo antes/depois.
+- O editor do Godot abre neste ambiente com `--rendering-driver opengl3` (X virtual): o jogo foi rodado pelo
+  editor (F5, embutido); a edição das cenas dentro do editor não foi exercitada.
+
+Limitações:
+- Regenerar o fundo pelo gerador sobrescreve edições feitas na `.tscn` (até agora não havia nenhuma: a
+  regeneração da versão anterior só mudava os `unique_id`).
+- O efeito "sombra" é por código (sem shader de contorno): a borda da silhueta é o corpo desenhado duas vezes,
+  o que dobra o custo de desenho das sombras (ainda barato).
+- Só existem duas classes hoje (Guerreiro e Sentinela); paladino/healer etc. usarão a mesma regra quando
+  forem criados (`convert(cor, keep)` para os acentos da classe).
