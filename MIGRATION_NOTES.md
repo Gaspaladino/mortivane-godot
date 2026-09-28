@@ -519,3 +519,51 @@ Limitações:
 - As árvores secas ficam paradas.
 - O menu inicial continua com a arte estática.
 - A ferramenta precisa de Python com OpenCV/SciPy, apenas para regenerar as camadas; o jogo não depende disso.
+
+### Fundo da arena reconstruído do zero ✔ (substitui o "fundo animado" anterior)
+Pedido: descartar o fundo antigo (céu, lua, nuvens, montanhas, neblina, castelo, torres, ruínas e arcos) e
+reconstruí-lo no Godot, mantendo a composição e a identidade da referência. Preservar a arena e os elementos
+laterais.
+
+Feito:
+- `build_layers.py` passou a extrair **só o primeiro plano**.
+  - Critério: pedra, madeira e chão são neutros, e o fundo antigo é azulado. Fica o que é neutro e está ligado
+    ao chão ou às bordas.
+  - O estandarte é reconstruído por trás (inpaint).
+  - As camadas antigas (`scenery.png`, `masks.png`, `sky_flow` e `castle_glow`) foram removidas.
+- **Fundo novo, 100% Godot**, em 13 camadas com profundidade de parallax (detalhes em `ARCHITECTURE.md`):
+  - céu em gradiente frio com poucas estrelas;
+  - lua cheia branco-azulada com halo e pulsação lenta;
+  - duas camadas de nuvens estilizadas (bancos longos, topo em escamas, borda prateada perto da lua) deslizando
+    da esquerda para a direita;
+  - duas cordilheiras góticas;
+  - castelo principal e forte menor, com janelas roxas que acendem e apagam uma a uma;
+  - pontes em arco e torres partidas;
+  - três camadas de neblina, uma no sentido contrário;
+  - estandartes com balanço pendular pesado e chamas calmas.
+- **Paleta fria** (azul-acinzentado, azul profundo, preto azulado). O roxo aparece só nas janelas, velas,
+  estandartes e no desenho do chão.
+- **Menu inicial:** usa o mesmo fundo, escurecido. Nenhuma cena usa mais `novocenario.png`.
+
+Validado:
+- `tests/backdrop_test.gd` (reescrito):
+  - estrutura: ordem das 13 camadas, profundidades crescentes, nenhum uso da arte antiga, geometria das
+    silhuetas, lua no alto à direita, camadas sem clique e nada animado entrando no campo;
+  - movimento: nuvens para a direita com a do meio mais rápida, neblina em sentidos opostos, velocidades
+    baixas, pulsação da lua de 5 a 8 s;
+  - janelas: acendem, mas nunca todas juntas;
+  - ajustes e parallax.
+- As outras 4 suítes seguem OK.
+- Cena real em 1600×896:
+  - fundo em três instantes;
+  - mapa de movimento: cerca de 5% dos pixels mudam em 20 s, **0% no chão**;
+  - parallax com ±40 px;
+  - menu e combate sobre o fundo.
+
+Limitações:
+- A extração do primeiro plano é por cor. Pequenos restos azulados nas bordas do muro podem ter ficado de fora;
+  onde isso acontece, o fundo novo aparece e não há buraco.
+- Não há câmera móvel ainda: o parallax está pronto, mas só é visto com `view_offset` ou `parallax_preview`.
+- As árvores secas laterais são as da arte e ficam paradas.
+- Castelo, montanhas e ruínas têm formas fixas no código (listas de picos e peças). Mudar a composição = editar
+  essas listas ou os parâmetros das cordilheiras na cena.

@@ -1,7 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/menu/main_menu.gd" id="1_menu"]
-[ext_resource type="Texture2D" uid="uid://bja6jdmwwej65" path="res://assets/art/novocenario.png" id="2_art"]
+[ext_resource type="PackedScene" path="res://scenes/arena/arena_backdrop.tscn" id="2_backdrop"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -12,18 +12,8 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_menu")
 
-[node name="Backdrop" type="TextureRect" parent="."]
-modulate = Color(0.45, 0.42, 0.55, 1)
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-texture = ExtResource("2_art")
-expand_mode = 1
-stretch_mode = 6
+[node name="Backdrop" parent="." instance=ExtResource("2_backdrop")]
+modulate = Color(0.55, 0.53, 0.66, 1)
 
 [node name="Center" type="CenterContainer" parent="."]
 layout_mode = 1

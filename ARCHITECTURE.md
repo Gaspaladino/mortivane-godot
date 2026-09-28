@@ -59,8 +59,8 @@ Casos verificados com captura real da janela:
 res://
   project.godot
   assets/art/novocenario.png         # arte da arena (1672×941); substituiu a arte extraída do HTML
-  assets/art/arena_layers/           # camadas geradas da arte (tools/arena_backdrop/build_layers.py)
-  tools/arena_backdrop/build_layers.py  # decompõe a arte em camadas + máscaras (Python, só desenvolvimento)
+  assets/art/arena_layers/           # primeiro plano extraído da arte (chão, laterais, estandartes, velas)
+  tools/arena_backdrop/build_layers.py  # extrai o primeiro plano (Python, só desenvolvimento)
   data/
     units/u_warrior.tres             # UnitDef — Guerreiro Morto-Vivo (aliado)
     units/warrior.tres               # UnitDef — Guerreiro (inimigo)
@@ -71,7 +71,7 @@ res://
     menu/main_menu.tscn              # menu inicial (Jogar / Sandbox)
     sandbox/sandbox.tscn             # Sandbox: Arena + SandboxUI + SandboxController
     arena/arena.tscn                 # arena: camadas + Battle + debug
-    arena/arena_backdrop.tscn        # fundo animado da arena (camadas + materiais)
+    arena/arena_backdrop.tscn        # fundo da arena reconstruído (13 camadas)
   scripts/
     core/world_config.gd             # class_name WorldConfig — constantes do mundo
     arena/arena.gd                   # enquadramento (câmera + fundo cover)
@@ -89,9 +89,10 @@ res://
     visuals/units/sentinel_shadow_visual.gd # class_name SentinelShadowVisual — Sentinela Sombra (herda a viva)
     visuals/effects/arcane_blade.gd         # class_name ArcaneBlade — desenho da lâmina (pairando e em voo)
     visuals/projectiles/projectile_view.gd  # class_name ProjectileView — orbe/lâmina em voo + impacto
-    visuals/backdrop/arena_backdrop.gd      # class_name ArenaBackdrop — fundo animado (tempo, intensidades)
-    visuals/backdrop/arena_layers_data.gd   # class_name ArenaLayersData — GERADO: posições das camadas
-    visuals/backdrop/shaders/*.gdshader     # céu, nuvens, neblina, castelo, estandarte, velas (+ noise.gdshaderinc)
+    visuals/backdrop/arena_backdrop.gd      # class_name ArenaBackdrop — orquestra camadas, tempo, parallax, ajustes
+    visuals/backdrop/arena_layers_data.gd   # class_name ArenaLayersData — GERADO: posições do primeiro plano
+    visuals/backdrop/layers/*.gd            # BackdropSilhouette, MountainLayer, CastleLayer, CastleLights, RuinsLayer, CandleFlames
+    visuals/backdrop/shaders/*.gdshader     # céu, lua, nuvens, neblina, estandarte, velas (+ noise.gdshaderinc)
     visuals/units/warrior_visual.gd         # class_name WarriorVisual — Guerreiro por código (rig + animação)
     visuals/units/undead_warrior_visual.gd  # class_name UndeadWarriorVisual — herda o Guerreiro
     combat/battle.gd                 # class_name Battle — executor: CombatSim + UnitView + passo fixo
@@ -369,66 +370,86 @@ porta 1:1 de `drawArcaneSentinel`.
 | Hit | 0,2 s: recuo, compressão, clarão, ponta do chapéu treme, lâminas desestabilizam | clarão lilás, o corpo tremula (translúcido) e a fumaça explode |
 | Morte | perde a sustentação, a magia se apaga, o manto colapsa com peso, o chapéu cai ao lado; as lâminas caem girando e se desfazem em faíscas; o monte fica no chão | sobe e se agita, colapsa se desfazendo (fica translúcida), fumaça sobe e as lâminas se partem em fragmentos |
 
-## Fundo animado da arena (`ArenaBackdrop`)
+## Fundo da arena (`ArenaBackdrop`) — reconstruído do zero
 
-A referência visual é a própria arte da arena (`novocenario.png`). Para manter a identidade (composição,
-perspectiva, cores), o fundo **não foi redesenhado**: a arte foi decomposta em camadas independentes e recebeu
-animações nativas (shaders e script). Não há vídeo nem sprite sheet.
+Tudo o que fica **atrás do campo** foi recriado no Godot, sem nenhum pixel da arte antiga: céu, lua, nuvens,
+montanhas, neblina, castelo, torres, ruínas e arcos. Da arte antiga (`novocenario.png`) sobrou apenas o primeiro
+plano, que foi pedido para preservar:
+- o chão de pedra com o desenho roxo e o muro de ruínas (`arena.png`);
+- os elementos laterais: pilares, arco, árvores secas, lápide (`sides.png`), estandartes e velas.
 
-**Camadas** (`arena_backdrop.tscn`, de trás para frente; espaço local = pixels da arte, 1672×941)
+Essas partes são extraídas por `tools/arena_backdrop/build_layers.py`. Nenhuma cena usa mais `novocenario.png`;
+ele só serve de fonte para a ferramenta. O menu inicial também usa o fundo novo, escurecido.
 
-| Nó | Conteúdo | Animação |
-|---|---|---|
-| `Sky` | a arte original (céu, lua, nuvens pintadas) | as nuvens pintadas fluem ±7 px devagar (só onde `masks.r`, longe das montanhas e da lua); o disco da lua respira ±5% de brilho |
-| `MoonHalo` | halo radial aditivo | respira (alfa) e deriva < 1 px |
-| `CloudsFar` | nuvens procedurais (fbm com distorção) | 3 px/s, menores e ralas |
-| `CloudsNear` | nuvens procedurais | 6,5 px/s, maiores — **parallax**; clareiam perto da lua |
-| `Scenery` | tudo que não é céu (montanhas, castelos, ruínas, árvores, **chão**), com os estandartes reconstruídos por trás | estático |
-| `CastleLights` | luzes roxas do castelo (`masks.b`), aditivo | pulsam/tremulam por ruído |
-| `FogBack` / `FogFront` | neblina fria no vale (`masks.g`) | 2,2 px/s e −4 px/s (sentidos opostos) |
-| `BannerLeft` / `BannerRight` | estandartes recortados | onda presa na haste, crescendo até a ponta rasgada (≈ 2,6 px), rajadas lentas, sombra nas dobras |
-| `CandlesLeft` / `CandlesRight` | chamas e reflexos das velas, aditivo | tremulam por ruído |
-| `CandleGlows` | um halo por chama (criados pelo script) | alfa e escala oscilam, cada um no seu ritmo |
+**Camadas** (`arena_backdrop.tscn`; espaço local = pixels da arte, 1672×941; a Arena escala em cover)
 
-- **Ordem de profundidade.** As nuvens procedurais ficam antes do `Scenery`, então passam **atrás** das
-  montanhas e do castelo. A neblina é recortada pela máscara do vale e fica atrás do muro de ruínas.
-- **O chão nunca anima.** A comparação de dois instantes mostra 0% dos pixels do campo (y > 560 na tela)
-  mudando.
-- **Enquadramento.** `Arena._fit_background` escala e posiciona o `Backdrop` exatamente como fazia com o
-  antigo `Sprite2D` (cover ancorado em y≈380).
+| Camada | Profundidade | Como é feita | Animação |
+|---|---|---|---|
+| `SkyLayer` | 0 | shader `sky`: gradiente frio (escuro no alto, mais claro no horizonte), variação larga, poucas estrelas | estrelas cintilam devagar |
+| `MoonLayer` | 0,03 | shader `moon`: disco branco-azulado com mares e borda escurecida, halo atmosférico | brilho pulsa ±3,5% num ciclo de 6,5 s |
+| `FarCloudLayer` | 0,06 | shader `clouds`: bancos pequenos e ralos, 3 fileiras | 2 px/s → direita |
+| `MidCloudLayer` | 0,12 | shader `clouds`: bancos maiores, 2 fileiras; passam na frente da lua | 4,5 px/s → direita |
+| `MountainBackLayer` | 0,2 | `MountainLayer` (código): picos claros e enevoados | — |
+| `FogLayerFar` | 0,25 | shader `fog`: véu no horizonte | 1,4 px/s → direita |
+| `MountainFrontLayer` | 0,35 | `MountainLayer`: picos agudos mais escuros, luz de borda da lua, vincos | — |
+| `CastleLayer` | 0,45 | `CastleLayer` (código): castelo principal no penhasco e forte menor | janelas (`CastleLights`) |
+| `RuinsLayer` | 0,5 | `RuinsLayer` (código): pontes em arco quebradas e torres partidas | — |
+| `FogLayerMid` | 0,55 | shader `fog`: entre montanhas e castelo | 2,4 px/s ← **esquerda** |
+| `FogLayerNear` | 0,7 | shader `fog`: faixa baixa atrás do muro | 3,2 px/s → direita |
+| `SideElementsLayer` | 0,95 | laterais extraídas + estandartes + velas + `CandleFlames` | estandartes e chamas |
+| `ArenaLayer` | 1 | chão e muro extraídos | nenhuma |
 
-**Ajustes** (propriedades exportadas do `ArenaBackdrop`, no Inspector ou em código)
-- `animated` (congela o tempo) e `master_intensity` (0 = arte estática, sem nenhum efeito).
-- Por elemento:
-  - nuvens: velocidade, opacidade e fluxo das nuvens pintadas;
-  - neblina: velocidade e opacidade;
-  - estandartes: força e velocidade;
-  - velas: força e velocidade;
-  - castelo: força e velocidade;
-  - lua: força.
-- Os valores de base ficam em `ArenaBackdrop.BASE`. Os parâmetros de cada camada (tamanho das nuvens,
-  cobertura, cores, faixas de altura) estão nos `ShaderMaterial` da cena.
-- O tempo é um uniform `t` que o script alimenta (não `TIME`): dá para pausar, acelerar ou testar de forma
-  determinística.
+**Silhuetas por código** (`scripts/visuals/backdrop/layers/`)
+- Base `BackdropSilhouette`:
+  - monta a geometria **uma vez**, como triângulos com cor por vértice (gradiente vertical, a base clareia na
+    neblina);
+  - desenha tudo num único `canvas_item_add_triangle_array`;
+  - por cima, linhas antialiasadas: contorno e **luz de borda**, que clareia só as arestas cuja normal aponta
+    para a lua;
+  - nada é refeito por quadro.
+- `MountainLayer`:
+  - picos definidos como `Vector4(x, altura, meia-largura, agudeza)`; agudeza > 1 dá encostas côncavas e ponta
+    de agulha;
+  - ruído em duas escalas (ombros e serrilhado);
+  - vincos que descem dos picos altos.
+  - As duas cordilheiras são a mesma classe com parâmetros diferentes na cena.
+- `CastleLayer`:
+  - rochas com borda irregular, torres com beiral e pináculo fino côncavo;
+  - a menagem tem telhado baixo e agulha central; torrinhas, muralhas com ameias;
+  - janelas góticas;
+  - luz de borda nas arestas voltadas para a lua.
+- `CastleLights` (aditivo): cada janela tem dois senos lentos, com períodos de dezenas de segundos, e um viés
+  próprio. Parte das janelas nunca acende; as outras acendem e apagam suavemente, **nunca todas juntas**, com
+  cintilação mínima.
+- `RuinsLayer`: pontes com vãos em arco, pilares e pontas quebradas; torres partidas com topo irregular.
+- `CandleFlames` (aditivo): língua de fogo por vela, com altura ±10%, largura ±8%, ponta balançando < 0,5 px e
+  brilho local pequeno.
 
-**Gerando as camadas** (`tools/arena_backdrop/build_layers.py`, Python + OpenCV, só em desenvolvimento)
-- **Céu:**
-  - preenchimento por inundação a partir do topo;
-  - buracos claros (nuvens) preenchidos;
-  - disco da lua por brilho;
-  - estruturas bem mais escuras que o céu da mesma linha (pico, torres) excluídas.
-- **Estandartes, velas e castelo:** tom roxo dentro de caixas conhecidas.
-- **Vale:** azulado, entre o céu e o muro de ruínas.
-- **Área atrás dos estandartes:** reconstruída com `cv2.inpaint`.
-- **Saída:** `scenery.png`, os recortes, `masks.png` (R fluxo, G neblina, B castelo, A céu; meia resolução) e
-  `arena_layers_data.gd`.
-- **Importação:** `masks.png` deve ficar com `fix_alpha_border=false`, porque os canais são dados. Isso já
-  está configurado no `.import`.
-- Trocar a arte = rodar a ferramenta de novo. As caixas dos estandartes, das velas e da lua ficam no topo do
-  script.
+**Shaders** (`scripts/visuals/backdrop/shaders/`, com `noise.gdshaderinc`)
+- **Nuvens:** bancos numa grade que desliza.
+  - Cada banco tem pontas longas e finas, topo em "escamas" e base quase reta.
+  - Três tons: corpo, borda de cima clara e barriga escura. Perto da lua, a borda fica prateada.
+  - Como a grade é contínua, nada salta; cada banco entra e sai pelas bordas.
+- **Neblina:** véu constante mais massas que deslizam, numa faixa vertical com pico de densidade.
+- **Estandarte:** balanço **pendular** lento a partir da haste, mais uma onda pequena que desce até a ponta
+  (pano pesado).
+- **Velas:** o recorte das chamas pintadas respira de leve.
 
-**Custo.** Cinco camadas de tela cheia com shader: duas de nuvens e duas de neblina (fbm de 5 oitavas) e uma de
-brilho. Se precisar economizar, dá para reduzir oitavas ou desligar uma camada de nuvem ou neblina.
+**Parallax.** `view_offset` (px da arte) desloca cada camada por `offset × (1 − profundidade)`: o céu acompanha
+tudo e a arena não se move. Está pronto para uma câmera futura. `parallax_preview` faz um vaivém só para
+visualizar.
+
+**Ajustes** (propriedades exportadas do `ArenaBackdrop`)
+- `animated`, `master_intensity` (0 = nada se mexe nem pulsa).
+- Lua: posição, raio, pulsação e halo.
+- Estrelas.
+- Nuvens e neblina: velocidade e opacidade.
+- Janelas do castelo: intensidade e velocidade.
+- Estandartes e velas: força e velocidade.
+- Forma das silhuetas: picos, cores e força da luz de borda, nos próprios nós da cena.
+
+**Custo.** Céu e lua (simples), duas camadas de nuvem (até 9 bancos avaliados por pixel, só na faixa do céu) e
+três de neblina (fbm de 5 oitavas numa faixa de cerca de 220 px). As silhuetas são geometria estática.
 
 ## Dados de unidade (`UnitDef` + `UnitCatalog`)
 
@@ -508,7 +529,7 @@ godot --headless -s res://tests/combat_test.gd  # regras de combate + catálogo
 godot --headless -s res://tests/sandbox_test.gd # ponta a ponta na cena real (menu → Sandbox → menu)
 godot --headless -s res://tests/visual_test.gd  # poses/animações dos visuais por código
 godot --headless -s res://tests/sentinel_test.gd  # Sentinela: mecânica do HTML + visual
-godot --headless -s res://tests/backdrop_test.gd  # fundo animado: camadas, alinhamento, ajustes
+godot --headless -s res://tests/backdrop_test.gd  # fundo: camadas, profundidade, movimento, janelas, parallax
 ```
 Cada teste sai com código 0 se passar e 1 se falhar.
 

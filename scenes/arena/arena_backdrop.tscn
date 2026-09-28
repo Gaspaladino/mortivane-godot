@@ -1,178 +1,271 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/visuals/backdrop/arena_backdrop.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://bja6jdmwwej65" path="res://assets/art/novocenario.png" id="2_art"]
-[ext_resource type="Texture2D" path="res://assets/art/arena_layers/scenery.png" id="3_scenery"]
-[ext_resource type="Texture2D" path="res://assets/art/arena_layers/masks.png" id="4_masks"]
-[ext_resource type="Texture2D" path="res://assets/art/arena_layers/banner_left.png" id="5_bl"]
-[ext_resource type="Texture2D" path="res://assets/art/arena_layers/banner_right.png" id="6_br"]
-[ext_resource type="Texture2D" path="res://assets/art/arena_layers/candles_left.png" id="7_cl"]
-[ext_resource type="Texture2D" path="res://assets/art/arena_layers/candles_right.png" id="8_cr"]
-[ext_resource type="Shader" path="res://scripts/visuals/backdrop/shaders/sky_flow.gdshader" id="9_sky"]
-[ext_resource type="Shader" path="res://scripts/visuals/backdrop/shaders/clouds.gdshader" id="10_clouds"]
-[ext_resource type="Shader" path="res://scripts/visuals/backdrop/shaders/fog.gdshader" id="11_fog"]
-[ext_resource type="Shader" path="res://scripts/visuals/backdrop/shaders/castle_glow.gdshader" id="12_castle"]
-[ext_resource type="Shader" path="res://scripts/visuals/backdrop/shaders/banner_sway.gdshader" id="13_banner"]
-[ext_resource type="Shader" path="res://scripts/visuals/backdrop/shaders/candle_flicker.gdshader" id="14_candle"]
+[ext_resource type="Shader" path="res://scripts/visuals/backdrop/shaders/sky.gdshader" id="2_sky"]
+[ext_resource type="Shader" path="res://scripts/visuals/backdrop/shaders/moon.gdshader" id="3_moon"]
+[ext_resource type="Shader" path="res://scripts/visuals/backdrop/shaders/clouds.gdshader" id="4_clouds"]
+[ext_resource type="Shader" path="res://scripts/visuals/backdrop/shaders/fog.gdshader" id="5_fog"]
+[ext_resource type="Script" path="res://scripts/visuals/backdrop/layers/mountain_layer.gd" id="6_mountain"]
+[ext_resource type="Script" path="res://scripts/visuals/backdrop/layers/castle_layer.gd" id="7_castle"]
+[ext_resource type="Script" path="res://scripts/visuals/backdrop/layers/castle_lights.gd" id="8_lights"]
+[ext_resource type="Script" path="res://scripts/visuals/backdrop/layers/ruins_layer.gd" id="9_ruins"]
+[ext_resource type="Texture2D" path="res://assets/art/arena_layers/sides.png" id="10_sides"]
+[ext_resource type="Texture2D" path="res://assets/art/arena_layers/arena.png" id="11_arena"]
+[ext_resource type="Texture2D" path="res://assets/art/arena_layers/banner_left.png" id="12_bl"]
+[ext_resource type="Texture2D" path="res://assets/art/arena_layers/banner_right.png" id="13_br"]
+[ext_resource type="Texture2D" path="res://assets/art/arena_layers/candles_left.png" id="14_cl"]
+[ext_resource type="Texture2D" path="res://assets/art/arena_layers/candles_right.png" id="15_cr"]
+[ext_resource type="Shader" path="res://scripts/visuals/backdrop/shaders/banner_sway.gdshader" id="16_banner"]
+[ext_resource type="Shader" path="res://scripts/visuals/backdrop/shaders/candle_flicker.gdshader" id="17_candle"]
+[ext_resource type="Script" path="res://scripts/visuals/backdrop/layers/candle_flames.gd" id="18_flames"]
 
 [sub_resource type="ShaderMaterial" id="mat_sky"]
-shader = ExtResource("9_sky")
-shader_parameter/masks = ExtResource("4_masks")
+shader = ExtResource("2_sky")
 
-[sub_resource type="Gradient" id="halo_gradient"]
-offsets = PackedFloat32Array(0, 0.3, 0.62, 1)
-colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.55, 1, 1, 1, 0.16, 1, 1, 1, 0)
+[sub_resource type="ShaderMaterial" id="mat_moon"]
+shader = ExtResource("3_moon")
+shader_parameter/pulse_amount = 0.035
+shader_parameter/pulse_period = 6.5
 
-[sub_resource type="GradientTexture2D" id="halo_texture"]
-gradient = SubResource("halo_gradient")
-width = 128
-height = 128
-fill = 1
-fill_from = Vector2(0.5, 0.5)
-fill_to = Vector2(1, 0.5)
+[sub_resource type="ShaderMaterial" id="mat_far_clouds"]
+shader = ExtResource("4_clouds")
+shader_parameter/speed = 2.0
+shader_parameter/cell_w = 300.0
+shader_parameter/density = 0.75
+shader_parameter/length_min = 0.7
+shader_parameter/length_max = 1.5
+shader_parameter/height = 17.0
+shader_parameter/rows = Vector3(38, 92, 150)
+shader_parameter/row_jitter = 16.0
+shader_parameter/seed = 11.0
+shader_parameter/rim_px = 2.5
+shader_parameter/body_color = Color(0.21, 0.26, 0.37, 1)
+shader_parameter/top_color = Color(0.32, 0.38, 0.51, 1)
+shader_parameter/belly_color = Color(0.17, 0.21, 0.31, 1)
+shader_parameter/rim_color = Color(0.64, 0.72, 0.88, 1)
+shader_parameter/moon_light = 0.6
+
+[sub_resource type="ShaderMaterial" id="mat_mid_clouds"]
+shader = ExtResource("4_clouds")
+shader_parameter/speed = 4.5
+shader_parameter/cell_w = 460.0
+shader_parameter/density = 0.62
+shader_parameter/length_min = 0.6
+shader_parameter/length_max = 1.35
+shader_parameter/height = 30.0
+shader_parameter/rows = Vector3(70, 150, -1)
+shader_parameter/row_jitter = 26.0
+shader_parameter/seed = 37.0
+shader_parameter/rim_px = 4.0
+shader_parameter/body_color = Color(0.15, 0.185, 0.28, 1)
+shader_parameter/top_color = Color(0.36, 0.43, 0.57, 1)
+shader_parameter/belly_color = Color(0.1, 0.125, 0.2, 1)
+shader_parameter/rim_color = Color(0.86, 0.91, 1, 1)
+shader_parameter/moon_light = 1.0
+
+[sub_resource type="ShaderMaterial" id="mat_fog_far"]
+shader = ExtResource("5_fog")
+shader_parameter/speed = 1.4
+shader_parameter/cell = 340.0
+shader_parameter/stretch = 4.8
+shader_parameter/coverage = 0.4
+shader_parameter/softness = 0.34
+shader_parameter/haze = 0.35
+shader_parameter/band_top = 170.0
+shader_parameter/band_peak = 300.0
+shader_parameter/band_bottom = 352.0
+shader_parameter/seed = 5.0
+shader_parameter/fog_color = Color(0.45, 0.52, 0.66, 1)
+
+[sub_resource type="ShaderMaterial" id="mat_fog_mid"]
+shader = ExtResource("5_fog")
+shader_parameter/speed = -2.4
+shader_parameter/cell = 280.0
+shader_parameter/stretch = 4.2
+shader_parameter/coverage = 0.44
+shader_parameter/softness = 0.3
+shader_parameter/haze = 0.15
+shader_parameter/band_top = 150.0
+shader_parameter/band_peak = 285.0
+shader_parameter/band_bottom = 355.0
+shader_parameter/seed = 23.0
+shader_parameter/fog_color = Color(0.52, 0.59, 0.73, 1)
+
+[sub_resource type="ShaderMaterial" id="mat_fog_near"]
+shader = ExtResource("5_fog")
+shader_parameter/speed = 3.2
+shader_parameter/cell = 240.0
+shader_parameter/stretch = 3.6
+shader_parameter/coverage = 0.4
+shader_parameter/softness = 0.3
+shader_parameter/haze = 0.3
+shader_parameter/band_top = 262.0
+shader_parameter/band_peak = 338.0
+shader_parameter/band_bottom = 372.0
+shader_parameter/seed = 41.0
+shader_parameter/fog_color = Color(0.58, 0.65, 0.78, 1)
 
 [sub_resource type="CanvasItemMaterial" id="mat_add"]
 blend_mode = 1
 
-[sub_resource type="ShaderMaterial" id="mat_clouds_far"]
-shader = ExtResource("10_clouds")
-shader_parameter/masks = ExtResource("4_masks")
-shader_parameter/speed = 3.0
-shader_parameter/cell = 190.0
-shader_parameter/stretch = 2.8
-shader_parameter/coverage = 0.58
-shader_parameter/softness = 0.14
-shader_parameter/band_top = 0.0
-shader_parameter/band_bottom = 230.0
-shader_parameter/seed = 11.0
-shader_parameter/shadow_color = Color(0.17, 0.21, 0.32, 1)
-shader_parameter/light_color = Color(0.44, 0.51, 0.68, 1)
-
-[sub_resource type="ShaderMaterial" id="mat_clouds_near"]
-shader = ExtResource("10_clouds")
-shader_parameter/masks = ExtResource("4_masks")
-shader_parameter/speed = 6.5
-shader_parameter/cell = 300.0
-shader_parameter/stretch = 2.3
-shader_parameter/coverage = 0.6
-shader_parameter/softness = 0.11
-shader_parameter/band_top = 10.0
-shader_parameter/band_bottom = 250.0
-shader_parameter/seed = 37.0
-shader_parameter/shadow_color = Color(0.15, 0.19, 0.3, 1)
-shader_parameter/light_color = Color(0.5, 0.58, 0.77, 1)
-
-[sub_resource type="ShaderMaterial" id="mat_castle"]
-shader = ExtResource("12_castle")
-shader_parameter/masks = ExtResource("4_masks")
-
-[sub_resource type="ShaderMaterial" id="mat_fog_back"]
-shader = ExtResource("11_fog")
-shader_parameter/masks = ExtResource("4_masks")
-shader_parameter/speed = 2.2
-shader_parameter/cell = 360.0
-shader_parameter/stretch = 4.5
-shader_parameter/coverage = 0.4
-shader_parameter/softness = 0.32
-shader_parameter/band_top = 140.0
-shader_parameter/band_bottom = 352.0
-shader_parameter/seed = 5.0
-shader_parameter/fog_color = Color(0.64, 0.7, 0.85, 1)
-
-[sub_resource type="ShaderMaterial" id="mat_fog_front"]
-shader = ExtResource("11_fog")
-shader_parameter/masks = ExtResource("4_masks")
-shader_parameter/speed = -4.0
-shader_parameter/cell = 240.0
-shader_parameter/stretch = 3.6
-shader_parameter/coverage = 0.46
-shader_parameter/softness = 0.28
-shader_parameter/band_top = 200.0
-shader_parameter/band_bottom = 352.0
-shader_parameter/seed = 23.0
-shader_parameter/fog_color = Color(0.72, 0.78, 0.9, 1)
-
 [sub_resource type="ShaderMaterial" id="mat_banner_left"]
-shader = ExtResource("13_banner")
+shader = ExtResource("16_banner")
 shader_parameter/phase = 0.0
 
 [sub_resource type="ShaderMaterial" id="mat_banner_right"]
-shader = ExtResource("13_banner")
-shader_parameter/phase = 2.1
+shader = ExtResource("16_banner")
+shader_parameter/phase = 2.4
 
 [sub_resource type="ShaderMaterial" id="mat_candles_left"]
-shader = ExtResource("14_candle")
+shader = ExtResource("17_candle")
 shader_parameter/seed = 3.0
 
 [sub_resource type="ShaderMaterial" id="mat_candles_right"]
-shader = ExtResource("14_candle")
+shader = ExtResource("17_candle")
 shader_parameter/seed = 17.0
 
 [node name="ArenaBackdrop" type="Node2D"]
 script = ExtResource("1_script")
 
-[node name="Sky" type="Sprite2D" parent="."]
+[node name="SkyLayer" type="Node2D" parent="."]
+
+[node name="Sky" type="ColorRect" parent="SkyLayer"]
 material = SubResource("mat_sky")
-texture = ExtResource("2_art")
-centered = false
+offset_left = -80.0
+offset_top = -60.0
+offset_right = 1752.0
+offset_bottom = 420.0
+mouse_filter = 2
 
-[node name="MoonHalo" type="Sprite2D" parent="."]
-self_modulate = Color(0.74, 0.83, 1, 1)
+[node name="MoonLayer" type="Node2D" parent="."]
+
+[node name="Moon" type="ColorRect" parent="MoonLayer"]
+material = SubResource("mat_moon")
+offset_right = 264.0
+offset_bottom = 264.0
+mouse_filter = 2
+
+[node name="FarCloudLayer" type="Node2D" parent="."]
+
+[node name="Clouds" type="ColorRect" parent="FarCloudLayer"]
+material = SubResource("mat_far_clouds")
+offset_left = -80.0
+offset_top = -40.0
+offset_right = 1752.0
+offset_bottom = 290.0
+mouse_filter = 2
+
+[node name="MidCloudLayer" type="Node2D" parent="."]
+
+[node name="Clouds" type="ColorRect" parent="MidCloudLayer"]
+material = SubResource("mat_mid_clouds")
+offset_left = -80.0
+offset_top = -40.0
+offset_right = 1752.0
+offset_bottom = 320.0
+mouse_filter = 2
+
+[node name="MountainBackLayer" type="Node2D" parent="."]
+script = ExtResource("6_mountain")
+peaks = Array[Vector4]([Vector4(40, 150, 120, 1.3), Vector4(250, 175, 150, 1.45), Vector4(430, 140, 120, 1.3), Vector4(610, 185, 140, 1.5), Vector4(800, 215, 150, 1.6), Vector4(955, 165, 120, 1.45), Vector4(1100, 196, 130, 1.55), Vector4(1180, 160, 50, 2.1), Vector4(1390, 205, 150, 1.5), Vector4(1560, 172, 140, 1.4), Vector4(1700, 150, 110, 1.3), Vector4(720, 160, 45, 2.1), Vector4(900, 178, 45, 2.3), Vector4(1490, 182, 42, 2.2)])
+base_y = 334.0
+seed = 3.0
+min_height = 22.0
+jag = 3.5
+roughness = 0.16
+top_color = Color(0.17, 0.21, 0.3, 1)
+base_color = Color(0.3, 0.36, 0.48, 1)
+rim_strength = 0.3
+rim_width = 1.3
+creases = 1
+crease_min_height = 190.0
+
+[node name="FogLayerFar" type="Node2D" parent="."]
+
+[node name="Fog" type="ColorRect" parent="FogLayerFar"]
+material = SubResource("mat_fog_far")
+offset_left = -80.0
+offset_top = 150.0
+offset_right = 1752.0
+offset_bottom = 365.0
+mouse_filter = 2
+
+[node name="MountainFrontLayer" type="Node2D" parent="."]
+script = ExtResource("6_mountain")
+peaks = Array[Vector4]([Vector4(80, 190, 130, 1.5), Vector4(180, 150, 90, 1.6), Vector4(665, 150, 45, 2.1), Vector4(700, 225, 55, 2.3), Vector4(735, 175, 95, 1.6), Vector4(790, 140, 40, 2.2), Vector4(830, 150, 35, 2.3), Vector4(860, 210, 110, 1.75), Vector4(890, 160, 36, 2.4), Vector4(1000, 130, 40, 2.2), Vector4(1035, 175, 100, 1.65), Vector4(1065, 145, 32, 2.4), Vector4(1210, 150, 60, 1.8), Vector4(1232, 200, 42, 2.3), Vector4(1262, 290, 70, 2.4), Vector4(1296, 205, 48, 2.2), Vector4(1340, 160, 120, 1.45), Vector4(1500, 170, 100, 1.5), Vector4(1620, 200, 110, 1.6)])
+base_y = 350.0
+seed = 7.0
+jag = 5.0
+roughness = 0.2
+top_color = Color(0.085, 0.105, 0.165, 1)
+base_color = Color(0.18, 0.22, 0.31, 1)
+rim_strength = 0.75
+rim_width = 1.8
+creases = 2
+crease_min_height = 150.0
+
+[node name="CastleLayer" type="Node2D" parent="."]
+script = ExtResource("7_castle")
+
+[node name="CastleLights" type="Node2D" parent="CastleLayer"]
 material = SubResource("mat_add")
-texture = SubResource("halo_texture")
+script = ExtResource("8_lights")
 
-[node name="CloudsFar" type="ColorRect" parent="."]
-material = SubResource("mat_clouds_far")
-offset_right = 1672.0
-offset_bottom = 941.0
+[node name="RuinsLayer" type="Node2D" parent="."]
+script = ExtResource("9_ruins")
+
+[node name="FogLayerMid" type="Node2D" parent="."]
+
+[node name="Fog" type="ColorRect" parent="FogLayerMid"]
+material = SubResource("mat_fog_mid")
+offset_left = -80.0
+offset_top = 140.0
+offset_right = 1752.0
+offset_bottom = 370.0
 mouse_filter = 2
 
-[node name="CloudsNear" type="ColorRect" parent="."]
-material = SubResource("mat_clouds_near")
-offset_right = 1672.0
-offset_bottom = 941.0
+[node name="FogLayerNear" type="Node2D" parent="."]
+
+[node name="Fog" type="ColorRect" parent="FogLayerNear"]
+material = SubResource("mat_fog_near")
+offset_left = -80.0
+offset_top = 250.0
+offset_right = 1752.0
+offset_bottom = 380.0
 mouse_filter = 2
 
-[node name="Scenery" type="Sprite2D" parent="."]
-texture = ExtResource("3_scenery")
+[node name="SideElementsLayer" type="Node2D" parent="."]
+
+[node name="Sides" type="Sprite2D" parent="SideElementsLayer"]
+texture = ExtResource("10_sides")
 centered = false
 
-[node name="CastleLights" type="ColorRect" parent="."]
-material = SubResource("mat_castle")
-offset_right = 1672.0
-offset_bottom = 941.0
-mouse_filter = 2
-
-[node name="FogBack" type="ColorRect" parent="."]
-material = SubResource("mat_fog_back")
-offset_right = 1672.0
-offset_bottom = 941.0
-mouse_filter = 2
-
-[node name="FogFront" type="ColorRect" parent="."]
-material = SubResource("mat_fog_front")
-offset_right = 1672.0
-offset_bottom = 941.0
-mouse_filter = 2
-
-[node name="BannerLeft" type="Sprite2D" parent="."]
+[node name="BannerLeft" type="Sprite2D" parent="SideElementsLayer"]
 material = SubResource("mat_banner_left")
-texture = ExtResource("5_bl")
+texture = ExtResource("12_bl")
 centered = false
 
-[node name="BannerRight" type="Sprite2D" parent="."]
+[node name="BannerRight" type="Sprite2D" parent="SideElementsLayer"]
 material = SubResource("mat_banner_right")
-texture = ExtResource("6_br")
+texture = ExtResource("13_br")
 centered = false
 
-[node name="CandlesLeft" type="Sprite2D" parent="."]
+[node name="CandlesLeft" type="Sprite2D" parent="SideElementsLayer"]
 material = SubResource("mat_candles_left")
-texture = ExtResource("7_cl")
+texture = ExtResource("14_cl")
 centered = false
 
-[node name="CandlesRight" type="Sprite2D" parent="."]
+[node name="CandlesRight" type="Sprite2D" parent="SideElementsLayer"]
 material = SubResource("mat_candles_right")
-texture = ExtResource("8_cr")
+texture = ExtResource("15_cr")
 centered = false
 
-[node name="CandleGlows" type="Node2D" parent="."]
+[node name="CandleFlames" type="Node2D" parent="SideElementsLayer"]
+material = SubResource("mat_add")
+script = ExtResource("18_flames")
+
+[node name="ArenaLayer" type="Node2D" parent="."]
+
+[node name="Arena" type="Sprite2D" parent="ArenaLayer"]
+texture = ExtResource("11_arena")
+centered = false

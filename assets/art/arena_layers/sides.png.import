@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bfj5yjbyuype5"
-path="res://.godot/imported/scenery.png-8dcb8c471bdd3d74aaec76a8a5a62d74.ctex"
+uid="uid://bq2nkwggu3tkn"
+path="res://.godot/imported/sides.png-d2127ae52101a8137c92f48d6eabc413.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/art/arena_layers/scenery.png"
-dest_files=["res://.godot/imported/scenery.png-8dcb8c471bdd3d74aaec76a8a5a62d74.ctex"]
+source_file="res://assets/art/arena_layers/sides.png"
+dest_files=["res://.godot/imported/sides.png-d2127ae52101a8137c92f48d6eabc413.ctex"]
 
 [params]
 
