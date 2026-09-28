@@ -1,0 +1,33 @@
+# Godot 4
+.godot/
+/android/
+*.translation
+.import/
+export.cfg
+export_credentials.cfg
+*.tmp
+
+# Builds exportados
+/build/
+/export/
+*.exe
+*.pck
+*.zip
+*.apk
+*.aab
+
+# Mono / C# (caso venha a ser usado)
+.mono/
+data_*/
+mono_crash.*.json
+
+# Editores / SO
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code (configurações locais)
+.claude/settings.local.json
