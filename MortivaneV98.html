@@ -9797,26 +9797,35 @@ function drawCommonTroop(c,u,body,p,archer=false){
   c.restore();
 }
 /* ===============================================================
-   V99 — GUERREIRO DE PERFIL (três quartos de lado)
-   Mesmas animações do rig comum (passo, golpe, queda, ressurreição,
-   Sombra). Custo mantido na faixa do guerreiro antigo: ~22 formas,
-   sem shadowBlur nem gradientes.
+   V99 — GUERREIRO CAVALEIRO (três quartos de lado)
+   Elmo fechado com friso dourado, capa e tabardo vermelhos, ombreira
+   grande, espada longa de guarda dourada. Mesmas animações do rig
+   comum (passo, golpe, queda, ressurreição, Sombra). Orçamento: ~30
+   formas simples, sem gradientes nem shadowBlur.
    =============================================================== */
+const KNIGHT_PALETTE = {
+  alive:  { metal:'#c3c6c8', metalDark:'#868b90', metalLight:'#eceee9', chain:'#4a4d53', gold:'#d9a441',
+            red:'#a52b24', redDark:'#6d1b17', leather:'#6b4526', glove:'#553621', blade:'#d4d8d6', bladeEdge:'#f6f6f1',
+            slit:'#121114', line:'#141214' },
+  shadow: { metal:'#5f5a72', metalDark:'#3c3749', metalLight:'#8f86ad', chain:'#29242f', gold:'#a68bd8',
+            red:'#45295f', redDark:'#2b1a3f', leather:'#382a38', glove:'#2c2131', blade:'#8e88a6', bladeEdge:'#c7adf2',
+            slit:'#08060c', line:'#0e0a13', eye:'#ead4ff', glow:'#b98cff' }
+};
 function drawWarriorSide(c,u,body,p){
   const v=u.commonVisual||{clock:0,stride:0,move:0,face:u.team==='enemy'?-1:1},r=u.r;
   const dead=!!u.commonCorpse, outline=p===OUTLINE_PAL;
   const state = u.commonCorpse && u.d?.undead ? 'shadow' : unitVisualState(u);
-  const shadow = state==='shadow', pal = WARRIOR_PALETTE[state];
+  const shadow = state==='shadow', pal = KNIGHT_PALETTE[state];
   const dying = u.commonDying || 0;
   const raising = u.raiseFx>0 ? 1-u.raiseFx/COMMON_ANIM.raise : 1, erguendo = raising < 1;
   const step = dead||dying ? 0 : Math.sin(v.stride)*v.move;
   const idle = dead ? 0 : Math.sin(v.clock*6.283/COMMON_ANIM.idleLoop);
-  const breath = idle*.028*(1-v.move), bob = -Math.abs(step)*.06;
+  const breath = idle*.025*(1-v.move), bob = -Math.abs(step)*.05;
   const hit = Math.max(0, u.flash||0);
   const wp = warriorAttackPose(u, v);
 
   c.save();
-  c.scale(r*v.face*COMMON_ANIM.drawScale*1.1, r*COMMON_ANIM.drawScale*1.06);   // perfil é mais estreito: compensa um pouco
+  c.scale(r*v.face*COMMON_ANIM.drawScale, r*COMMON_ANIM.drawScale);
   c.translate(dead?0:-hit*1.6, dead?0:breath+bob);
   if(hit>0 && !dead) c.rotate(-hit*.6);
   let giro = 0, achata = 1;
@@ -9824,95 +9833,107 @@ function drawWarriorSide(c,u,body,p){
   else if(dying){ const e=dying*dying*(3-2*dying); giro = e*1.35; achata = 1-e*.28; }
   else if(erguendo){ const e=clamp((raising-.22)/.4,0,1); const k=1-e*e*(3-2*e); giro = k*1.35; achata = 1-k*.28; }
   if(giro){ c.translate(0,.3*giro/1.35); c.rotate(giro); c.scale(1,achata); }
-  const lean = dead ? 0 : v.move*.08 + (wp.fase==='swing'?.14*(1-wp.k):0) + (wp.fase==='windup'?-.08*wp.k:0);
+  const lean = dead ? 0 : v.move*.07 + (wp.fase==='swing'?.13*(1-wp.k):0) + (wp.fase==='windup'?-.08*wp.k:0);
   const ink = outline?'#08070e':pal.line;
   const fill = col => outline ? '#08070e' : (hit>0 ? '#e6ece6' : col);
-  const poly=(pts,col)=>{c.fillStyle=fill(col);c.strokeStyle=ink;c.lineWidth=.08;c.lineJoin='round';
-    c.beginPath();for(let i=0;i<pts.length;i++){const q=pts[i];i?c.lineTo(q[0],q[1]):c.moveTo(q[0],q[1]);}c.closePath();c.fill();c.stroke();};
-  const line=(x1,y1,x2,y2,col,w)=>{c.strokeStyle=fill(col);c.lineWidth=w;c.lineCap='round';c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();};
+  const gold = outline ? '#08070e' : pal.gold;
+  const path = pts => { c.beginPath(); for(let i=0;i<pts.length;i++){ const q=pts[i]; i?c.lineTo(q[0],q[1]):c.moveTo(q[0],q[1]); } c.closePath(); };
+  const poly = (pts,col,edge=ink,w=.08) => { path(pts); c.fillStyle=fill(col); c.fill(); c.strokeStyle=edge; c.lineWidth=w; c.lineJoin='round'; c.stroke(); };
+  const flat = (pts,col) => { if(outline) return; path(pts); c.fillStyle=fill(col); c.fill(); };           // faceta sem contorno
+  const line = (x1,y1,x2,y2,col,w) => { c.strokeStyle=col; c.lineWidth=w; c.lineCap='round'; c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); };
+  const dot = (x,y,rr,col) => { c.beginPath(); c.arc(x,y,rr,0,6.283); c.fillStyle=col; c.fill(); c.strokeStyle=ink; c.lineWidth=.05; c.stroke(); };
 
-  // aura da Sombra (a mesma do rig comum: névoa e 3 chamas)
+  // aura da Sombra (névoa e 3 chamas, igual ao rig comum)
   const forcaAura = shadow && !outline && !dead ? (1-dying)*(erguendo?clamp((raising-.55)/.3,0,1):1) : 0;
   if(forcaAura>.01){
     c.save(); c.globalAlpha=.26*forcaAura; c.fillStyle=pal.glow;
-    c.beginPath(); c.ellipse(0,.86,.62,.15,0,0,6.3); c.fill();
+    c.beginPath(); c.ellipse(0,.86,.66,.16,0,0,6.3); c.fill();
     for(let i=0;i<3;i++){
-      const vida=(Math.sin(v.clock*1.7+i*2.1)+1)/2, x=[-.5,.42,-.12][i], y=[.18,-.2,-.6][i]-vida*.25;
+      const vida=(Math.sin(v.clock*1.7+i*2.1)+1)/2, x=[-.58,.5,-.12][i], y=[.16,-.22,-.64][i]-vida*.25;
       c.globalAlpha=(.16+.3*vida)*forcaAura;
       c.beginPath(); c.moveTo(x-.07,y+.12); c.quadraticCurveTo(x-.05,y-.02,x,y-.14); c.quadraticCurveTo(x+.05,y-.02,x+.07,y+.12); c.closePath(); c.fill();
     }
     c.restore();
   }
 
-  // pernas de perfil: giram no quadril (passada de verdade); a de trás é mais escura
+  // capa: cai atrás, balança com o passo e voa no golpe
+  const sw = dead ? 0 : Math.sin(v.clock*2.4)*.03 + v.move*.12 + Math.abs(step)*.05 + (wp.fase==='swing'?.1*(1-wp.k):0);
+  c.beginPath(); c.moveTo(-.28,-.6); c.quadraticCurveTo(-.66-sw,-.1,-.74-sw,.64);
+  c.quadraticCurveTo(-.44-sw*.5,.56,-.14,.68); c.lineTo(-.06,-.2); c.closePath();
+  c.fillStyle=fill(pal.red); c.fill(); c.strokeStyle=ink; c.lineWidth=.08; c.lineJoin='round'; c.stroke();
+  if(!outline){ c.strokeStyle=gold; c.lineWidth=.06; c.beginPath(); c.moveTo(-.72-sw,.6); c.quadraticCurveTo(-.44-sw*.5,.52,-.16,.63); c.stroke(); }
+
+  // pernas blindadas: giram no quadril; a de trás mais escura
   const perna=(hx,ang,near)=>{
-    c.save(); c.translate(hx,.2); c.rotate(ang);
-    poly([[-.14,0],[.14,0],[.12,.44],[-.12,.46]], near?pal.pants:pal.pantsDark);
-    poly([[-.14,.38],[.13,.38],[.3,.54],[.3,.64],[-.14,.64]], near?pal.boots:pal.bootsDark);
-    if(near) line(-.12,.25,.12,.23,pal.leatherDark,.08);                  // joelheira de couro
+    c.save(); c.translate(hx,.22); c.rotate(ang);
+    poly([[-.15,0],[.15,0],[.14,.42],[-.13,.44]], near?pal.metal:pal.metalDark);
+    poly([[-.17,.4],[.14,.4],[.31,.54],[.31,.64],[-.17,.64]], near?pal.metal:pal.metalDark);   // bota de metal
+    if(near){ c.beginPath(); c.arc(0,.2,.12,0,6.283); c.fillStyle=fill(pal.metalLight); c.fill(); c.strokeStyle=gold; c.lineWidth=.06; c.stroke(); }   // joelheira
     c.restore();
   };
-  perna(-.08,-step*.5,false);
-  perna(.08,step*.5,true);
+  perna(.1,step*.45,false);
+  perna(-.1,-step*.45,true);
 
   c.save(); c.rotate(lean);
-  // braço de trás: balança contra a passada, fica atrás do corpo
-  c.save(); c.translate(-.04,-.54); c.rotate(.12+step*.42+idle*.03-(wp.fase==='windup'?wp.k*.35:0));
-  poly([[-.11,0],[.11,0],[.1,.4],[-.1,.42]], pal.clothDark);
-  poly([[-.11,.37],[.1,.37],[.11,.54],[-.1,.55]], pal.gloveDark);
+  // tronco: peitoral com faceta de luz, faldas atrás, cinto e tabardo vermelho de borda dourada
+  poly([[-.36,-.62],[.2,-.66],[.46,-.4],[.43,.02],[.31,.2],[-.35,.22],[-.46,-.3]], pal.metal);
+  flat([[.06,-.56],[.3,-.5],[.39,-.14],[.2,-.02],[.03,-.2]], pal.metalLight);
+  poly([[-.41,.19],[-.05,.19],[-.1,.47],[-.44,.42]], pal.metalDark);
+  poly([[-.44,.05],[.44,.02],[.43,.18],[-.43,.2]], pal.leather);
+  poly([[.08,.19],[.37,.17],[.36,.7],[.22,.8],[.09,.7]], pal.red, gold, .06);
+  if(!outline){ c.strokeStyle=gold; c.lineWidth=.05; c.strokeRect(.19,.04,.13,.13); }                  // fivela
+  if(shadow && !outline){ c.save(); c.globalAlpha=(dead?.25:.55)*(1-dying*.7); line(.14,-.42,.22,-.24,pal.glow,.04); c.restore(); }
+
+  // braço da espada: mesmas fases do golpe; em repouso a lâmina aponta para frente e para baixo
+  const repouso = 1.2 + step*.18 + idle*.03, alto = -2.25, fim = .75;
+  let arm, off;
+  if(wp.fase==='windup'){ arm = repouso+(alto-repouso)*easeOut(wp.k); off = .85+(.12-.85)*wp.k; }
+  else if(wp.fase==='swing'){ arm = alto+(fim-alto)*easeOut(wp.k); off = .12; }
+  else if(wp.fase==='recover'){ arm = fim+(repouso-fim)*wp.k; off = .12+(.85-.12)*wp.k; }
+  else { arm = repouso; off = .85; }
+  if(dead){ arm = 1.2; off = .6; }
+  let ang = arm - off;
+  if(dying){ arm += dying*.9; ang += dying*1.8; }
+  const ox=.16, oy=-.48, comp=.5;
+  const ex=ox+Math.cos(arm)*comp*.5, ey=oy+Math.sin(arm)*comp*.5+.04, mx=ox+Math.cos(arm)*comp, my=oy+Math.sin(arm)*comp;
+  c.strokeStyle=fill(pal.metalDark); c.lineWidth=.22; c.lineCap='round'; c.lineJoin='round';
+  c.beginPath(); c.moveTo(ox,oy); c.lineTo(ex,ey); c.lineTo(mx,my); c.stroke();
+  c.save(); c.translate(mx,my); c.rotate(ang);
+  line(-.16,0,.2,0,fill(pal.leather),.1);                                                   // cabo
+  poly([[.26,-.1],[1.18,-.08],[1.4,0],[1.18,.08],[.26,.1]], pal.blade);                // lâmina longa
+  if(!outline) line(.3,-.02,1.2,-.02,pal.bladeEdge,.045);                                          // aresta de luz
+  line(.21,-.22,.21,.22,gold,.09);                                                           // guarda dourada
+  dot(-.18,0,.07,fill(pal.gold));                                                            // pomo
+  poly([[-.09,-.1],[.1,-.1],[.1,.1],[-.09,.1]], pal.glove);                                  // mão no cabo
   c.restore();
 
-  // tronco de perfil: costas retas, peito à frente
-  poly([[-.4,-.64],[.14,-.72],[.44,-.46],[.4,.04],[.3,.28],[-.38,.3],[-.47,-.28]], pal.cloth);
-  poly([[-.02,-.66],[.3,-.58],[.4,-.06],[.36,.58],[.16,.66],[-.04,.56],[-.1,.02]], pal.clothLight);   // tabardo que cai à frente
-  poly([[-.38,.21],[-.06,.21],[-.12,.52],[-.44,.47]], pal.cloth);                           // aba de trás
-  poly([[-.43,.07],[.41,.05],[.4,.19],[-.42,.21]], pal.leatherDark);                      // cinto
-  line(.24,.12,.34,.12,pal.buckle,.1);
-  if(shadow && !outline){ c.save(); c.globalAlpha=(dead?.25:.55)*(1-dying*.7); line(.1,-.4,.18,-.22,pal.glow,.04); c.restore(); }
-  // cabeça: penacho que balança + elmo de perfil com aba de nuca e viseira
-  const sopro = dead ? 0 : Math.sin(v.clock*3.2)*.05 + v.move*.1 + (wp.fase==='swing'?.12*(1-wp.k):0);
-  c.fillStyle=fill(pal.plume); c.strokeStyle=ink; c.lineWidth=.07;
-  c.beginPath(); c.moveTo(.02,-1.42); c.quadraticCurveTo(-.3,-1.66,-.66-sopro,-1.3+sopro*.5);
-  c.quadraticCurveTo(-.42,-1.34,-.22,-1.18); c.closePath(); c.fill(); c.stroke();
-  c.fillStyle=fill(pal.metal); c.lineWidth=.08;
-  c.beginPath(); c.moveTo(.3,-.7); c.lineTo(.38,-.93); c.lineTo(.4,-1.04);
-  c.bezierCurveTo(.4,-1.4,-.3,-1.52,-.36,-1.04); c.lineTo(-.46,-.74);
-  c.quadraticCurveTo(-.06,-.64,.3,-.7); c.closePath(); c.fill(); c.stroke();
+  // cachecol vermelho e elmo fechado: friso dourado, viseira em T, rebite
+  poly([[-.3,-.62],[.26,-.7],[.36,-.55],[.1,-.48],[-.26,-.5]], pal.red);
+  c.beginPath(); c.moveTo(-.34,-.66); c.lineTo(-.41,-1.02);
+  c.bezierCurveTo(-.41,-1.5,.36,-1.58,.43,-1.1); c.lineTo(.45,-.7);
+  c.quadraticCurveTo(.05,-.6,-.34,-.66); c.closePath();
+  c.fillStyle=fill(pal.metal); c.fill(); c.strokeStyle=ink; c.lineWidth=.08; c.stroke();
+  flat([[.12,-1.22],[.42,-1.1],[.44,-.72],[.15,-.68]], pal.metalLight);                      // placa da face
   if(!outline){
-    line(-.36,-1.04,.39,-1.05,pal.metalDark,.06);                                          // aro
-    c.strokeStyle=pal.metalLight; c.lineWidth=.06; c.beginPath(); c.moveTo(-.18,-1.3); c.quadraticCurveTo(.08,-1.42,.26,-1.26); c.stroke();
+    c.strokeStyle=gold; c.lineWidth=.09; c.lineCap='round';
+    c.beginPath(); c.moveTo(-.12,-1.37); c.quadraticCurveTo(.26,-1.4,.37,-1.1); c.stroke();  // friso
+    c.strokeStyle=pal.slit; c.lineWidth=.1;
+    c.beginPath(); c.moveTo(.2,-.98); c.lineTo(.46,-.98); c.moveTo(.31,-.98); c.lineTo(.31,-.82); c.stroke();   // viseira em T
     const acesa = shadow ? (1-dying)*(erguendo?clamp((raising-.5)/.2,0,1):1)*(dead?0:1) : 0;
-    line(.14,-.95,.4,-.94,'#101210',.09);                                                   // fresta do visor
-    if(acesa>.01){ c.save(); c.globalAlpha=.45*acesa; line(.1,-.95,.44,-.94,pal.glow,.26); c.globalAlpha=acesa; line(.15,-.95,.39,-.94,pal.eye,.09); c.restore(); }
+    if(acesa>.01){ c.save(); c.globalAlpha=.45*acesa; line(.17,-.98,.49,-.98,pal.glow,.26); c.globalAlpha=acesa; line(.22,-.98,.44,-.98,pal.eye,.08); c.restore(); }
+    dot(-.02,-1.0,.08,pal.gold);                                                             // rebite
   }
 
-  // braço da espada (lado de perto): mesmas fases de golpe do rig comum
-  const repouso = 1.25 + step*.22 + idle*.035, alto = -2.25, fim = .75;
-  let arm = wp.fase==='windup' ? repouso+(alto-repouso)*easeOut(wp.k)
-          : wp.fase==='swing' ? alto+(fim-alto)*easeOut(wp.k)
-          : wp.fase==='recover' ? fim+(repouso-fim)*wp.k : repouso;
-  if(dying) arm += dying*.9;
-  if(dead) arm = 1.2;
-  let ang = arm - (wp.fase==='idle'||dead ? .25 : .12);
-  if(dying) ang += dying*1.8;
-  const ox=.06, oy=-.52, comp=.44;
-  const cx=ox+Math.cos(arm)*comp*.5, cy=oy+Math.sin(arm)*comp*.5+.04, mx=ox+Math.cos(arm)*comp, my=oy+Math.sin(arm)*comp;
-  c.strokeStyle=fill(pal.cloth); c.lineWidth=.24; c.lineCap='round'; c.lineJoin='round';
-  c.beginPath(); c.moveTo(ox,oy); c.lineTo(cx,cy); c.lineTo(mx,my); c.stroke();
-  // ombreira de metal (lado de perto)
-  c.fillStyle=fill(pal.metal); c.strokeStyle=ink; c.lineWidth=.08;
-  c.beginPath(); c.moveTo(-.26,-.58); c.quadraticCurveTo(.06,-.8,.36,-.56); c.lineTo(.32,-.28);
-  c.quadraticCurveTo(.04,-.4,-.26,-.3); c.closePath(); c.fill(); c.stroke();
-  if(!outline) line(-.12,-.6,.2,-.62,pal.metalLight,.05);
-
-  c.save(); c.translate(mx,my); c.rotate(ang);
-  line(-.13,0,.24,0,pal.hilt,.1);                                                          // cabo
-  line(.21,-.19,.21,.19,pal.metalDark,.09);                                                // guarda
-  poly([[.25,-.075],[1.08,-.05],[1.24,0],[1.08,.05],[.25,.075]], pal.blade);               // lâmina afunilada
-  if(!outline){ line(.3,0,1.02,0,pal.bladeEdge,.035);                                      // sulco
-    if(shadow){ c.save(); c.globalAlpha=.5; line(.3,.06,1.06,.04,pal.glow,.03); c.restore(); } }
-  poly([[-.08,-.08],[.08,-.08],[.08,.08],[-.08,.08]], pal.glove);                          // mão fechada no cabo
+  // braço de perto: pende ao lado, balança com o passo; ombreira grande por cima
+  c.save(); c.translate(-.26,-.46); c.rotate(.16-step*.35+idle*.02);
+  flat([[-.12,0],[.12,0],[.11,.3],[-.11,.3]], pal.chain);
+  poly([[-.13,.26],[.13,.26],[.12,.52],[-.12,.52]], pal.metal);
+  poly([[-.14,.5],[.12,.5],[.13,.68],[-.12,.7]], pal.glove);
   c.restore();
+  c.beginPath(); c.moveTo(-.48,-.42); c.quadraticCurveTo(-.4,-.8,-.02,-.72); c.quadraticCurveTo(.2,-.66,.16,-.4);
+  c.quadraticCurveTo(-.14,-.28,-.48,-.42); c.closePath();
+  c.fillStyle=fill(pal.metal); c.fill(); c.strokeStyle=ink; c.lineWidth=.08; c.stroke();
+  if(!outline){ c.strokeStyle=gold; c.lineWidth=.07; c.beginPath(); c.moveTo(.13,-.44); c.quadraticCurveTo(-.14,-.34,-.44,-.45); c.stroke(); }
   c.restore();   // fim da inclinação
   c.restore();
 }
