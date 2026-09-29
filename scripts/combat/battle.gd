@@ -11,6 +11,16 @@ signal finished(winner_team: int)
 
 ## Limite do dt de um quadro (HTML: frame() limita dt a 0,05 s).
 const MAX_FRAME_DT := 0.05
+## Proteção contra o efeito cascata (etapa 6 da otimização): no máximo este número de passos da
+## simulação por quadro. A 60 FPS são 2 passos por quadro; 4 cobrem quadros de até 33 ms (30 FPS)
+## sem perder tempo de jogo. Se o quadro demora mais, o que passar de 4 passos NÃO é recuperado de
+## uma vez (antes: até 6, e cada passo a mais deixava o quadro seguinte ainda mais lento). A
+## sobra fica guardada (no máximo MAX_SIM_STEPS_PER_FRAME passos) e é recuperada nos quadros
+## seguintes, se eles forem rápidos; o que passar disso é descartado — o jogo fica em câmera
+## lenta enquanto a máquina não dá conta, em vez de travar.
+## O RESULTADO da luta não muda: a simulação é determinística por passo (STEP fixo de 1/120 s) e
+## executa exatamente a mesma sequência de passos; só a relação com o relógio real muda.
+const MAX_SIM_STEPS_PER_FRAME := 4
 
 @export var entities_path: NodePath
 ## Onde ficam os ProjectileView (acima das unidades).
@@ -24,6 +34,9 @@ var sim: CombatSim
 var _views: Dictionary = {}   # id da unidade → UnitView
 var _projectile_views: Dictionary = {}   # id do projétil → ProjectileView
 var _accumulator := 0.0
+## Diagnóstico: passos executados no último quadro e tempo de jogo descartado (s) desde o início.
+var steps_last_frame := 0
+var dropped_time := 0.0
 var _running := false
 var _finished := false
 var _debug_visible := false
@@ -61,6 +74,7 @@ func clear() -> void:
 	sim.paladin_shield_raised.connect(func(u: CombatUnit) -> void: _ability_event(u, &"shield"))
 	sim.paladin_shield_blocked.connect(func(u: CombatUnit, _prevented: float) -> void: _ability_event(u, &"block"))
 	_accumulator = 0.0
+	dropped_time = 0.0
 	_running = false
 	_finished = false
 
@@ -123,9 +137,15 @@ func _process(delta: float) -> void:
 	if not _running:
 		return
 	_accumulator += minf(delta, MAX_FRAME_DT)
-	while _accumulator >= CombatSim.STEP:
+	steps_last_frame = 0
+	while _accumulator >= CombatSim.STEP and steps_last_frame < MAX_SIM_STEPS_PER_FRAME:
+		steps_last_frame += 1
 		_accumulator -= CombatSim.STEP
 		sim.step(CombatSim.STEP)
+	var max_debt := CombatSim.STEP * MAX_SIM_STEPS_PER_FRAME
+	if _accumulator > max_debt:
+		dropped_time += _accumulator - max_debt
+		_accumulator = max_debt
 	if not _finished and sim.is_finished():
 		_finished = true
 		finished.emit(_winner_team())

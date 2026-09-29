@@ -12,6 +12,12 @@ nada daqui: a única mudança fora desta pasta é o gancho `Battle.sim_script`, 
 | `tools/bench/run_matrix.sh` | roda a matriz inteira (cenários × perfis × fases × modos visuais). |
 | `tools/bench/godot_profiler.py` | servidor de depuração remota: liga o **Profiler do Godot** (servers + funções de script) sem o editor e grava o tempo por função. |
 | `tools/bench/make_report.py` | agrega os resultados em tabelas Markdown. |
+| `tools/bench/opt_step.sh` | conjunto fixo 40×40 (headless, com render, tempo real) medido em cada etapa da otimização, a partir de um `git worktree` do commit. |
+| `tools/bench/compare_steps.py` | tabelas ANTES/DEPOIS por etapa (ganho % a cada etapa e total). |
+| `tools/bench/draw_cache_pixels.gd` | etapa 3: mesmas poses com e sem o DrawCache, render real, comparação pixel a pixel. |
+| `tools/bench/corpse_pixels.gd` | etapa 2: o que o cadáver congelado deixa de mostrar (pixels). |
+| `tools/bench/paladin_pixels.gd` | etapa 5: roteiro fixo de 24 poses do Paladino para comparar commits. |
+| `tests/support/reference_combat_sim.gd` | cópia congelada da CombatSim de antes da otimização (referência de paridade). |
 
 ## Como repetir
 
@@ -34,10 +40,18 @@ godot --headless --path . --fixed-fps 60 -s res://tools/bench/stress_bench.gd --
     allies=40 enemies=40 profile=warriors phase=full visual=normal warmup=3 seconds=8 out=/tmp/bench/um
 ```
 
+Etapas da otimização (antes/depois):
+
+```bash
+GODOT=/caminho/do/godot DISPLAY=:99 tools/bench/opt_step.sh <commit> <rotulo> /tmp/opt   # ~15 min
+python3 tools/bench/compare_steps.py /tmp/opt e0_antes e1_mortos e2_cadaveres ...
+```
+
 Parâmetros: `allies`, `enemies`, `profile` (`warriors` | `sentinels` | `mixed` | `paladins` | `all`), `phase`
 (`spawn` parado | `move` só anda | `target` alvo sem ataque | `full` combate), `visual` (`normal` | `nodraw` anima
 sem desenhar o corpo | `minimal` marcador fixo | `hidden` sem visual de unidade), `sim` (`bench` | `real`),
-`timing` e `probes` (0/1, para medir o custo da própria instrumentação), `warmup`, `seconds`, `realtime`
+`timing` e `probes` (0/1, para medir o custo da própria instrumentação), `dead_enemies=1` (mata os
+inimigos pela simulação antes de começar: N vivos × N cadáveres), `draw_cache` (-1 padrão, 0/1 força), `warmup`, `seconds`, `realtime`
 (0 = passo fixo com `--fixed-fps 60`; 1 = relógio real), `label`, `out`.
 
 Profiler do Godot num cenário:
