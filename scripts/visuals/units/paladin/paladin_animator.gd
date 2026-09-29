@@ -315,7 +315,8 @@ func update(delta: float, unit: CombatUnit, rig: PaladinRig) -> Dictionary:
 		dead = false
 		sword_drop.clear()
 		shield_drop.clear()
-		rig.overrides.clear()
+		if rig:
+			rig.overrides.clear()
 	if pv and preview_kind != &"walk" and preview_t > _preview_length(preview_kind):
 		preview_kind = &""
 

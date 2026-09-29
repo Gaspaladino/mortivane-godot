@@ -1,9 +1,9 @@
 [gd_resource type="Resource" script_class="UnitDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/data/unit_def.gd" id="1_unitdef"]
-[ext_resource type="Script" path="res://scripts/visuals/units/paladin/paladin_rig_visual.gd" id="2_visual"]
+[ext_resource type="Script" path="res://scripts/visuals/units/paladin_live_visual.gd" id="2_visual"]
 [ext_resource type="Resource" path="res://data/visuals/paladin_look.tres" id="3_look"]
-[ext_resource type="PackedScene" path="res://scenes/units/paladin_rig_visual.tscn" id="4_scene"]
+[ext_resource type="PackedScene" path="res://scenes/units/paladin_live_visual.tscn" id="4_scene"]
 
 [resource]
 script = ExtResource("1_unitdef")

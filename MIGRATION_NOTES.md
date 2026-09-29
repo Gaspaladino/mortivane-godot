@@ -808,7 +808,7 @@ Limitações:
 - O walk é um ciclo no lugar; o ritmo segue a velocidade real (`walk_reference_speed` = 44).
 - A morte muda de pose bastante entre frames (queda); o alinhamento é por sobreposição com o frame anterior.
 
-### Paladino Vivo reconstruído 100% por código em rig 2.5D ✔ (aguardando validação)
+### Paladino Vivo reconstruído 100% por código em rig 2.5D ✔ (substituído pelo PaladinLiveVisual, abaixo)
 
 **Pedido.** Reconstruir do zero o visual do Paladino Vivo a partir de três imagens de referência oficiais.
 - 100% desenhado por código no Godot, sem sprite sheet e sem usar as imagens no jogo.
@@ -880,3 +880,61 @@ Capturas grandes dos 16 estados, folha comparativa e capturas em escala real no 
 - **Arquivos fora de uso.**
   - As sprite sheets e a cena de sprites continuam no projeto como alternativa.
   - `PaladinVisual` continua existindo porque é a base do Sombra.
+
+### Paladino Vivo na linguagem do Guerreiro e da Sentinela (`PaladinLiveVisual`) ✔ (aguardando validação)
+
+**Pedido.** Reconstruir o Paladino Vivo para ser da MESMA família visual do Guerreiro e da Sentinela.
+- Pequeno, simples, contorno escuro, poucas formas, cartunesco, 100% código.
+- Não é uma reprodução das concept arts.
+- Mais pesado que o Guerreiro, sem virar chefe.
+- Escudo dominante no braço esquerdo, espada na mão direita.
+- Direções com leitura, e animações lentas e pesadas.
+- Mecânica intacta.
+
+**Feito.**
+- `scripts/visuals/units/paladin_live_visual.gd` (`PaladinLiveVisual extends CodeDrawnUnitVisual`) e a cena
+  `scenes/units/paladin_live_visual.tscn`. Os mesmos utilitários, a mesma escala, o mesmo chão e o mesmo
+  contorno do `WarriorVisual`.
+- **Partes simples** com âncoras no espaço do corpo:
+  - um yaw por direção desloca as âncoras e ordena as partes (fake 2.5D leve);
+  - as direções da esquerda são o mesmo giro, sem espelho;
+  - de costas: traseira do elmo e verso do escudo.
+- **Estado e tempo** vêm do `PaladinAnimator` já testado: golpe sincronizado, provocação → guarda → escudo,
+  bloqueio, hit, push, morte. Ele passou a aceitar rodar sem o rig 3D.
+- **Poses 2D próprias.**
+  - Idle quase imóvel.
+  - Passos curtos, ciclo de 1,05 s.
+  - Três golpes:
+    - RIGHT: espada atrás da cabeça, depois horizontal no impacto;
+    - UP_RIGHT: de cima para baixo;
+    - DOWN_RIGHT: de baixo para cima.
+  - Taunt: firma os pés, recua e avança o escudo, abre o peito; a auréola clareia.
+  - Guarda fechada com o escudo à frente.
+  - Block: o escudo recua, o corpo absorve.
+  - Hit: curto, com clarão.
+  - Push: inclina, e o pé de trás busca apoio.
+  - Morte: joelhos cedem, a espada cai à frente, o escudo tomba ao lado dos pés, a queda é de costas e fica o cadáver.
+- **Efeitos simples fora do corpo:**
+  - anel real da provocação e onda curta no chão;
+  - contorno dourado sutil no escudo ativo;
+  - clarão quando o escudo sobe;
+  - faíscas no bloqueio.
+- **Debug e Sandbox:** F4 mostra direção, estado e progresso; a prévia do Sandbox funciona igual.
+- **`sac_paladin.tres`** aponta para o novo visual (`visual_scene` e `visual_script`). Stats iguais.
+- **Testes:**
+  - nova suíte `paladin_live_test`, com a mesma bateria do rig: gameplay idêntico com e sem visual, espada/escudo nas mãos certas em 8 direções × 11 estados, direções, estados da simulação, Sandbox sem vazamento e custo; mais as proporções da família (altura ~1,1× o Guerreiro, mesma escala e contorno);
+  - `paladin_rig_test` passou a testar o rig 2.5D como alternativa;
+  - `paladin_test` e `paladin_sprite_test` foram atualizados.
+
+**Validado.** 11 suítes OK. Capturas feitas:
+- família lado a lado (Guerreiro, Sentinela, Paladino, Paladino Sombra);
+- os 16 estados;
+- golpe e morte quadro a quadro;
+- combate real no Sandbox em 1600×896.
+
+**Limitações.**
+- O Paladino Sombra continua o visual antigo, mais volumoso. Vivo e Sombra ainda não têm a mesma silhueta:
+  uma etapa futura pode derivar o Sombra do `PaladinLiveVisual` (regra `ShadowStyle`), como o Guerreiro Sombra.
+- O rig 2.5D facetado e a versão por sprites continuam no projeto como alternativas fora de uso; dá para
+  apagar os dois se não forem mais úteis.
+- Não existe empurrão na simulação: o PUSH só aparece com deslocamento real inesperado ou na prévia.

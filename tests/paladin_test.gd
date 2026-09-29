@@ -189,7 +189,7 @@ const REFERENCE_FIGHT := "ally 20/74 12.025 13"
 
 # --- Visual -----------------------------------------------------------------------------------
 
-## O Paladino Vivo agora usa o rig 2.5D (PaladinRigVisual, testado em paladin_rig_test); o
+## O Paladino Vivo agora usa o PaladinLiveVisual (testado em paladin_live_test); o
 ## PaladinVisual por código continua existindo (é a base do Paladino Sombra) e segue testado aqui.
 func _make(id: StringName) -> PaladinVisual:
 	var def := UnitCatalog.get_def(id)
@@ -212,7 +212,7 @@ func _test_visual(id: StringName) -> void:
 	var u := v.unit
 	var tag := String(id)
 	if id == &"sac_paladin":
-		_check(UnitCatalog.get_def(id).visual_script == PaladinRigVisual, "%s: UnitDef aponta para o rig 2.5D (o PaladinVisual segue como base do Sombra)" % tag)
+		_check(UnitCatalog.get_def(id).visual_script == PaladinLiveVisual, "%s: UnitDef aponta para o PaladinLiveVisual (o PaladinVisual segue como base do Sombra)" % tag)
 	else:
 		_check(v.get_script() == ShadowPaladinVisual, "%s: UnitDef aponta para o visual certo" % tag)
 	_check(v.look == UnitCatalog.get_def(id).visual_look and v.look.resource_path == "res://data/visuals/paladin_look.tres", "%s: parâmetros do PaladinLook (Inspector)" % tag)

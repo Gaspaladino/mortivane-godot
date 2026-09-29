@@ -4,7 +4,7 @@ extends SceneTree
 ## (idle, walk, attack sincronizado com o dano, defend/defend_hold/defend_block, taunt, dano só
 ## pisca, death parado no último frame).
 ## O visual só lê a CombatUnit: nada de gameplay muda.
-## Desde a etapa do rig 2.5D o Paladino Vivo usa o PaladinRigVisual por padrão; a cena de sprites
+## O Paladino Vivo usa o PaladinLiveVisual por padrão; a cena de sprites
 ## continua no projeto como alternativa (UnitDef.visual_scene) e segue testada aqui.
 ##   godot --headless -s res://tests/paladin_sprite_test.gd
 
@@ -33,7 +33,7 @@ func _run() -> void:
 
 func _test_resources() -> void:
 	var def := UnitCatalog.get_def(&"sac_paladin")
-	_check(def.visual_scene != null and def.visual_scene.resource_path == "res://scenes/units/paladin_rig_visual.tscn", "Paladino Vivo usa o rig 2.5D por padrão")
+	_check(def.visual_scene != null and def.visual_scene.resource_path == "res://scenes/units/paladin_live_visual.tscn", "Paladino Vivo usa o PaladinLiveVisual por padrão")
 	_check(load(SPRITE_SCENE) is PackedScene, "cena de sprites continua disponível como alternativa")
 	_check(UnitCatalog.get_def(&"u_sac_paladin").visual_scene == null and UnitCatalog.get_def(&"u_sac_paladin").visual_script == ShadowPaladinVisual, "Paladino Sombra continua no visual atual")
 	var sf: SpriteFrames = load(DIR + "paladin_frames.tres")

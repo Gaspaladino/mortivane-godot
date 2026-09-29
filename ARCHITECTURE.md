@@ -66,7 +66,8 @@ res://
   tools/arena_backdrop/generate_backdrop_scene.gd  # gera arena_backdrop.tscn UMA vez (depois: editar no editor)
   tools/sprites/slice_paladin_sheets.py  # fatia as 5 sprite sheets do Paladino Vivo (atlas + SpriteFrames + JSON)
   assets/units/paladin/               # Paladino Vivo: source/ (sheets originais, .gdignore), atlas, SpriteFrames, JSON
-  scenes/units/paladin_rig_visual.tscn     # visual PADRÃO do Paladino Vivo: rig 2.5D por código (Shadow · Rig · Effects)
+  scenes/units/paladin_live_visual.tscn    # visual PADRÃO do Paladino Vivo (PaladinLiveVisual; parâmetros no Inspector)
+  scenes/units/paladin_rig_visual.tscn     # alternativa (fora de uso): rig 2.5D facetado (Shadow · Rig · Effects)
   scenes/units/paladin_sprite_visual.tscn  # alternativa (fora de uso): Paladino Vivo por sprites (Shadow · Sprite · Effects)
   tools/sprites/render_paladin_pilot.gd  # PROTÓTIPO (superado pela sheet aprovada): pinta e exporta a sprite sheet piloto do Paladino Vivo (3/4)
   assets/sprites/paladin_live_pilot/  # sheet (Idle 6 · Walk 8 · Attack 8), frames, sombra, SpriteFrames, JSON do contrato
@@ -118,7 +119,8 @@ res://
     visuals/units/shadow_paladin_visual.gd  # class_name ShadowPaladinVisual — Paladino Sombra (herda o Paladino)
     visuals/units/paladin_look.gd           # class_name PaladinLook (Resource) — parâmetros visuais do Paladino
     visuals/units/paladin_sprite_visual.gd  # class_name PaladinSpriteVisual — Paladino Vivo por sprite sheet (alternativa)
-    visuals/units/paladin/                  # Paladino Vivo 2.5D (visual padrão), um arquivo por responsabilidade:
+    visuals/units/paladin_live_visual.gd    # class_name PaladinLiveVisual — Paladino Vivo PADRÃO (família do Guerreiro)
+    visuals/units/paladin/                  # animador/poses (usados pelo padrão) + rig 2.5D facetado (alternativa):
       paladin_rig_visual.gd   # class_name PaladinRigVisual (UnitVisual) — cola: eventos → animador → rig/efeitos
       paladin_animator.gd     # class_name PaladinAnimator — estados, direção, transições, sincronia, molas
       paladin_pose_library.gd # class_name PaladinPoseLibrary — poses-base por direção + clipes (deltas)
@@ -147,7 +149,8 @@ res://
     shadow_visual_test.gd            # regra visual das sombras (u_* = sombra; viva continua normal)
     paladin_test.gd                  # Paladino: stats/mecânica do HTML, visual, Sandbox, luta de referência
     paladin_sprite_test.gd           # Paladino Vivo por sprites (alternativa): SpriteFrames, pivô, estados
-    paladin_rig_test.gd              # Paladino Vivo 2.5D: só observa a simulação, mão da espada, direções, estados, Sandbox
+    paladin_live_test.gd             # Paladino Vivo padrão: gameplay idêntico, família do Guerreiro, mãos, direções, estados, Sandbox
+    paladin_rig_test.gd              # rig 2.5D (alternativa): mão da espada, direções, estados
 ```
 
 Arquivos `*.import` e `*.uid` são gerados pela Godot e **devem ser versionados**. A pasta `.godot/` é cache
@@ -439,7 +442,76 @@ porta 1:1 de `drawArcaneSentinel`.
 | Hit | 0,2 s: recuo, compressão, clarão, ponta do chapéu treme, lâminas desestabilizam | clarão lilás, o corpo tremula (translúcido) e a fumaça explode |
 | Morte | perde a sustentação, a magia se apaga, o manto colapsa com peso, o chapéu cai ao lado; as lâminas caem girando e se desfazem em faíscas; o monte fica no chão | sobe e se agita, colapsa se desfazendo (fica translúcida), fumaça sobe e as lâminas se partem em fragmentos |
 
-### Paladino Vivo 2.5D por código (visual padrão do `sac_paladin`)
+### Paladino Vivo — `PaladinLiveVisual` (visual padrão do `sac_paladin`)
+
+É a identidade do Paladino traduzida para a MESMA linguagem do Guerreiro e da Sentinela: pequeno na arena,
+formas grandes e simples, contorno escuro, poucas peças e luz e sombra chapadas.
+
+`PaladinLiveVisual extends CodeDrawnUnitVisual`, com as mesmas `RIG_SCALE` (0,9), `FOOT_Y`, contorno, clarão
+de dano e escurecimento na morte do `WarriorVisual`. Cena: `scenes/units/paladin_live_visual.tscn`.
+
+**Silhueta.**
+- ~1,1× a altura do Guerreiro (a auréola passa um pouco) e ombros bem mais largos.
+- Escudo dominante do lado esquerdo e pés um pouco mais abertos.
+- Não parece chefe.
+
+**Partes.** Cada parte tem uma âncora no espaço do corpo (L = esquerda, F = frente, Y = altura):
+- tronco (placa marfim, sombra embaixo, gola dourada em V, sol dourado);
+- cinto marrom com fivela;
+- fraldão;
+- pernas (coxa, canela, joelheira dourada, bota pontuda com faixa dourada);
+- túnica escura entre as pernas;
+- tabardo (frente com estrela, e verso);
+- ombreiras grandes arredondadas com borda dourada e rebite;
+- braços (marfim, manopla escura);
+- espada (mão DIREITA);
+- escudo (braço ESQUERDO);
+- elmo arredondado com visor em T e friso dourado;
+- auréola com três pontas.
+
+**Fake 2.5D leve.**
+- A direção vira um yaw: DOWN 14°, DOWN_RIGHT 32°, RIGHT 52°, UP_RIGHT 132°, UP 166°. As da esquerda são o negativo, então não há espelho e a espada nunca troca de mão.
+- O yaw só desloca as âncoras e ordena as partes por profundidade. Assim, nas diagonais:
+  - um ombro aparece mais que o outro;
+  - uma perna fica à frente;
+  - a espada troca de plano.
+- De costas somem o visor e o sol; aparecem a traseira do elmo, o verso do escudo (madeira com alças) e o tabardo de trás.
+- A face do escudo fica quase sempre voltada para a câmera, para ser lida, e gira só um pouco com o corpo.
+- As formas continuam 2D.
+
+**Estado e tempo.** Vêm do `PaladinAnimator`, o mesmo usado pelo rig: ele lê a simulação.
+- Caminhada: peso suavizado, ciclo de 1,05 s, mais pesado que o Guerreiro.
+- Golpe:
+  - começa pela recarga real e segura antes do impacto;
+  - o impacto cai no evento real de dano;
+  - ele para de andar para atacar;
+  - variantes: horizontal no RIGHT, de cima no UP_RIGHT, de baixo no DOWN_RIGHT;
+  - cascata quadril → tronco → ombro → braço → espada.
+- Habilidade: provocação → guarda pronta → Escudo Sagrado.
+- Reações: bloqueio, hit (curto, com clarão) e push (só postura).
+- Morte: joelhos cedem, a espada cai, o escudo tomba, ele cai de costas e fica o cadáver, com a espada e o escudo no chão ao lado.
+
+As poses 2D ficam em `neutral()` e nos clipes `_taunt`, `_guard`, `_attack`, `_push` e `_death` (deltas com easing).
+
+**Efeitos, simples e fora do corpo:**
+- provocação: anel no raio real (115) e uma onda curta no chão;
+- auréola que clareia na provocação e com o escudo ativo;
+- contorno dourado sutil no escudo ativo;
+- clarão quando o escudo sobe;
+- faíscas no bloqueio.
+
+**Inspector:**
+- proporções: `body_width`, `shield_scale`, `sword_scale`, `head_scale`;
+- movimento: `step_length`, `step_lift`, `breathing`, `turn_speed`;
+- cores: marfim, ouro, escuro, aço, couro, madeira, visor, luz sagrada.
+
+**Debug e Sandbox.** F4 mostra direção, yaw, estado, progresso e variante do golpe. A fileira de prévia do Sandbox funciona igual.
+
+**Custo.** ~0,15 ms de CPU por Paladino por quadro.
+
+### Paladino Vivo 2.5D por código (alternativa, fora de uso)
+
+Rig 2.5D facetado (etapa anterior), mantido para comparação: cena `scenes/units/paladin_rig_visual.tscn`, testada em `paladin_rig_test`. A descrição abaixo continua válida para ele.
 
 100% desenhado por código a partir das três referências oficiais (frente 3/4, frente, 3/4 lateral):
 - armadura marfim facetada com frisos dourados grossos;
@@ -887,7 +959,8 @@ godot --headless -s res://tests/menu_click_test.gd  # cliques reais de mouse no 
 godot --headless -s res://tests/shadow_visual_test.gd  # regra "sombra": u_* = sombra convertida da viva
 godot --headless -s res://tests/paladin_test.gd  # Paladino: mecânica do HTML, visual, Sandbox, luta de referência
 godot --headless -s res://tests/paladin_sprite_test.gd  # Paladino Vivo por sprites (alternativa): frames, pivô, estados
-godot --headless -s res://tests/paladin_rig_test.gd  # Paladino Vivo 2.5D: gameplay idêntico, espada/escudo, direções, estados
+godot --headless -s res://tests/paladin_live_test.gd  # Paladino Vivo padrão: gameplay idêntico, família visual, espada/escudo, estados
+godot --headless -s res://tests/paladin_rig_test.gd  # rig 2.5D (alternativa): espada/escudo, direções, estados
 ```
 Cada teste sai com código 0 se passar e 1 se falhar.
 
