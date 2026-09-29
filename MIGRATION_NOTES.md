@@ -904,6 +904,11 @@ aparência.
 - Lote simulado: 10.817 → 456.
 - **Proposta**: um triangle array por unidade no `_draw` (mesma geometria e mesma ordem de hoje), começando por
   Guerreiro e Guerreiro Sombra.
+- **No PC do usuário (F7)**: normal 78,7 ms; congelado 28,7 ms; quadrados e lote simulado 16,7 ms (vsync).
+  - O maior custo lá é a CPU do `_draw` (~50 ms); os draw calls custam ~12 ms.
+  - O profiler mostra ~75% do `_draw` no caminho genérico por peça (busca no DrawCache com hash do array de pontos,
+    `draw_mesh` por peça, `_c()`).
+  - Proposta revista: lote por unidade com geometria pré-montada, sem busca por hash (ver `RENDER_REPORT.md`).
 
 **Validado.** 17 suítes OK (nova: `render_compare_test`).
 

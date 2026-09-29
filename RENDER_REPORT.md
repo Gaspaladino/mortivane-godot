@@ -99,6 +99,37 @@ O gargalo é o visual procedural, em duas partes:
 (200 unidades headless: (quadro normal − quadro congelado) / 200; inclui o update, que é pequeno.)
 40 Guerreiros + 40 Guerreiros Sombra ≈ 20 ms de CPU por quadro neste processador.
 
+## Resultado no PC do usuário (F7, mesma cena: 40 Guerreiros Sombra + 40 Guerreiros, simulação parada)
+
+| modo | draw calls | quadro | FPS |
+|---|---|---|---|
+| normal | 10.825 | 78,7 ms | 13 |
+| congelado (mesmos draw calls, sem `_draw`) | 10.836 | 28,7 ms | 35 |
+| quadrados | 398 | 16,7 ms | 60 (teto do vsync) |
+| lote simulado | 456 | 16,7 ms | 60 (teto do vsync) |
+
+**Correção da leitura anterior.** No PC do usuário, a maior parte do custo é a **CPU do `_draw`**: normal −
+congelado = **~50 ms**. Os 10.800 draw calls custam **no máximo ~12 ms** (congelado 28,7 ms vs ≤ 16,7 ms). O lote
+simulado bate 60 FPS também porque não roda o `_draw` real. Por isso a solução precisa cortar primeiro a CPU do
+`_draw`, e só depois os draw calls.
+
+O `_draw` pesa mais lá (~50 ms) que aqui (~12–18 ms). Uma causa provável: rodar pelo editor (build de debug com o
+depurador ligado). Vale medir uma vez com o jogo exportado.
+
+### Para onde vai a CPU do `_draw` (Profiler do Godot, 80 unidades, este ambiente)
+
+`tools/bench/godot_profiler.py` + `render_breakdown.gd`: 17,9 ms de script por quadro (com o custo do próprio
+profiler).
+
+| onde | ms/quadro (self) | observação |
+|---|---|---|
+| caminho genérico por peça: `_poly` → `_fill_poly` + `_outline_closed` (+ `draw_mesh`) | ~13 (total) | 3.000 peças/quadro, 2 comandos cada |
+| └ `DrawCache.fill_mesh` + `outline_mesh` | 5,5 (total) | a CHAVE da busca é o array de pontos inteiro, com hash a cada chamada; o contorno ainda duplica o array para fechar |
+| └ `_c()` (cor com clarão/escurecimento) | 1,3 | 8.240 chamadas; quase sempre sem clarão nem escurecimento |
+| capa do Guerreiro Sombra (`_draw_cape`) | 2,1 | forma muda todo quadro: triangulação + contorno suavizado no motor |
+| efeitos da sombra (`ShadowFX`) | 1,7 | fumaça, fissuras, olhos, aura |
+| silhueta roxa (`_rim_poly`) | 4,7 (total) | redesenha o corpo inteiro |
+
 ## Otimizações estudadas
 
 | ideia | reduz draw calls? | preserva o visual? | avaliação |
@@ -111,32 +142,30 @@ O gargalo é o visual procedural, em duas partes:
 | Atualizar só partes animadas | não (o modo "congelado" mantém os 10.817) | sim | só CPU |
 | Pré-renderizar poses em textura / viewport cache | sim | **não exatamente**: reamostragem, poses contínuas viram quadros discretos, memória por pose | risco visual alto; guardar para depois |
 
-## Proposta (maior impacto, menor risco): lote único por unidade
+## Proposta revista (depois dos números do PC): lote por unidade com geometria pré-montada
 
-1. **`CodeDrawnUnitVisual` ganha um "lote" do quadro.**
-   - Os utilitários (`_fill_poly`, `_outline_closed`, `_fill_circle`, `_circle`, `_line`) e os poucos
-     `draw_*` diretos dos visuais e do `ShadowFX` passam a **acrescentar triângulos** a arrays do quadro, em vez de
-     emitir um comando.
-   - Os triângulos são os mesmos que o Godot gera hoje (DrawCache), já na transformação corrente e com a cor final
-     por vértice.
-   - No fim do `_draw` sai **um** `canvas_item_add_triangle_array`.
-   - A ordem de desenho é a mesma e a mistura alfa é a mesma, então os pixels são os mesmos: validar com as
-     ferramentas de comparação de pixels que já existem (`draw_cache_pixels`, `paladin_pixels`).
-2. **Ordem de implementação**:
-   1. Guerreiro + Guerreiro Sombra (a cena dos prints). Medir no PC com F6/F7.
-   2. Sentinela e Sentinela Sombra.
-   3. Paladino vivo (`PaladinLiveVisual`, que hoje nem usa o DrawCache) e Paladino Sombra.
-3. **Estimativa na cena dos prints**:
-   - Draw calls: 10.814 → ~460 (medido na simulação).
-   - Quadro no PC do usuário: a parte de draw calls (~55–60 ms) cai para ~3 ms. O que resta é a CPU do
-     `_draw` (~10–20 ms), alvo de uma etapa seguinte, se ainda for preciso.
-4. **Riscos**:
-   - Montar o array em GDScript custa CPU. Para compensar: guardar as malhas do DrawCache já "abertas" em
-     triângulos, usar `Transform2D * PackedVector2Array` (nativo) e `append_array`, e medir a cada passo.
-   - `draw_set_transform` usado direto nos visuais precisa passar pelo utilitário.
-   - Arredondamento de float na transformação feita em CPU: diferença sub-pixel. Medir com os comparadores de pixel.
-   - O texto de debug (F4) continua fora do lote.
-5. **Fora do escopo**: gameplay, targeting, IA, stats, combate e aparência.
+O mesmo refactor resolve as duas partes, **se** montar o lote for mais barato que o caminho atual por peça:
+
+1. **Geometria pronta por peça, sem busca por hash.**
+   - Cada forma fixa (em espaço local) vira triângulos prontos, guardados uma vez por tipo de unidade.
+   - A cada quadro só se aplica a transformação (`Transform2D * PackedVector2Array`, nativo), a cor e o
+     `append_array` no lote da unidade.
+   - Isso elimina o hash do array de pontos, a duplicação do contorno e os ~140 `draw_mesh` por unidade.
+   - `_c()` ganha um caminho direto quando não há clarão nem escurecimento.
+2. **Um comando por unidade** (`canvas_item_add_triangle_array`) no fim do `_draw`: 10.800 → ~460 draw calls.
+3. **Mesmos pixels**:
+   - mesma geometria que o Godot gera hoje (DrawCache), mesma ordem, mesma mistura alfa;
+   - validar com os comparadores de pixel existentes;
+   - formas que mudam todo quadro (capa, fumaça) seguem com triangulação por quadro, só que dentro do lote.
+4. **Por etapas, medindo cada uma no PC** (F6/F7, com meta de 80 unidades paradas ≤ 16,7 ms):
+   1. Guerreiro + Guerreiro Sombra.
+   2. Sentinela.
+   3. Paladino.
+5. **Risco**:
+   - Se a CPU de montar o lote não cair o suficiente, o próximo passo é reaproveitar o lote entre quadros quando a
+     pose não muda (ex.: unidades paradas). Isso não mexe no visual.
+   - O que mexeria no visual (pré-render em textura, animar a menos quadros por segundo) fica de fora.
+6. **Fora do escopo**: gameplay, targeting, IA, stats, combate e aparência.
 
 ## Como repetir
 
