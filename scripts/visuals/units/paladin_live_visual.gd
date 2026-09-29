@@ -14,12 +14,17 @@ extends CodeDrawnUnitVisual
 ## hit, push e morte. Esta classe só traduz isso em poses 2D e desenha. Nada altera a CombatUnit.
 ##
 ## Regra do equipamento: espada SEMPRE na mão direita, escudo SEMPRE no braço esquerdo. As direções
-## da esquerda são o mesmo giro para o outro lado (não é espelho), então a mão nunca troca.
+## da esquerda seguem a referência (vista espelhada, com o VERSO do escudo à mostra): a pose é a da
+## direção da direita e só o desenho é espelhado no eixo X (sem escala negativa no nó). Nos dados
+## (âncoras, clipes) a espada continua sendo a mão direita — nunca troca nem duplica.
 ##
 ## Espaço do corpo: L = esquerda do personagem, F = frente, Y = altura (pés em 0). Unidades do rig;
 ## RIG_SCALE converte para o mundo (igual ao Guerreiro).
 
 const RIG_SCALE := 0.9
+## Porte do Paladino sobre a escala comum (Guerreiro): ~12% mais alto e mais largo. Aplicado no
+## transform do corpo (as âncoras continuam no espaço do rig).
+const BODY_SCALE := Vector2(1.06, 1.12)
 ## Pés abaixo do centro lógico da CombatUnit (igual ao Guerreiro).
 const FOOT_Y := 9.0
 ## Quanto a profundidade desce na tela (chão visto um pouco de cima).
@@ -30,13 +35,13 @@ const LEFT := 1.0
 
 ## yaw (graus) de cada direção da direita; as da esquerda são o negativo. DOWN/UP pendem para o
 ## último lado lateral (nunca ficam chapados de frente/costas).
-const DIR_YAW := [14.0, 32.0, 52.0, 132.0, 166.0]
+const DIR_YAW := [8.0, 20.0, 30.0, 128.0, 164.0]
 
 @export_group("Proporções")
-## Largura do tronco e distância entre os ombros (1 = ~18% mais largo que o Guerreiro).
-@export_range(0.8, 1.3, 0.01) var body_width := 1.0
-@export_range(0.8, 1.3, 0.01) var shield_scale := 1.0
-@export_range(0.8, 1.3, 0.01) var sword_scale := 1.0
+## Largura do tronco e distância entre os ombros (1.12 = ~20% mais largo que o Guerreiro).
+@export_range(0.8, 1.4, 0.01) var body_width := 1.12
+@export_range(0.8, 1.5, 0.01) var shield_scale := 1.18
+@export_range(0.8, 1.5, 0.01) var sword_scale := 1.4
 @export_range(0.8, 1.3, 0.01) var head_scale := 1.0
 
 @export_group("Movimento")
@@ -134,14 +139,25 @@ func preview(kind: StringName, dir: int) -> void:
 
 
 func top_y() -> float:
-	return FOOT_Y - 44.0 * RIG_SCALE
+	return FOOT_Y - 44.0 * RIG_SCALE * BODY_SCALE.y
+
+
+## Topo do elmo (sem a auréola), para comparar a altura do corpo com a do Guerreiro.
+func helmet_top_y() -> float:
+	return FOOT_Y + float(anchors.get(&"helmet_top", Vector2(0, -44.0)).y) * RIG_SCALE * BODY_SCALE.y
+
+
+## Âncora em coordenadas locais do visual (com o espelho da vista da esquerda e o porte do corpo).
+func screen_anchor(key: StringName) -> Vector2:
+	var q: Vector2 = anchors[key]
+	return Vector2(q.x * (1.0 if _yaw >= 0.0 else -1.0) * BODY_SCALE.x * RIG_SCALE, FOOT_Y + q.y * BODY_SCALE.y * RIG_SCALE)
 
 
 func pick_rect() -> Rect2:
-	var k := RIG_SCALE
+	var k := RIG_SCALE * BODY_SCALE.y
 	if animator.dead:
-		return Rect2(-26.0 * k, FOOT_Y - 14.0 * k, 52.0 * k, 19.0 * k)
-	return Rect2(-12.0 * k, FOOT_Y - 44.0 * k, 24.0 * k, 48.0 * k)
+		return Rect2(-28.0 * k, FOOT_Y - 14.0 * k, 56.0 * k, 19.0 * k)
+	return Rect2(-14.0 * k, FOOT_Y - 44.0 * k, 28.0 * k, 48.0 * k)
 
 
 func ground_point() -> Vector2:
@@ -158,12 +174,13 @@ func update_visual(delta: float) -> void:
 
 ## Pose neutra (valores absolutos). Ângulos em graus. swing: 0 = braço para baixo, 90 = à frente.
 ## s_elev: elevação da lâmina (0 = horizontal para a frente, −90 = para baixo, 90 = para cima).
+## Pronto para lutar: espada erguida na diagonal, para fora (s_elev 52, s_yaw 78), cotovelo dobrado.
 ## s_yaw: lâmina para fora (lado direito); sh_yaw: face do escudo girada para fora (lado esquerdo).
 static func neutral() -> Dictionary:
 	return {
-		twist = 0.0, lean = 3.0, crouch = 0.5, rootx = 0.0, rooty = 0.0, stance = 0.0,
-		r_swing = 22.0, r_abd = 20.0, r_elbow = 38.0, s_elev = -40.0, s_yaw = 30.0,
-		l_swing = 34.0, l_abd = 4.0, l_elbow = 58.0, sh_yaw = 18.0, sh_fwd = 0.0,
+		twist = 0.0, lean = 3.0, crouch = 1.0, rootx = 0.0, rooty = 0.0, stance = 0.0,
+		r_swing = 14.0, r_abd = 30.0, r_elbow = 44.0, s_elev = 52.0, s_yaw = 78.0,
+		l_swing = 42.0, l_abd = -10.0, l_elbow = 58.0, sh_yaw = 18.0, sh_fwd = 0.0,
 		tab = 0.0, head_tilt = 0.0, head_turn = 0.0,
 		rf = 0.9, rl = 0.0, lf = -0.7, ll = 0.0, tilt = 0.0, glow = 0.0,
 	}
@@ -192,6 +209,7 @@ func _update(delta: float) -> void:
 		target = 70.0 * (1.0 if an.lateral >= 0.0 else -1.0)
 	var diff := wrapf(target - _yaw, -180.0, 180.0)
 	_yaw += clampf(diff, -turn_speed * delta, turn_speed * delta) if delta > 0.0 else diff
+	_yaw = wrapf(_yaw, -180.0, 180.0)   # o sinal decide o espelho: nunca acumular voltas
 
 	# IDLE: quase imóvel, respiração muito sutil
 	var br := sin(t * TAU / 2.4 + _seed) * breathing
@@ -268,13 +286,13 @@ func _dir_yaw(dir: int, lateral: float) -> float:
 # --- Clipes (deltas sobre a pose neutra) -------------------------------------------------
 
 const _GUARD_READY := {crouch = 1.4, stance = 0.5, l_swing = 78.0, l_elbow = 18.0, sh_yaw = 0.0, sh_fwd = 2.2,
-	twist = 8.0, r_swing = 32.0, r_elbow = 72.0, s_elev = 30.0, lean = 2.0}
+	twist = 8.0, r_swing = 32.0, r_elbow = 72.0, s_elev = 40.0, s_yaw = 50.0, lean = 2.0}
 
 
 func _guard(t: float) -> Dictionary:
 	var b := sin(t * TAU / 1.6) * breathing
 	return _abs({crouch = 2.0 + 0.1 * b, stance = 0.7, l_swing = 82.0, l_elbow = 22.0, sh_yaw = -6.0, sh_fwd = 2.8,
-		twist = 12.0, lean = 6.0 + 0.4 * b, r_swing = 44.0, r_elbow = 96.0, s_elev = 48.0, head_tilt = 4.0,
+		twist = 12.0, lean = 6.0 + 0.4 * b, r_swing = 44.0, r_elbow = 96.0, s_elev = 56.0, s_yaw = 45.0, head_tilt = 4.0,
 		rf = 0.4, lf = 1.4})
 
 
@@ -379,10 +397,13 @@ func _update_drops(delta: float) -> void:
 	var dp := an.death_t / PaladinPoseLibrary.DEATH_TIME
 	var fs := 1.0 if _yaw >= 0.0 else -1.0
 	if _sword_drop.is_empty() and dp >= 0.4 and anchors.has(&"sword_grip"):
-		_sword_drop = {from = anchors.sword_grip, from_ang = anchors.sword_ang, t = 0.0,
+		var g: Vector2 = anchors.sword_grip
+		var ang: float = anchors.sword_ang
+		_sword_drop = {from = Vector2(g.x * fs, g.y), from_ang = ang if fs > 0.0 else PI - ang, t = 0.0,
 			to = Vector2(-fs * 20.0, 3.0), to_ang = 0.0 if fs > 0.0 else PI}
 	if _shield_drop.is_empty() and dp >= 0.5 and anchors.has(&"shield_c"):
-		_shield_drop = {from = anchors.shield_c, t = 0.0, to = Vector2(fs * 17.0, 0.6)}
+		var c: Vector2 = anchors.shield_c
+		_shield_drop = {from = Vector2(c.x * fs, c.y), t = 0.0, to = Vector2(fs * 17.0, 0.6)}
 	for d in [_sword_drop, _shield_drop]:
 		if not d.is_empty():
 			d.t += delta
@@ -411,8 +432,9 @@ func _draw() -> void:
 	_draw_shadow()
 	var p := _pose
 	var fs := 1.0 if _yaw >= 0.0 else -1.0
-	var root := Transform2D(0.0, Vector2(RIG_SCALE, RIG_SCALE), 0.0, Vector2(0, FOOT_Y))
-	var body_xf := root * Transform2D(deg_to_rad(-float(p.tilt) * fs), Vector2(float(p.rootx) * fs, float(p.rooty)))
+	var root := Transform2D(0.0, BODY_SCALE * RIG_SCALE, 0.0, Vector2(0, FOOT_Y))
+	# vista da esquerda = espelho do desenho (a pose e as âncoras são as da direita)
+	var body_xf := root * Transform2D(0.0, Vector2(fs, 1.0), 0.0, Vector2.ZERO) * Transform2D(deg_to_rad(-float(p.tilt)), Vector2(float(p.rootx), float(p.rooty)))
 	var parts := _parts.duplicate()
 	parts.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 	_body_xf = body_xf
@@ -428,8 +450,12 @@ func _draw() -> void:
 
 
 func _build_parts(p: Dictionary) -> Array:
-	var a := _yaw
-	var au := a + float(p.twist) * (1.0 if a >= 0.0 else -1.0)
+	var a := absf(_yaw)          # a pose é sempre montada na vista da direita; o desenho espelha
+	var mirrored := _yaw < 0.0
+	# no golpe o corpo gira para o perfil (a lâmina corre de lado, sem sumir atrás do escudo)
+	if not animator.dead:
+		a += (90.0 - a) * 0.45 * animator.attack_w
+	var au := a + float(p.twist)
 	var ah := au + float(p.head_turn)
 	var ca := cos(deg_to_rad(a))
 	var cu := cos(deg_to_rad(au))
@@ -443,22 +469,24 @@ func _build_parts(p: Dictionary) -> Array:
 	# --- pernas (yaw do quadril) ---
 	for side in [RIGHT, LEFT]:
 		var key := "r" if side < 0 else "l"
-		var hip := Vector3(side * 4.1 * bw, 13.4 - crouch, 0.0)
-		var foot := Vector3(side * (4.4 + float(p.stance)) * bw, float(p[key + "l"]), float(p[key + "f"]))
+		var hip := Vector3(side * 4.0 * bw, 13.4 - crouch, 0.0)
+		# base firme: pés afastados (mais que o quadril), joelhos levemente dobrados
+		var foot := Vector3(side * (7.0 + float(p.stance)) * bw, float(p[key + "l"]), float(p[key + "f"]))
 		var dist := Vector2(hip.x - foot.x, hip.y - foot.y).length()
 		var knee_push := sqrt(maxf(0.0, 6.9 * 6.9 - dist * dist / 4.0))
-		var knee := (hip + foot) / 2.0 + Vector3(0, 0, knee_push * 0.9)
+		# joelhos dobrados para a frente e um pouco para fora (postura pesada)
+		var knee := (hip + foot) / 2.0 + Vector3(side * knee_push * 0.25, 0, knee_push * 0.85)
 		var ph := _proj(hip.x, hip.z, hip.y, a)
 		var pk := _proj(knee.x, knee.z, knee.y, a)
 		var pf := _proj(foot.x, foot.z, foot.y, a)
 		var boot: Array = []
-		for c in [[-1.7, -1.8, 0.0], [1.7, -1.8, 0.0], [1.5, 3.6, 0.0], [0.0, 4.6, 0.3], [-1.5, 3.6, 0.0], [-1.6, -0.6, 3.0], [1.6, -0.6, 3.0]]:
+		for c in [[-2.3, -2.2, 0.0], [2.3, -2.2, 0.0], [2.2, 3.9, 0.0], [0.0, 5.2, 0.4], [-2.2, 3.9, 0.0], [-2.2, -0.6, 3.6], [2.2, -0.6, 3.6]]:
 			boot.append(_proj(foot.x + c[0], foot.z + c[1], foot.y + c[2], a))
 		var near := ph.z
 		parts.append([near - 0.5, _draw_leg.bind(_v2(ph), _v2(pk), _v2(pf), boot, 1.0 if near >= -0.5 else 0.85)])
 	# túnica escura entre as pernas (atrás do tabardo)
 	var robe: Array = []
-	for c in [[-2.6, 15.0], [2.6, 15.0], [3.0, 7.0], [-3.0, 7.0]]:
+	for c in [[-3.0, 15.0], [3.0, 15.0], [3.6, 6.0], [-3.6, 6.0]]:
 		robe.append(_v2(_proj(c[0] * bw, -0.6, c[1] - crouch, a)))
 	parts.append([-1.5, _draw_poly.bind(PackedVector2Array(robe), dark, 1.0)])
 	# tabardo: frente (com a estrela) e verso
@@ -474,8 +502,9 @@ func _build_parts(p: Dictionary) -> Array:
 	# --- cabeça e auréola ---
 	var neck := _proj(up_f * 1.4, 0.3, 28.4 - crouch, au)
 	A[&"head"] = _v2(neck) + Vector2(0, -6.0)
+	A[&"helmet_top"] = _v2(neck) + Vector2(0, -11.4 * head_scale)
 	parts.append([1.6, _draw_head.bind(_v2(neck), ah, float(p.head_tilt))])
-	var hc := _proj(up_f * 1.4, -3.2, 36.6 - crouch, ah)
+	var hc := _proj(up_f * 1.4, -3.2, 37.0 - crouch, ah)
 	var halo_depth := -3.2 * cos(deg_to_rad(ah)) + (1.6 if cos(deg_to_rad(ah)) < 0.0 else 0.0)
 	A[&"halo"] = _v2(hc)
 	parts.append([halo_depth, _draw_halo.bind(_v2(hc), ah, float(p.glow))])
@@ -519,19 +548,26 @@ func _build_parts(p: Dictionary) -> Array:
 				parts.append([pg.z + 0.9, _draw_sword.bind(_v2(pg), _v2(pt))])
 		else:
 			# escudo: preso ao braço esquerdo, à frente da mão
-			var c3 := hand + Vector3(-2.4, -1.4, 2.0 + float(p.sh_fwd))
+			var c3 := hand + Vector3(-1.6, -1.0, 2.6 + float(p.sh_fwd))
 			var pc := _proj(c3.x, c3.z, c3.y, au)
 			# a face do escudo fica quase sempre voltada para a câmera (leitura), girando só um pouco com
 			# o corpo; de costas aparece o verso
 			var front_view := cos(deg_to_rad(au)) >= 0.0
 			var view_ang := (au if front_view else signf(au) * (180.0 - absf(au))) * 0.4 + (float(p.sh_yaw) - 18.0) * 0.8
 			var face := cos(deg_to_rad(view_ang)) * (1.0 if front_view else -1.0)
+			# vista da esquerda (referência): aparece o verso do escudo, com o punho segurando a alça
+			if mirrored and front_view:
+				face = -absf(face)
 			var fwd_x := sin(deg_to_rad(au))
 			A[&"shield_c"] = _v2(pc)
 			A[&"shield_c3"] = c3
 			A[&"shield_face"] = face
 			if _shield_drop.is_empty():
-				parts.append([pc.z + 1.4 + (1.0 if face > 0.0 else -1.2), _draw_shield.bind(_v2(pc), face, fwd_x, float(p.lean) * 0.4, 1.0)])
+				var arm_z := (ps.z + ph.z) * 0.5 + 0.2
+				var sz := pc.z + 1.4 + (1.0 if face > 0.0 else -1.2)
+				if mirrored and front_view:
+					sz = minf(arm_z - 0.3, -0.3)   # verso atrás do braço (o punho aparece) e do tronco
+				parts.append([sz, _draw_shield.bind(_v2(pc), face, fwd_x, float(p.lean) * 0.4, 1.0)])
 	anchors = A
 	return parts
 
@@ -546,34 +582,38 @@ func _quad(a: Vector2, b: Vector2, wa: float, wb: float) -> PackedVector2Array:
 
 
 func _draw_leg(hip: Vector2, knee: Vector2, foot: Vector2, boot: Array, shade: float) -> void:
-	_poly(_quad(hip, knee, 2.8, 2.4), _c(ivory, shade))
-	_poly(_quad(knee, foot + Vector2(0, -1.2), 2.4, 2.1), _c(ivory_shade, shade))
+	_poly(_quad(hip, knee, 3.3, 2.9), _c(ivory, shade))
+	_poly(_quad(knee, foot + Vector2(0, -1.4), 2.9, 2.6), _c(ivory_shade, shade))
+	# faixa dourada na canela
+	var gd := knee.lerp(foot, 0.62)
+	var gn := (foot - knee).orthogonal().normalized()
+	_line(gd + gn * 2.6, gd - gn * 2.6, _c(gold, shade), 1.2)
 	# bota: sola + bico pontudo + faixa dourada
 	var b := PackedVector2Array()
 	for i in [0, 4, 3, 2, 1]:
 		b.append(_v2(boot[i]))
 	_poly(Geometry2D.convex_hull(b + PackedVector2Array([_v2(boot[5]), _v2(boot[6])])), _c(ivory, shade))
-	_line(_v2(boot[5]), _v2(boot[6]), _c(gold, shade), 1.3)
+	_line(_v2(boot[5]), _v2(boot[6]), _c(gold, shade), 1.6)
 	# joelheira: disco marfim com aro dourado
-	draw_circle(knee, 2.2, _c(gold, shade))
-	draw_circle(knee, 1.4, _c(ivory_light, shade))
+	_circle(knee + Vector2(0, -0.3), 2.2, _c(gold, shade))
+	draw_circle(knee + Vector2(-0.4, -0.7), 0.8, _c(gold_light, shade))
 
 
 func _draw_tabard(yaw: float, f: float, swing: float, front: bool, crouch: float) -> void:
 	var pts := PackedVector2Array()
 	var sw := swing * 0.06
 	var top := 15.0 - crouch
-	var bot := 5.4 - crouch * 0.5
-	for c in [[-3.2, top, 0.0], [3.2, top, 0.0], [3.7, bot, sw], [0.55, bot + 1.8, sw], [0.0, bot + 1.2, sw], [-0.55, bot + 1.8, sw], [-3.7, bot, sw]]:
+	var bot := 3.6 - crouch * 0.5
+	for c in [[-3.6, top, 0.0], [3.6, top, 0.0], [4.1, bot, sw], [0.7, bot + 1.8, sw], [0.0, bot + 1.1, sw], [-0.7, bot + 1.8, sw], [-4.1, bot, sw]]:
 		pts.append(_v2(_proj(c[0], f + c[2], c[1], yaw)))
 	var col := ivory_light if front else ivory
 	_poly(pts, _c(col))
 	if front:
 		# estrela dourada simples
-		var sc := _v2(_proj(0.0, f + sw * 0.5, 10.4 - crouch * 0.7, yaw))
+		var sc := _v2(_proj(0.0, f + sw * 0.5, 9.6 - crouch * 0.7, yaw))
 		var k := clampf(absf(cos(deg_to_rad(yaw))) * 0.8 + 0.2, 0.2, 1.0)
 		draw_colored_polygon(_xf_pts(PaladinMesh.star4(Vector2.ZERO, 1.5 * k, 2.2, 2.4, 0.55), Transform2D(0.0, sc)), _c(gold))
-	_line(_v2(_proj(-3.2, f, top, yaw)), _v2(_proj(3.2, f, top, yaw)), _c(gold_dark), 0.8)
+	_line(_v2(_proj(-3.6, f, top, yaw)), _v2(_proj(3.6, f, top, yaw)), _c(gold_dark), 0.8)
 
 
 func _draw_torso(yaw: float, crouch: float, up_f: float) -> void:
@@ -610,13 +650,14 @@ func _draw_torso(yaw: float, crouch: float, up_f: float) -> void:
 		var ex := s * w * 0.3
 		_line(o + Vector2(ex, -5.8), o + Vector2(ex, 3.6), _c(ivory_shade), 1.0)
 		_line(o + Vector2(-w * 0.6 - ex * 0.2, -6.2), o + Vector2(w * 0.6 - ex * 0.2, -6.2), _c(gold), 1.3)
-	# cinto marrom + fivela dourada
-	var belt := PackedVector2Array([o + Vector2(-w * 0.8, 3.9), o + Vector2(w * 0.8, 3.9), o + Vector2(w * 0.82, 6.0), o + Vector2(-w * 0.82, 6.0)])
-	draw_colored_polygon(belt, _c(leather))
+	# cinto dourado + fivela grande
+	var belt := PackedVector2Array([o + Vector2(-w * 0.8, 3.7), o + Vector2(w * 0.8, 3.7), o + Vector2(w * 0.82, 6.1), o + Vector2(-w * 0.82, 6.1)])
+	_poly(belt, _c(gold))
+	_line(o + Vector2(-w * 0.8, 5.5), o + Vector2(w * 0.8, 5.5), _c(gold_dark), 0.7)
 	if c > 0.1:
-		var bx := o + Vector2(s * w * 0.4, 4.95)
-		draw_circle(bx, 1.35, _c(gold))
-		draw_circle(bx, 0.6, _c(leather))
+		var bx := o + Vector2(s * w * 0.4, 4.9)
+		_poly(PackedVector2Array([bx + Vector2(-1.8, -1.6), bx + Vector2(1.8, -1.6), bx + Vector2(1.8, 1.6), bx + Vector2(-1.8, 1.6)]), _c(gold_light))
+		draw_circle(bx, 0.7, _c(gold_dark))
 	# fraldão (placa curta abaixo do cinto)
 	draw_colored_polygon(PackedVector2Array([o + Vector2(-w * 0.8, 6.0), o + Vector2(w * 0.8, 6.0), o + Vector2(w * 0.86, 8.4), o + Vector2(-w * 0.86, 8.4)]), _c(ivory_shade))
 
@@ -660,7 +701,7 @@ func _draw_head(neck: Vector2, yaw: float, tilt: float) -> void:
 
 func _draw_halo(c: Vector2, yaw: float, glow: float) -> void:
 	var k := 0.78 + 0.22 * absf(cos(deg_to_rad(yaw)))
-	var r := 6.2 * head_scale
+	var r := 7.0 * head_scale
 	var col := gold.lerp(holy, glow * 0.5)
 	if glow > 0.01:
 		draw_circle(c, r + 2.5, Color(holy, 0.18 * glow))
@@ -669,25 +710,29 @@ func _draw_halo(c: Vector2, yaw: float, glow: float) -> void:
 	draw_arc(Vector2.ZERO, r, 0.0, TAU, 28, _c(col), 1.3, true)
 	_with(_body_xf)
 	# três pontas pequenas (topo maior)
-	for spec in [[Vector2(0, -r - 1.6), 2.4, 1.0], [Vector2(-r * k - 1.0, 0), 1.3, 0.7], [Vector2(r * k + 1.0, 0), 1.3, 0.7]]:
-		var sp := _xf_pts(PaladinMesh.star4(Vector2.ZERO, spec[1] * 0.55, spec[1], spec[1] * 0.8, 0.45 * spec[2]), Transform2D(0.0, c + spec[0]))
+	for spec in [[Vector2(0, -r - 1.2), 3.4, 1.0], [Vector2(-r * k - 0.4, 0), 2.0, 0.8], [Vector2(r * k + 0.4, 0), 2.0, 0.8]]:
+		var sp := _xf_pts(PaladinMesh.star4(Vector2.ZERO, spec[1] * 0.55, spec[1], spec[1] * 0.75, 0.3 * spec[1]), Transform2D(0.0, c + spec[0]))
 		_poly(sp, _c(col))
 
 
 func _draw_arm(sh: Vector2, el: Vector2, hand: Vector2, shade: float) -> void:
-	_poly(_quad(sh, el, 2.1, 1.9), _c(ivory_shade, shade))
-	_poly(_quad(el, hand, 2.0, 1.8), _c(ivory, shade))
-	_line(hand.lerp(el, 0.22) + (hand - el).orthogonal().normalized() * 1.7, hand.lerp(el, 0.22) - (hand - el).orthogonal().normalized() * 1.7, _c(gold, shade), 1.1)
-	draw_circle(el, 1.4, _c(ivory_light, shade))
-	_circle(hand, 1.7, _c(dark, shade))
+	_poly(_quad(sh, el, 2.4, 2.2), _c(ivory_shade, shade))
+	_poly(_quad(el, hand, 2.3, 2.1), _c(ivory, shade))
+	# punho dourado + manopla marrom
+	var n := (hand - el).orthogonal().normalized()
+	var cuff := hand.lerp(el, 0.3)
+	_line(cuff + n * 2.3, cuff - n * 2.3, _c(gold, shade), 1.4)
+	draw_circle(el, 1.7, _c(gold, shade))
+	draw_circle(el, 1.0, _c(ivory_light, shade))
+	_circle(hand, 2.1, _c(leather, shade))
 
 
 func _draw_pauldron(c: Vector2, yaw: float, side: float, shade: float) -> void:
 	# ombreira grande e arredondada: aumenta bastante a largura da silhueta
 	var s := sin(deg_to_rad(yaw))
 	var k := 0.85 + 0.15 * absf(cos(deg_to_rad(yaw)))
-	var rx := 5.6 * k * body_width
-	var ry := 4.4
+	var rx := 6.0 * k * body_width
+	var ry := 5.2
 	var pts := PackedVector2Array()
 	for i in 13:
 		var ang := PI * 1.02 + i * PI * 0.96 / 12.0
@@ -699,8 +744,11 @@ func _draw_pauldron(c: Vector2, yaw: float, side: float, shade: float) -> void:
 	draw_colored_polygon(PackedVector2Array([c + Vector2(-rx * 0.97, 0.9), c + Vector2(rx * 0.97, 0.9), c + Vector2(rx * 0.95, 2.6), c + Vector2(-rx * 0.95, 2.6)]), _c(gold, shade))
 	# brilho e rebite dourado (na frente da ombreira)
 	draw_colored_polygon(PackedVector2Array([c + Vector2(-rx * 0.55, -2.3), c + Vector2(-rx * 0.05, -2.8), c + Vector2(-rx * 0.1, -1.4), c + Vector2(-rx * 0.5, -1.0)]), _c(ivory_light, shade))
-	draw_circle(c + Vector2(s * rx * 0.35, -0.3), 1.2, _c(gold_light, shade))
-	draw_circle(c + Vector2(s * rx * 0.35, -0.3), 0.55, _c(gold_dark, shade))
+	draw_circle(c + Vector2(s * rx * 0.35, -0.3), 1.4, _c(gold_light, shade))
+	draw_circle(c + Vector2(s * rx * 0.35, -0.3), 0.6, _c(gold_dark, shade))
+	# rebites na borda dourada
+	for i in 3:
+		draw_circle(c + Vector2((i - 1) * rx * 0.55, 1.75), 0.45, _c(gold_dark, shade))
 
 
 func _draw_sword(grip: Vector2, tip: Vector2) -> void:
@@ -745,8 +793,13 @@ func _draw_shield(c: Vector2, face: float, fwd_x: float, tilt_deg: float, shade:
 	else:
 		# verso: madeira escura com as alças
 		draw_colored_polygon(_xf_pts(inner, xf), _c(wood, shade))
-		_line(xf * Vector2(-4.0, -3.0), xf * Vector2(4.0, -3.0), _c(leather, shade), 1.3)
-		_line(xf * Vector2(-3.4, 2.4), xf * Vector2(3.4, 2.4), _c(leather, shade), 1.3)
+		draw_colored_polygon(_xf_pts(PackedVector2Array([Vector2(0.0, -7.8), Vector2(5.0, -7.8), Vector2(5.4, -2.5), Vector2(3.9, 3.6), Vector2(0.0, 7.9)]), xf), _c(wood.darkened(0.18), shade))
+		# alças de couro com rebites dourados (o punho segura a de cima)
+		for yy in [-3.0, 2.6]:
+			_line(xf * Vector2(-4.2, yy), xf * Vector2(4.2, yy), _c(outline, shade), 2.2)
+			_line(xf * Vector2(-4.2, yy), xf * Vector2(4.2, yy), _c(leather.lightened(0.15), shade), 1.2)
+			for xx in [-4.0, 4.0]:
+				draw_circle(xf * Vector2(xx, yy), 0.7, _c(gold, shade))
 
 
 static func _xf_pts(pts: PackedVector2Array, xf: Transform2D) -> PackedVector2Array:
@@ -788,7 +841,7 @@ func _draw_shadow() -> void:
 	var lying := clampf(float(_pose.get(&"tilt", 0.0)) / 88.0, 0.0, 1.0)
 	var fs := 1.0 if _yaw >= 0.0 else -1.0
 	draw_set_transform(Vector2(-14.0 * lying * RIG_SCALE * fs, FOOT_Y), 0.0, Vector2(1.0 + lying * 1.3, 0.32))
-	draw_circle(Vector2.ZERO, 11.0, Color(0, 0, 0, 0.32))
+	draw_circle(Vector2.ZERO, 12.5, Color(0, 0, 0, 0.32))
 	draw_set_transform(Vector2.ZERO)
 
 

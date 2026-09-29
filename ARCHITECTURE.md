@@ -450,27 +450,39 @@ formas grandes e simples, contorno escuro, poucas peças e luz e sombra chapadas
 `PaladinLiveVisual extends CodeDrawnUnitVisual`, com as mesmas `RIG_SCALE` (0,9), `FOOT_Y`, contorno, clarão
 de dano e escurecimento na morte do `WarriorVisual`. Cena: `scenes/units/paladin_live_visual.tscn`.
 
-**Silhueta.**
-- ~1,1× a altura do Guerreiro (a auréola passa um pouco) e ombros bem mais largos.
-- Escudo dominante do lado esquerdo e pés um pouco mais abertos.
-- Não parece chefe.
+**Silhueta** (referência: Paladino olhando para a direita/esquerda, imagem da etapa de refinamento).
+- Porte próprio sobre a escala comum: `BODY_SCALE` (1,06 × 1,12) no transform do corpo, `body_width` 1,12.
+  O topo do elmo fica ~1,12× a altura do Guerreiro (a auréola passa disso), sem porte de chefe.
+- Ombreiras grandes com borda dourada e rebites, tronco largo, pernas grossas com pés afastados e joelhos
+  levemente dobrados, botas pesadas.
+- Espada erguida na diagonal, para fora, na mão direita (cotovelo dobrado, pronta); nunca aponta para baixo
+  no idle nem na caminhada.
+- Escudo grande (`shield_scale` 1,18) seguro pelo braço esquerdo, cobrindo boa parte do tronco.
 
 **Partes.** Cada parte tem uma âncora no espaço do corpo (L = esquerda, F = frente, Y = altura):
 - tronco (placa marfim, sombra embaixo, gola dourada em V, sol dourado);
-- cinto marrom com fivela;
+- cinto dourado com fivela grande;
 - fraldão;
-- pernas (coxa, canela, joelheira dourada, bota pontuda com faixa dourada);
+- pernas grossas (coxa, canela com faixa dourada, joelheira dourada, bota pesada com faixa dourada);
 - túnica escura entre as pernas;
 - tabardo (frente com estrela, e verso);
-- ombreiras grandes arredondadas com borda dourada e rebite;
-- braços (marfim, manopla escura);
+- ombreiras grandes arredondadas com borda dourada, rebite e rebites na borda;
+- braços (marfim, cotovelo dourado, punho dourado, manopla marrom);
 - espada (mão DIREITA);
 - escudo (braço ESQUERDO);
 - elmo arredondado com visor em T e friso dourado;
 - auréola com três pontas.
 
 **Fake 2.5D leve.**
-- A direção vira um yaw: DOWN 14°, DOWN_RIGHT 32°, RIGHT 52°, UP_RIGHT 132°, UP 166°. As da esquerda são o negativo, então não há espelho e a espada nunca troca de mão.
+- A direção vira um yaw: DOWN 8°, DOWN_RIGHT 20°, RIGHT 30° (3/4 frontal, como na referência), UP_RIGHT 128°, UP 164°.
+  As da esquerda são o negativo. O yaw é sempre normalizado em −180°..180°.
+- **Vista da esquerda = espelho do desenho, como na referência.** A pose e as âncoras são montadas com |yaw|
+  (vista da direita) e o transform do corpo espelha o eixo X — sem escala negativa em nenhum nó. Nos dados a
+  espada continua na mão direita (`sword_grip3 == r_hand3`). Na vista da esquerda aparece o VERSO do escudo
+  (madeira, alças com rebites e o punho segurando), atrás do braço e do tronco.
+  - Direita: espada à esquerda da tela, erguida ↖; face do escudo (sol dourado) à direita.
+  - Esquerda: espada à direita da tela, erguida ↗; verso do escudo à esquerda.
+- No golpe o corpo gira ~45% do caminho até o perfil, para a lâmina correr de lado sem sumir atrás do escudo.
 - O yaw só desloca as âncoras e ordena as partes por profundidade. Assim, nas diagonais:
   - um ombro aparece mais que o outro;
   - uma perna fica à frente;
@@ -507,7 +519,10 @@ As poses 2D ficam em `neutral()` e nos clipes `_taunt`, `_guard`, `_attack`, `_p
 
 **Debug e Sandbox.** F4 mostra direção, yaw, estado, progresso e variante do golpe. A fileira de prévia do Sandbox funciona igual.
 
-**Custo.** ~0,15 ms de CPU por Paladino por quadro.
+**API para testes/ferramentas.** `helmet_top_y()` (topo do elmo, sem auréola) e `screen_anchor(key)` (âncora
+em coordenadas locais, já com o espelho e o porte do corpo).
+
+**Custo.** ~0,2 ms de CPU por Paladino por quadro.
 
 ### Paladino Vivo 2.5D por código (alternativa, fora de uso)
 

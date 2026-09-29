@@ -881,7 +881,44 @@ Capturas grandes dos 16 estados, folha comparativa e capturas em escala real no 
   - As sprite sheets e a cena de sprites continuam no projeto como alternativa.
   - `PaladinVisual` continua existindo porque é a base do Sombra.
 
-### Paladino Vivo na linguagem do Guerreiro e da Sentinela (`PaladinLiveVisual`) ✔ (aguardando validação)
+### Paladino Vivo refeito pela referência direita/esquerda (`PaladinLiveVisual`) ✔ (aguardando validação)
+
+**Pedido.** Usar a imagem anexada (Paladino olhando para a direita e para a esquerda) como referência principal
+de silhueta e proporção, sem copiar barra de vida, texto ou fundo.
+- ~10–15% mais alto e ~15–20% mais largo que o Guerreiro; ombros, escudo, pernas e botas maiores. Não é chefe.
+- Mesmo estilo: 2D, cartunesco, contorno escuro, cores chapadas.
+- Elmo com visor, auréola dourada, ombreiras grandes, armadura marfim com ouro, tabardo, pernas blindadas, botas
+  pesadas, espada de uma mão, escudo grande.
+- Espada SEMPRE na mão direita, escudo SEMPRE no braço esquerdo; espada nunca para baixo no idle/caminhada.
+- Postura: pés afastados, joelhos levemente dobrados, tronco firme. Fake 2.5D leve. As 16 animações.
+
+**Feito** (só o visual; mecânica, stats, IA e Paladino Sombra intocados).
+- Porte: `BODY_SCALE` (1,06 × 1,12) no transform do corpo, `body_width` 1,12, `shield_scale` 1,18,
+  `sword_scale` 1,4. Topo do elmo ~1,12× o Guerreiro. `top_y` e `pick_rect` acompanham.
+- Pose neutra nova: espada erguida na diagonal, para fora (s_elev 52°, s_yaw 78°), cotovelo dobrado; escudo
+  preso ao braço esquerdo cobrindo o tronco; pés afastados e joelhos dobrados (para a frente e para fora).
+- Peças: ombreiras maiores com rebites, pernas mais grossas com faixa dourada na canela, botas pesadas,
+  joelheiras douradas, cinto dourado com fivela grande, manoplas marrons com punho dourado, tabardo mais longo,
+  auréola maior com três pontas, verso do escudo com alças e rebites.
+- Direções: RIGHT passou a 3/4 frontal (30°), como na referência. A vista da esquerda é o espelho do desenho da
+  direita (a referência mostra assim, com o verso do escudo), feito no transform do corpo — sem escala negativa;
+  nos dados a espada continua na mão direita.
+- No golpe o corpo gira em direção ao perfil (a lâmina não some atrás do escudo). Tempos iguais.
+- Correção: o yaw acumulava voltas (ex.: 390°) depois de várias viradas; agora é normalizado em −180°..180°.
+- Testes (`paladin_live_test`): altura até o elmo 1,08–1,2× o Guerreiro e com a auréola < 1,35×; ombros
+  > 10; leitura lateral (direita: espada ↖ e face do escudo; esquerda: espada ↗ e verso do escudo, no idle e
+  em 3 fases da caminhada); yaw normalizado.
+
+**Interpretação a validar.** O texto pede "espada para cima na diagonal direita" olhando para a direita; a
+imagem (referência principal) mostra a espada erguida para FORA do corpo (↖ na vista da direita, ↗ na da
+esquerda). Segui a imagem. Se a intenção for a lâmina inclinada para a frente (para o lado em que olha), é só
+trocar `s_yaw` na `neutral()`.
+
+**Validado.** 11 suítes OK. Capturas: referência × jogo, família de perto e na escala do jogo, os 16 estados,
+animações quadro a quadro (idle, caminhada direita/esquerda, golpe, provocação → escudo, morte) e o Sandbox em
+1600×896.
+
+### Paladino Vivo na linguagem do Guerreiro e da Sentinela (`PaladinLiveVisual`) ✔
 
 **Pedido.** Reconstruir o Paladino Vivo para ser da MESMA família visual do Guerreiro e da Sentinela.
 - Pequeno, simples, contorno escuro, poucas formas, cartunesco, 100% código.

@@ -71,10 +71,13 @@ func _test_family_proportions() -> void:
 	var p := pv.visual as PaladinLiveVisual
 	var w := wv.visual as WarriorVisual
 	_tick(p, 0.2)
-	var h_ratio := (p.ground_point().y - p.top_y()) / (w.ground_point().y - w.top_y())
-	_check(h_ratio > 1.0 and h_ratio < 1.25, "um pouco mais alto que o Guerreiro (%.2f×)" % h_ratio)
+	var w_h := w.ground_point().y - w.top_y()
+	var h_ratio := (p.ground_point().y - p.helmet_top_y()) / w_h
+	_check(h_ratio > 1.08 and h_ratio < 1.2, "10–15%% mais alto que o Guerreiro, até o topo do elmo (%.2f×)" % h_ratio)
+	var halo_ratio := (p.ground_point().y - p.top_y()) / w_h
+	_check(halo_ratio < 1.35, "com a auréola continua sem porte de chefe (%.2f×)" % halo_ratio)
 	var span := absf(p.anchors.r_shoulder.x - p.anchors.l_shoulder.x) * PaladinLiveVisual.RIG_SCALE
-	_check(span > 9.0, "ombros largos (%.1f unidades entre os ombros, na vista 3/4)" % span)
+	_check(span > 10.0, "ombros largos (%.1f unidades entre os ombros, na vista 3/4)" % span)
 	_check(PaladinLiveVisual.RIG_SCALE == WarriorVisual.RIG_SCALE and PaladinLiveVisual.FOOT_Y == WarriorVisual.FOOT_Y, "mesma escala e mesmo chão do Guerreiro")
 	_check(p.outline == w.outline, "mesmo contorno escuro do Guerreiro")
 	pv.queue_free()
@@ -103,7 +106,23 @@ func _test_equipment_every_direction_and_state() -> void:
 				ok = false
 			if v.scale.x < 0.0 or view.scale.x < 0.0:
 				ok = false
-	_check(ok, "espada da mão direita e escudo do braço esquerdo em 8 direções × 11 estados, sem espelho")
+	_check(ok, "espada da mão direita e escudo do braço esquerdo em 8 direções × 11 estados, sem escala negativa")
+	# leitura lateral da referência: espada erguida na diagonal (nunca para baixo) no idle e na caminhada;
+	# vista da direita = espada à esquerda da tela e face do escudo; da esquerda = espelho, verso do escudo
+	var side_ok := true
+	for spec in [[D.RIGHT, -1.0, 1.0], [D.LEFT, 1.0, -1.0]]:
+		for st in [[&"idle", 0.6], [&"walk", 0.25], [&"walk", 0.5], [&"walk", 0.75]]:
+			v.preview(st[0], spec[0])
+			_tick(v, st[1])
+			v._build_parts(v._pose)
+			var grip := v.screen_anchor(&"sword_grip")
+			var tip := v.screen_anchor(&"sword_tip")
+			var sh := v.screen_anchor(&"shield_c")
+			if tip.y > grip.y - 8.0 or signf(tip.x - grip.x) != spec[1]:
+				side_ok = false
+			if signf(grip.x - sh.x) != spec[1] or signf(float(v.anchors.shield_face)) != spec[2]:
+				side_ok = false
+	_check(side_ok, "direita: espada ↖ na mão direita e face do escudo; esquerda: espada ↗ e verso do escudo (idle e caminhada)")
 	# ombro direito do lado direito do corpo (L < 0) em qualquer direção
 	_check(PaladinLiveVisual.RIGHT < 0.0 and PaladinLiveVisual.LEFT > 0.0, "lado direito = L negativo")
 	v.preview(&"death", D.RIGHT)
@@ -129,7 +148,8 @@ func _test_directions() -> void:
 		if absf(wrapf(v._yaw - v._dir_yaw(d, v.animator.lateral), -180.0, 180.0)) > 1.0:
 			ok = false
 	_check(ok, "andar em cada uma das 8 direções vira o corpo para ela")
-	_check(is_equal_approx(v._dir_yaw(D.LEFT, -1.0), -v._dir_yaw(D.RIGHT, 1.0)), "esquerda = mesmo giro para o outro lado (sem espelho)")
+	_check(absf(v._yaw) <= 180.0, "o giro não acumula voltas (o sinal do yaw decide o espelho)")
+	_check(is_equal_approx(v._dir_yaw(D.LEFT, -1.0), -v._dir_yaw(D.RIGHT, 1.0)), "esquerda = mesma pose da direita, desenho espelhado")
 	_check(v._dir_yaw(D.DOWN, 1.0) < v._dir_yaw(D.DOWN_RIGHT, 1.0) and v._dir_yaw(D.DOWN_RIGHT, 1.0) < v._dir_yaw(D.RIGHT, 1.0)
 		and v._dir_yaw(D.RIGHT, 1.0) < v._dir_yaw(D.UP_RIGHT, 1.0) and v._dir_yaw(D.UP_RIGHT, 1.0) < v._dir_yaw(D.UP, 1.0), "cada direção tem um giro próprio")
 	view.queue_free()
