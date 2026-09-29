@@ -19,6 +19,17 @@ signal menu_pressed
 signal stat_edited(key: String, value: float)
 ## A altura ocupada pela faixa inferior mudou (a Arena reenquadra o mundo acima dela).
 signal layout_changed
+## Prévia só visual da tropa selecionada (ex.: Paladino: walk/attack/hit…); `dir` = PaladinPoseLibrary.Dir.
+signal preview_requested(kind: StringName, dir: int)
+
+## Botões da prévia: [texto, tipo, direção]. Direções: 0 ↓ · 1 ↘ · 2 → · 3 ↗ · 4 ↑ · 5 ↖ · 6 ← · 7 ↙.
+const PREVIEW_BUTTONS := [
+	["Idle", &"idle", 2], ["Andar ↓", &"walk", 0], ["↘", &"walk", 1], ["→", &"walk", 2], ["↗", &"walk", 3],
+	["↑", &"walk", 4], ["↖", &"walk", 5], ["←", &"walk", 6], ["↙", &"walk", 7],
+	["Atacar →", &"attack", 2], ["↗", &"attack", 3], ["↘", &"attack", 1],
+	["Hit", &"hit", 2], ["Push", &"push", 2], ["Provocar", &"taunt", 2], ["Escudo", &"shield", 2],
+	["Bloqueio", &"block", 2], ["Morte", &"death", 2],
+]
 
 const COLOR_ALLY := Color(0.75, 0.88, 0.7)
 const COLOR_ENEMY := Color(0.95, 0.66, 0.55)
@@ -39,6 +50,7 @@ const COLOR_DIM := Color(0.7, 0.66, 0.78)
 @onready var _enemy_list: VBoxContainer = %EnemiesList
 
 var _spawn_buttons: Array[Button] = []
+var _preview_row: HFlowContainer
 var _spins := {}   # stat_key → SpinBox
 var _shown_unit: CombatUnit
 
@@ -54,6 +66,7 @@ func _ready() -> void:
 			_spins[key] = spin
 			spin.value_changed.connect(func(v: float) -> void: stat_edited.emit(key, v))
 	bottom_bar.resized.connect(layout_changed.emit)
+	_build_preview_row()
 	show_unit(null, null, false)
 
 
@@ -114,6 +127,40 @@ func show_unit(unit: CombatUnit, def: UnitDef, editable: bool) -> void:
 	for spin in _spins.values():
 		spin.editable = editable
 	_edit_row.tooltip_text = "" if editable else "Edição só na preparação (Reiniciar volta para ela)."
+
+
+## Mostra a fileira de prévia (só visual) quando a tropa selecionada tem prévias; habilitada só na preparação.
+func show_preview_controls(shown: bool, enabled: bool) -> void:
+	if _preview_row == null:
+		return
+	_preview_row.visible = shown
+	for b in _preview_row.get_children():
+		if b is Button:
+			b.disabled = not enabled
+	_preview_row.tooltip_text = "" if enabled else "Prévia só na preparação (Reiniciar volta para ela)."
+
+
+func _build_preview_row() -> void:
+	_preview_row = HFlowContainer.new()
+	_preview_row.name = "PreviewRow"
+	_preview_row.visible = false
+	var title := Label.new()
+	title.text = "Prévia (só visual):"
+	title.add_theme_color_override("font_color", COLOR_DIM)
+	title.add_theme_font_size_override("font_size", 12)
+	_preview_row.add_child(title)
+	for spec in PREVIEW_BUTTONS:
+		var b := Button.new()
+		b.text = spec[0]
+		b.name = "Preview_%s_%d" % [spec[1], spec[2]]
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", 12)
+		var kind: StringName = spec[1]
+		var dir: int = spec[2]
+		b.pressed.connect(func() -> void: preview_requested.emit(kind, dir))
+		_preview_row.add_child(b)
+	_edit_row.get_parent().add_child(_preview_row)
+	_edit_row.get_parent().move_child(_preview_row, _edit_row.get_index() + 1)
 
 
 func _fill_list(list: VBoxContainer, defs: Array[UnitDef], team: CombatUnit.Team) -> void:

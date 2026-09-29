@@ -765,7 +765,7 @@ Limitações:
 - A sheet piloto renderizada por código (`assets/sprites/paladin_live_pilot/`, cena de protótipo) continua no
   repositório como referência; não é usada pelo jogo.
 
-### Paladino Vivo com as sprite sheets novas (idle, walk, attack, defend, death) ✔ (aguardando validação)
+### Paladino Vivo com as sprite sheets novas (idle, walk, attack, defend, death) ✔ (substituído pelo rig 2.5D, abaixo)
 Pedido: substituir o visual do Paladino Vivo pelas cinco sheets novas (estilo cartunesco mais polido e
 robusto), organizadas numa pasta própria, com AnimatedSprite2D/SpriteFrames, pivô nos pés, escala coerente,
 sem mudar mecânica, stats ou comportamento.
@@ -807,3 +807,76 @@ Limitações:
   menor, ajustar `scale` da sheet no topo do fatiador.
 - O walk é um ciclo no lugar; o ritmo segue a velocidade real (`walk_reference_speed` = 44).
 - A morte muda de pose bastante entre frames (queda); o alinhamento é por sobreposição com o frame anterior.
+
+### Paladino Vivo reconstruído 100% por código em rig 2.5D ✔ (aguardando validação)
+
+**Pedido.** Reconstruir do zero o visual do Paladino Vivo a partir de três imagens de referência oficiais.
+- 100% desenhado por código no Godot, sem sprite sheet e sem usar as imagens no jogo.
+- Rig 2D com fake 2.5D, 8 direções com leitura real e todas as animações pedidas.
+- Transições contínuas.
+- Espada SEMPRE na mão direita e escudo SEMPRE no braço esquerdo.
+- Mecânica idêntica.
+- Paladino Sombra e demais tropas inalterados.
+
+**Abordagem.** Esqueleto num espaço 3D do corpo, projetado por uma câmera levemente de cima (detalhes em `ARCHITECTURE.md`).
+- Peças low-poly facetadas, que imitam o sombreamento facetado das referências.
+- Ordenação por profundidade a cada quadro.
+- As direções da esquerda são giros de verdade: a mão da espada nunca troca, nem por espelho.
+- Um animador lê a simulação e compõe camadas: locomoção, ação, reações e morte, com molas para o movimento secundário.
+
+**Feito.**
+- `scripts/visuals/units/paladin/` com 8 scripts:
+  - `PaladinRigVisual` (cola);
+  - `PaladinAnimator` (estados, direção, transições, sincronia);
+  - `PaladinPoseLibrary` (poses-base por direção + clipes);
+  - `PaladinRig` (esqueleto, projeção, desenho);
+  - `PaladinModel` e `PaladinMesh` (26 ossos, 42 peças, decalques);
+  - `PaladinEffects` (efeitos fora do corpo);
+  - `PaladinRigLook` (Inspector).
+- `scenes/units/paladin_rig_visual.tscn` e `data/visuals/paladin_rig_look.tres`.
+- `sac_paladin.tres` usa o rig: `visual_scene`, e também `visual_script` para funcionar sem a cena. Stats iguais.
+- 16 estados (ver tabela em `ARCHITECTURE.md`):
+  - IDLE;
+  - WALK em 8 direções;
+  - ATTACK com 3 variantes (horizontal no RIGHT, de cima no UP_RIGHT, de baixo no DOWN_RIGHT);
+  - HIT, PUSH, TAUNT, GUARD_READY, SHIELD_ACTIVE, BLOCK;
+  - DEATH → CORPSE, com a espada e o escudo se soltando e caindo ao lado.
+- **Push.** A simulação não tem empurrão hoje. O animador reage sozinho a qualquer deslocamento real que a caminhada não explique, e há `on_pushed(dir)` para mecânicas futuras. A animação nunca desloca a unidade.
+- **Sandbox.** Fileira "Prévia (só visual)" para a tropa selecionada, com todas as animações.
+  - Só na preparação.
+  - Iniciar desliga a prévia; Reiniciar e Limpar recriam o visual.
+  - `SandboxUI.preview_requested` e `SandboxController.preview_selected`.
+- **Debug.** Com F4, o Paladino mostra direção, yaw, estado, progresso, direção do alvo e variante do golpe.
+- **Testes.**
+  - Nova suíte `paladin_rig_test`.
+  - `paladin_test` e `shadow_visual_test` passaram a comparar o Sombra com o `PaladinVisual` por código, a base dele, que continua existindo.
+  - `paladin_sprite_test` testa a cena de sprites como alternativa.
+
+**Validado: 10 suítes OK.** A nova suíte cobre:
+- stats, provocação e escudo inalterados;
+- a mesma luta rodada só na simulação e no Sandbox com os visuais (inclusive com empurrões, hits e bloqueios visuais extras disparados durante a luta) tem HP, posição, estado, recarga, provocações e bloqueios idênticos passo a passo;
+- o visual não altera a `CombatUnit`;
+- espada no punho direito e escudo no esquerdo nas 8 direções × 11 estados, sem espelho;
+- andar nas 8 direções vira o corpo;
+- cada estado vem do estado real, e o impacto do golpe cai no evento de dano;
+- no Sandbox: prévia, Reiniciar, Limpar e saída sem nós sobrando;
+- custo de CPU por Paladino.
+
+Capturas grandes dos 16 estados, folha comparativa e capturas em escala real no Sandbox.
+
+**Limitações.**
+- É uma interpretação procedural: as referências são pinturas com microdetalhes (placas sobrepostas, cinto
+  diagonal, frisos em arco no peitoral) que ficaram simplificados em malhas low-poly. Na escala da arena
+  isso não aparece; em close o estilo é "facetado" e não pintado.
+- A ordenação é por peça (não por pixel): em poses extremas uma peça pode passar na frente de outra por uma
+  fração de segundo (ex.: braço cruzando o tronco no fim do golpe).
+- O Paladino Sombra continua no visual por código anterior (fora do escopo); ele não herda o rig novo, então
+  vivo e sombra hoje têm silhuetas diferentes. Uma etapa futura pode aplicar a regra `ShadowStyle` ao rig.
+- **Push.** Não existe mecânica de empurrão na simulação. A reação está pronta e testada, mas em combate
+  normal só aparece se algum dia a simulação deslocar a unidade.
+- **Morte.** O corpo gira até ~70° de lado antes de cair, para o cadáver ficar atravessado e legível.
+- **Desempenho.** O desenho é montado em GDScript a cada quadro, ~1–2 ms de CPU por Paladino. Com dezenas
+  de Paladinos na tela pode valer cachear quadros ou reduzir facetas (`PaladinModel`).
+- **Arquivos fora de uso.**
+  - As sprite sheets e a cena de sprites continuam no projeto como alternativa.
+  - `PaladinVisual` continua existindo porque é a base do Sombra.

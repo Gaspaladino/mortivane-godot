@@ -53,6 +53,7 @@ func _ready() -> void:
 	ui.clear_pressed.connect(clear_arena)
 	ui.menu_pressed.connect(func() -> void: exit_requested.emit())
 	ui.stat_edited.connect(edit_selected_stat)
+	ui.preview_requested.connect(preview_selected)
 	ui.set_catalog(UnitCatalog.for_side(CombatUnit.Team.PLAYER), UnitCatalog.for_side(CombatUnit.Team.ENEMY))
 	# a faixa inferior da UI não cobre o campo: a Arena reenquadra o mundo acima dela
 	ui.layout_changed.connect(_fit_arena_to_ui)
@@ -89,6 +90,10 @@ func start_combat() -> void:
 	if mode != Mode.PREP or not can_start():
 		return
 	mode = Mode.RUNNING
+	for placement in placements:   # prévias só visuais não entram no combate
+		var view := arena.battle.view_of(placement.unit)
+		if view and view.visual.has_method("preview"):
+			view.visual.preview(&"", 0)
 	arena.battle.start()
 	_refresh_ui()
 
@@ -123,6 +128,16 @@ func edit_selected_stat(key: String, value: float) -> void:
 	reset_combat()
 
 
+## Prévia só visual na tropa selecionada (ex.: animações do Paladino). Só na preparação: a unidade
+## não se move nem luta, e nada da CombatUnit muda. Reiniciar/Limpar recriam o visual (a prévia some).
+func preview_selected(kind: StringName, dir: int) -> void:
+	if mode != Mode.PREP or selected == null or selected.unit == null:
+		return
+	var view := arena.battle.view_of(selected.unit)
+	if view and view.visual.has_method("preview"):
+		view.visual.preview(kind, dir)
+
+
 func can_start() -> bool:
 	return count_side(CombatUnit.Team.PLAYER) > 0 and count_side(CombatUnit.Team.ENEMY) > 0
 
@@ -154,6 +169,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(_delta: float) -> void:
 	if selected:
 		ui.show_unit(selected.unit, selected.def, mode == Mode.PREP)
+	_refresh_preview_controls()
 	if mode == Mode.RUNNING:
 		ui.set_status(_status_text())
 
@@ -169,6 +185,11 @@ func _select(placement: Placement) -> void:
 		ui.show_unit(selected.unit, selected.def, mode == Mode.PREP)
 	else:
 		ui.show_unit(null, null, false)
+
+
+func _refresh_preview_controls() -> void:
+	var view := arena.battle.view_of(selected.unit) if selected and selected.unit else null
+	ui.show_preview_controls(view != null and view.visual.has_method("preview"), mode == Mode.PREP)
 
 
 func _placement_of(unit: CombatUnit) -> Placement:

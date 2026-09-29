@@ -189,10 +189,13 @@ const REFERENCE_FIGHT := "ally 20/74 12.025 13"
 
 # --- Visual -----------------------------------------------------------------------------------
 
+## O Paladino Vivo agora usa o rig 2.5D (PaladinRigVisual, testado em paladin_rig_test); o
+## PaladinVisual por código continua existindo (é a base do Paladino Sombra) e segue testado aqui.
 func _make(id: StringName) -> PaladinVisual:
 	var def := UnitCatalog.get_def(id)
 	var unit := CombatUnit.new(1, def.side, def.to_stats(), Vector2(300, 380))
-	var v: PaladinVisual = def.visual_script.new()
+	var script: Script = PaladinVisual if id == &"sac_paladin" else def.visual_script
+	var v: PaladinVisual = script.new()
 	v.setup(unit, def)
 	root.add_child(v)
 	return v
@@ -208,8 +211,10 @@ func _test_visual(id: StringName) -> void:
 	var v := _make(id)
 	var u := v.unit
 	var tag := String(id)
-	var expected: Script = PaladinVisual if id == &"sac_paladin" else ShadowPaladinVisual
-	_check(v.get_script() == expected, "%s: UnitDef aponta para o visual certo" % tag)
+	if id == &"sac_paladin":
+		_check(UnitCatalog.get_def(id).visual_script == PaladinRigVisual, "%s: UnitDef aponta para o rig 2.5D (o PaladinVisual segue como base do Sombra)" % tag)
+	else:
+		_check(v.get_script() == ShadowPaladinVisual, "%s: UnitDef aponta para o visual certo" % tag)
 	_check(v.look == UnitCatalog.get_def(id).visual_look and v.look.resource_path == "res://data/visuals/paladin_look.tres", "%s: parâmetros do PaladinLook (Inspector)" % tag)
 	var snapshot := [u.hp, u.max_hp, u.damage, u.attack_range, u.attack_interval, u.move_speed, u.radius]
 

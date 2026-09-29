@@ -4,6 +4,8 @@ extends SceneTree
 ## (idle, walk, attack sincronizado com o dano, defend/defend_hold/defend_block, taunt, dano só
 ## pisca, death parado no último frame).
 ## O visual só lê a CombatUnit: nada de gameplay muda.
+## Desde a etapa do rig 2.5D o Paladino Vivo usa o PaladinRigVisual por padrão; a cena de sprites
+## continua no projeto como alternativa (UnitDef.visual_scene) e segue testada aqui.
 ##   godot --headless -s res://tests/paladin_sprite_test.gd
 
 const VDT := 1.0 / 60.0
@@ -23,7 +25,6 @@ func _run() -> void:
 	_test_pivot_contract()
 	await _test_states()
 	await _test_death_holds()
-	await _test_sandbox()
 	print("paladin_sprite_test: %s" % ("OK" if _failures == 0 else "%d falha(s)" % _failures))
 	quit(1 if _failures > 0 else 0)
 
@@ -32,8 +33,8 @@ func _run() -> void:
 
 func _test_resources() -> void:
 	var def := UnitCatalog.get_def(&"sac_paladin")
-	_check(def.visual_scene != null and def.visual_scene.resource_path == "res://scenes/units/paladin_sprite_visual.tscn", "Paladino Vivo usa a cena de sprites")
-	_check(def.visual_script == PaladinVisual, "visual por código continua como fallback")
+	_check(def.visual_scene != null and def.visual_scene.resource_path == "res://scenes/units/paladin_rig_visual.tscn", "Paladino Vivo usa o rig 2.5D por padrão")
+	_check(load(SPRITE_SCENE) is PackedScene, "cena de sprites continua disponível como alternativa")
 	_check(UnitCatalog.get_def(&"u_sac_paladin").visual_scene == null and UnitCatalog.get_def(&"u_sac_paladin").visual_script == ShadowPaladinVisual, "Paladino Sombra continua no visual atual")
 	var sf: SpriteFrames = load(DIR + "paladin_frames.tres")
 	_check(Array(sf.get_animation_names()).size() == EXPECTED.size() and not sf.has_animation(&"hit"), "só as animações do contrato (sem hit)")
@@ -97,8 +98,18 @@ func _test_pivot_contract() -> void:
 
 # --- Estados ----------------------------------------------------------------------------------
 
+const SPRITE_SCENE := "res://scenes/units/paladin_sprite_visual.tscn"
+
+
+## Paladino Vivo com a cena de sprites escolhida (cópia da UnitDef; o catálogo não muda).
+func _sprite_def() -> UnitDef:
+	var def: UnitDef = UnitCatalog.get_def(&"sac_paladin").duplicate()
+	def.visual_scene = load(SPRITE_SCENE)
+	return def
+
+
 func _make(team := CombatUnit.Team.PLAYER) -> UnitView:
-	var def := UnitCatalog.get_def(&"sac_paladin")
+	var def := _sprite_def()
 	var u := CombatUnit.new(1, team, def.to_stats(), Vector2(400, 380))
 	var view := UnitView.new(u, def)
 	root.add_child(view)
@@ -233,59 +244,6 @@ func _test_death_holds() -> void:
 	_check(is_instance_valid(view) and view.is_inside_tree(), "o corpo continua no campo")
 	view.queue_free()
 	await process_frame
-
-
-# --- Sandbox real -----------------------------------------------------------------------------
-
-func _test_sandbox() -> void:
-	var main: Node = load("res://scenes/main/main.tscn").instantiate()
-	root.add_child(main)
-	await process_frame
-	main.show_sandbox()
-	await process_frame
-	var sb: SandboxController = main.current_screen
-	var battle := sb.arena.battle
-	var btn: Button = sb.ui.find_child("Spawn_sac_paladin", true, false)
-	_check(btn != null, "botão do Paladino no Sandbox")
-	btn.pressed.emit()
-	btn.pressed.emit()
-	sb.add_unit(UnitCatalog.get_def(&"u_warrior"), CombatUnit.Team.PLAYER)
-	sb.add_unit(UnitCatalog.get_def(&"u_sac_paladin"), CombatUnit.Team.PLAYER)
-	await process_frame
-	var pal: CombatUnit = battle.sim.units[0]
-	var view := battle.view_of(pal)
-	_check(view.visual is PaladinSpriteVisual, "Paladino Vivo no Sandbox usa a sprite sheet")
-	_check(battle.view_of(battle.sim.units[3]).visual is ShadowPaladinVisual, "Paladino Sombra continua o visual atual")
-	# seleção pela área clicável do sprite
-	sb.select_at(pal.position + Vector2(0, -10))
-	_check(sb.selected != null and sb.selected.unit == pal, "clique seleciona o Paladino de sprite")
-	_check(pal.max_hp == 120.0 and pal.damage == 13.0 and pal.attack_range == 34.0 and pal.attack_interval == 1.2 and pal.move_speed == 44.0, "stats inalterados")
-	sb.start_combat()
-	var taunts := [0]
-	var shields := [0]
-	battle.sim.paladin_taunted.connect(func(_p: CombatUnit, _f: Array) -> void: taunts[0] += 1)
-	battle.sim.paladin_shield_raised.connect(func(_p: CombatUnit) -> void: shields[0] += 1)
-	var modes := {}
-	var t := 0.0
-	while not battle.is_finished() and t < 60.0:
-		await process_frame
-		battle._process(1.0 / 30.0)
-		t += 1.0 / 30.0
-		for u in battle.sim.units:
-			var vis := battle.view_of(u).visual
-			if vis is PaladinSpriteVisual:
-				modes[vis.mode] = true
-	_check(battle.is_finished(), "combate real termina (%.1f s)" % t)
-	_check(taunts[0] > 0 and shields[0] > 0, "provocação e Escudo Sagrado continuam acontecendo")
-	_check(modes.has(&"walk") and modes.has(&"attack"), "no combate real o sprite anda e ataca (%s)" % str(modes.keys()))
-	sb.reset_combat()
-	await process_frame
-	_check(battle.sim.units.size() == 4 and battle.view_of(battle.sim.units[0]).visual is PaladinSpriteVisual, "Reiniciar recria com o sprite")
-	sb.clear_arena()
-	await process_frame
-	_check(battle.sim.units.is_empty(), "Limpar esvazia")
-	main.queue_free()
-	await _frames(3)
 
 
 func _frames(n: int) -> void:

@@ -66,7 +66,8 @@ res://
   tools/arena_backdrop/generate_backdrop_scene.gd  # gera arena_backdrop.tscn UMA vez (depois: editar no editor)
   tools/sprites/slice_paladin_sheets.py  # fatia as 5 sprite sheets do Paladino Vivo (atlas + SpriteFrames + JSON)
   assets/units/paladin/               # Paladino Vivo: source/ (sheets originais, .gdignore), atlas, SpriteFrames, JSON
-  scenes/units/paladin_sprite_visual.tscn  # visual do Paladino Vivo por sprites (Shadow · Sprite · Effects)
+  scenes/units/paladin_rig_visual.tscn     # visual PADRÃO do Paladino Vivo: rig 2.5D por código (Shadow · Rig · Effects)
+  scenes/units/paladin_sprite_visual.tscn  # alternativa (fora de uso): Paladino Vivo por sprites (Shadow · Sprite · Effects)
   tools/sprites/render_paladin_pilot.gd  # PROTÓTIPO (superado pela sheet aprovada): pinta e exporta a sprite sheet piloto do Paladino Vivo (3/4)
   assets/sprites/paladin_live_pilot/  # sheet (Idle 6 · Walk 8 · Attack 8), frames, sombra, SpriteFrames, JSON do contrato
   scenes/prototypes/paladin_sprite_pilot.tscn  # PROTÓTIPO: prévia da sheet na arena (escala de jogo e ampliada)
@@ -77,7 +78,8 @@ res://
     units/u_arc_battlemage.tres      # UnitDef — Sentinela Arcana Sombra (aliada)
     units/sac_paladin.tres           # UnitDef — Paladino (inimigo)
     units/u_sac_paladin.tres         # UnitDef — Paladino Sombra (aliado)
-    visuals/paladin_look.tres        # PaladinLook — escala, offsets, cores, brilho do Paladino (Inspector)
+    visuals/paladin_look.tres        # PaladinLook — escala, offsets, cores, brilho do Paladino por código (base do Sombra)
+    visuals/paladin_rig_look.tres    # PaladinRigLook — todos os ajustes do Paladino Vivo 2.5D (Inspector)
     visuals/shadow_style.tres        # ShadowStyle padrão: a conversão "sombra" de TODAS as unidades revividas
   scenes/
     main/main.tscn                   # raiz do jogo: troca de tela + avisos
@@ -115,7 +117,16 @@ res://
     visuals/units/paladin_visual.gd         # class_name PaladinVisual — Paladino por código (rig + animação)
     visuals/units/shadow_paladin_visual.gd  # class_name ShadowPaladinVisual — Paladino Sombra (herda o Paladino)
     visuals/units/paladin_look.gd           # class_name PaladinLook (Resource) — parâmetros visuais do Paladino
-    visuals/units/paladin_sprite_visual.gd  # class_name PaladinSpriteVisual — Paladino Vivo por sprite sheet
+    visuals/units/paladin_sprite_visual.gd  # class_name PaladinSpriteVisual — Paladino Vivo por sprite sheet (alternativa)
+    visuals/units/paladin/                  # Paladino Vivo 2.5D (visual padrão), um arquivo por responsabilidade:
+      paladin_rig_visual.gd   # class_name PaladinRigVisual (UnitVisual) — cola: eventos → animador → rig/efeitos
+      paladin_animator.gd     # class_name PaladinAnimator — estados, direção, transições, sincronia, molas
+      paladin_pose_library.gd # class_name PaladinPoseLibrary — poses-base por direção + clipes (deltas)
+      paladin_rig.gd          # class_name PaladinRig — esqueleto (cinemática), projeção 2.5D, desenho ordenado
+      paladin_model.gd        # class_name PaladinModel — ossos (pivôs) e peças low-poly (malhas + decalques)
+      paladin_mesh.gd         # class_name PaladinMesh — malhas facetadas (loft, lathe, prisma, painel, decalque)
+      paladin_effects.gd      # class_name PaladinEffects — provocação, escudo, bloqueio (separados do corpo)
+      paladin_rig_look.gd     # class_name PaladinRigLook (Resource) — parâmetros do Inspector
     visuals/units/paladin_fx.gd             # class_name PaladinFx — barreira, anel da provocação, anel do escudo
     visuals/units/shadow_style.gd           # class_name ShadowStyle (Resource) — regra de conversão viva → sombra
     visuals/units/shadow_fx.gd              # class_name ShadowFX — aura, névoa, fumaça, fissuras, olhos
@@ -135,7 +146,8 @@ res://
     menu_click_test.gd               # cliques reais de mouse no menu (Sandbox ida e volta)
     shadow_visual_test.gd            # regra visual das sombras (u_* = sombra; viva continua normal)
     paladin_test.gd                  # Paladino: stats/mecânica do HTML, visual, Sandbox, luta de referência
-    paladin_sprite_test.gd           # Paladino Vivo por sprites: SpriteFrames, pivô, estados, Sandbox
+    paladin_sprite_test.gd           # Paladino Vivo por sprites (alternativa): SpriteFrames, pivô, estados
+    paladin_rig_test.gd              # Paladino Vivo 2.5D: só observa a simulação, mão da espada, direções, estados, Sandbox
 ```
 
 Arquivos `*.import` e `*.uid` são gerados pela Godot e **devem ser versionados**. A pasta `.godot/` é cache
@@ -427,7 +439,134 @@ porta 1:1 de `drawArcaneSentinel`.
 | Hit | 0,2 s: recuo, compressão, clarão, ponta do chapéu treme, lâminas desestabilizam | clarão lilás, o corpo tremula (translúcido) e a fumaça explode |
 | Morte | perde a sustentação, a magia se apaga, o manto colapsa com peso, o chapéu cai ao lado; as lâminas caem girando e se desfazem em faíscas; o monte fica no chão | sobe e se agita, colapsa se desfazendo (fica translúcida), fumaça sobe e as lâminas se partem em fragmentos |
 
-### Paladino Vivo por sprite sheets (visual padrão do `sac_paladin`)
+### Paladino Vivo 2.5D por código (visual padrão do `sac_paladin`)
+
+100% desenhado por código a partir das três referências oficiais (frente 3/4, frente, 3/4 lateral):
+- armadura marfim facetada com frisos dourados grossos;
+- elmo fechado com visor em T e auréola com três estrelas;
+- ombreiras grandes com rebite dourado;
+- tabardo com estrela e túnica escura entre as pernas;
+- luvas escuras;
+- espada larga na mão DIREITA e escudo de cavaleiro com aro dourado e estrela sagrada no braço ESQUERDO.
+
+Nenhuma imagem é usada.
+
+**Arquitetura** (`scripts/visuals/units/paladin/`):
+
+| Parte | Responsabilidade |
+|---|---|
+| `PaladinRigVisual` (`UnitVisual`, cena `paladin_rig_visual.tscn`: `Shadow` · `Rig` · `Effects`) | recebe os eventos da `Battle` e o estado real; chama o animador; entrega a pose ao rig; flash de dano; barra de HP, clique, debug |
+| `PaladinAnimator` | decide COMO aparece: estado, direção (8), transições com pesos suavizados, sincronia do golpe, reações, morte, molas |
+| `PaladinPoseLibrary` | poses-base das direções + clipes (idle, walk, attack ×3, taunt, guarda, block, hit, push, death, cadáver) |
+| `PaladinRig` | esqueleto (26 ossos com pivô próprio) → projeção 2.5D → peças ordenadas por profundidade → desenho |
+| `PaladinModel` / `PaladinMesh` | peças low-poly (42) presas aos ossos, com materiais e decalques (visor, estrelas, fivela, rebites) |
+| `PaladinEffects` | provocação, escudo subindo/ativo, bloqueio — fora do corpo |
+| `PaladinRigLook` (`data/visuals/paladin_rig_look.tres`) | todos os ajustes do Inspector |
+
+**Fake 2.5D.**
+- O esqueleto vive num espaço 3D do corpo: x = esquerda do personagem, y = cima, z = frente.
+- O corpo gira (`yaw`) e uma câmera levemente de cima (`view_tilt`) projeta tudo em 2D.
+- Cada peça é uma malha low-poly de faces planas:
+  - as faces de costas são descartadas;
+  - cada face recebe um degrau de luz, com a luz fixa em relação à câmera; as facetas mudam quando ele gira, e isso dá o volume;
+  - cada peça ganha contorno escuro (o casco convexo dela).
+- As peças são **reordenadas por profundidade a cada quadro**, com um viés ao longo da frente do osso.
+  - Por isso não é uma árvore de `Polygon2D` com `z_index` fixo: de costas o escudo passa para trás, de lado o braço da espada passa para a frente, e assim por diante.
+- A auréola é um anel meio voltado para a câmera.
+
+**Regra do equipamento.**
+- O rig é destro por construção: a espada pende da mão direita e o escudo do braço esquerdo (`PaladinModel.SWORD_CHAIN` / `SHIELD_CHAIN`).
+- As direções da esquerda são **giros de verdade**, não espelho: nenhuma direção pode trocar a mão.
+- Na morte a espada e o escudo se soltam (os ossos `sword`/`shield` passam a ter transformação própria) e caem ao lado do corpo.
+
+**Direções.** São 8, quantizadas com histerese a partir do vetor real:
+- andando: o deslocamento;
+- atacando: o alvo;
+- com o escudo: a direção travada pela simulação.
+
+Cada uma é uma pose-base (`PaladinPoseLibrary.DIRS`):
+
+| Direção | yaw | Leitura | Ataque |
+|---|---|---|---|
+| DOWN | 16° (pende para o último lado) | frente 3/4, peito e visor | `rising` (de baixo) |
+| DOWN_RIGHT | 40° | frente-lado | `rising` |
+| RIGHT | 62° | 3/4 lateral, cabeça e tronco para a direita | `flat` (horizontal) |
+| UP_RIGHT | 122° | costas 3/4, olhando para a diagonal de cima | `overhead` (de cima) |
+| UP | 160° | costas: traseira do elmo, das ombreiras e do tabardo, escudo por trás | `overhead` |
+| LEFT / UP_LEFT / DOWN_LEFT | −yaw | o mesmo giro para o outro lado (espada continua na direita) | idem |
+
+A pose-base ajusta só a apresentação:
+- a face do escudo vira para a câmera quando ele está do lado de longe, e para a frente quando está do lado de perto (deixa o peito aparecer);
+- a lâmina de repouso aponta para fora.
+
+O corpo gira até a nova direção com `turn_speed` (sem teleporte) e a pose-base se mistura suavemente.
+
+**Estados.** Todos são lidos da simulação; o visual não comanda nada.
+
+| Estado | Gatilho real | Apresentação | Tempo |
+|---|---|---|---|
+| IDLE | parado | muralha viva: respiração lenta, peso passando de um pé para o outro, joelhos levemente dobrados | ciclo 2,2 s |
+| WALK | deslocamento real | passos curtos e pesados, joelhos dobram na passada, quadril gira pouco, espada com inércia, tabardo com as pernas; o ritmo segue a velocidade real | ciclo 0,95 s a 44 |
+| ATTACK | recarga real + `attack_performed` | antecipação (peso recua, espada para trás) → aceleração em cascata (quadril → tronco → ombro → braço → espada) → **impacto no quadro do dano** → acompanhamento → recuperação; três variantes por direção | 0,78 s |
+| HIT | `on_hit` | recuo curto de corpo pesado, ombros comprimem, joelhos absorvem; aditivo (volta ao estado anterior) | 0,22 s |
+| PUSH | deslocamento real que a caminhada não explica (ou `on_pushed`) | centro de gravidade quebra na direção do empurrão, pé de trás busca apoio, escudo e espada atrasam; sem deslocamento extra | 0,45 s |
+| TAUNT | `paladin_taunted` | firma os pés, baixa o centro, recua o escudo e o avança, peito aberto, encara; termina na guarda pronta | 0,8 s |
+| GUARD_READY | `paladin.is_preparing()` | escudo dominante à frente durante a espera de 1 s | — |
+| SHIELD_ACTIVE | `paladin.is_shielded()` | postura fechada, centro baixo, corpo atrás do escudo, espada pronta, virado para a direção travada | 1,5 s |
+| BLOCK | `paladin_shield_blocked` | escudo recua alguns graus, braço comprime, tronco absorve, pés firmes (o golpe no escudo não vira HIT) | 0,24 s |
+| DEATH → CORPSE | `unit.state == DEAD` | golpe fatal → postura quebra → joelhos cedem (apoiados no chão) → espada escapa da mão direita → escudo sai do braço esquerdo → queda de costas → acomodação → cadáver deitado de costas, espada e escudo ao lado | 1,35 s |
+
+**Transições.** Nada troca de uma vez:
+- a locomoção tem peso `move_w`, que acelera e desacelera;
+- ataque e defesa têm pesos próprios, que entram e saem em ~0,1–0,3 s;
+- as reações (hit, block, push) são deltas somados que voltam a zero.
+
+Ao decidir atacar, a caminhada sai: ele para de andar, e a simulação já para a unidade no alcance.
+
+Os keyframes usam easing: `out` na antecipação, `in` na aceleração e `back` no acompanhamento. O golpe é escalonado por partes.
+
+Molas criticamente amortecidas dão atraso à espada, ao escudo, ao tabardo e à auréola. O corpo é pesado, então há pouco balanço.
+
+**Sincronia do golpe.** Segue a mesma regra dos outros visuais:
+- a antecipação começa quando faltam ≤ 0,34 s para o dano previsto (a recarga real no alcance, ou distância ÷ velocidade chegando);
+- a pose segura antes do impacto até o `attack_performed`;
+- o impacto aparece no mesmo passo do dano. O timing é da simulação.
+
+**Efeitos** (`PaladinEffects`, com mistura aditiva, fora do rig):
+- provocação: anel no raio real (115), onda curta no chão e brilho na auréola;
+- clarão quando o escudo sobe;
+- escudo ativo: brilho dourado sutil no escudo; a estrela do escudo e os frisos dourados clareiam (só cor);
+- faíscas no bloqueio;
+- flash de dano (modulação).
+
+**Inspector** (`PaladinRigLook`):
+- Corpo: `scale` (0,5 → ~48 unidades até o elmo), `body_width`, `body_height`, `head_scale`, `shoulder_width`,
+  `view_tilt`, `outline_width`, `facet_steps`.
+- Escudo: `shield_scale`, `shield_offset`, `shield_angle`. Espada: `sword_scale`, `sword_offset`, `sword_rest_angle`.
+- Movimento: `walk_cycle`, `walk_reference_speed`, `stride`, `vertical_bounce`, `walk_amplitude`,
+  `secondary_motion`, `turn_speed`. Idle: `breathing`, `idle_cycle`.
+- Ataque: `windup`, `body_rotation`, `sword_arc`, `follow_through`. Tecido: `cloth_inertia`, `cloth_amplitude`.
+- Efeitos: `glow`, `block_flash`, `taunt_intensity`, `show_taunt_ring`, `hit_flash`.
+- Cores: contorno + 3 tons (claro, médio, sombra) por material (marfim, ouro, tecido escuro, couro, aço,
+  punho, madeira, tabardo, luvas) e a luz sagrada.
+- Na cena: `foot_y` (pés abaixo do centro lógico).
+
+**Debug.** Com F4 (debug de combate), o Paladino mostra:
+- direção e yaw;
+- estado da apresentação e progresso;
+- direção do alvo e variante do golpe.
+
+**Sandbox.** Com um Paladino Vivo selecionado aparece a fileira "Prévia (só visual)": Idle, Andar nas 8 direções, Atacar → ↗ ↘, Hit, Push, Provocar, Escudo, Bloqueio, Morte.
+- Só funciona na preparação (a unidade não se move nem luta).
+- Iniciar desliga a prévia; Reiniciar e Limpar recriam o visual.
+
+**Custo.** ~1–2 ms de CPU por Paladino por quadro (animação + montagem do desenho, medido no teste). No ambiente de captura (Xvfb, GL por software), 16 Paladinos custam o mesmo que 16 Paladinos Sombra por código.
+
+### Paladino Vivo por sprite sheets (alternativa, fora de uso)
+
+Mantido no projeto para comparação: cena `scenes/units/paladin_sprite_visual.tscn`, assets em `assets/units/paladin/`.
+- Para usar, basta apontar `UnitDef.visual_scene` para a cena.
+- O teste `paladin_sprite_test` continua cobrindo.
 
 Arte aprovada: cinco sheets em `assets/units/paladin/source/` (`paladin_idle.png`, `paladin_walk.png`,
 `paladin_attack.png`, `paladin_defend.png`, `paladin_death.png`; 2000 × 667, fundo **já transparente** com
@@ -478,13 +617,12 @@ Não há sheet de **hit**: o dano pisca a arte e dá um recuo curto (2,5 px × e
   contra o `paladin_frames.json`;
 - filtragem: atlas com mipmaps e sprite em `LINEAR_WITH_MIPMAPS` — a arte (~128 px no atlas) aparece a
   ~47 unidades (~2,7× menor): sem serrilhado.
-- O `PaladinVisual` (por código) continua no `.tres` como `visual_script` (alternativa); o Paladino Sombra
-  segue no visual por código.
+- O Paladino Sombra segue no visual por código (`ShadowPaladinVisual`).
 - Para trocar a arte: substituir as sheets em `source/`, conferir os cortes/escala no topo do script e rodar
   `python3 tools/sprites/slice_paladin_sheets.py` (se a célula mudar, atualizar `frame_pivot`/`frame_size` na
   cena — o teste avisa).
 
-### Paladino e Paladino Sombra (visual por código)
+### Paladino Sombra (visual por código; o `PaladinVisual` vivo por código virou só a base dele)
 
 Referência: a arte conceitual "Paladino Vivo / Paladino Sombra" (o desenho é novo, por código); tempos e
 intenção de pose do rig do HTML (`drawPaladinArt`, perfil `heavyMelee`, `paladinCue`, `drawPaladinBarrier`,
@@ -700,6 +838,11 @@ y = 380, 330, 430, 280, 480.
   unidade (vivas têm prioridade).
 - Um clique no vazio desfaz a seleção. A seleção segue o `Placement` e sobrevive a Reiniciar e a edições.
 
+**Prévia só visual.** Hoje só o Paladino Vivo 2.5D tem `preview(kind, dir)` no visual.
+- Quando a tropa selecionada tem esse método, a `SandboxUI` mostra a fileira `PreviewRow` e emite `preview_requested`.
+- O controller só repassa em `PREP` e desliga as prévias ao Iniciar.
+- Nada da `CombatUnit` muda.
+
 **Painel da unidade selecionada.**
 - Mostra nome, lado, estado, HP atual/máx., dano, alcance, intervalo, velocidade e alvo, atualizado a cada quadro.
 - Tem 5 campos editáveis por instância, só em `PREP`: HP máx., dano, alcance, intervalo e velocidade.
@@ -743,7 +886,8 @@ godot --headless -s res://tests/backdrop_test.gd  # fundo: camadas, profundidade
 godot --headless -s res://tests/menu_click_test.gd  # cliques reais de mouse no menu: Sandbox → menu → Sandbox, Jogar
 godot --headless -s res://tests/shadow_visual_test.gd  # regra "sombra": u_* = sombra convertida da viva
 godot --headless -s res://tests/paladin_test.gd  # Paladino: mecânica do HTML, visual, Sandbox, luta de referência
-godot --headless -s res://tests/paladin_sprite_test.gd  # Paladino Vivo por sprites: frames, pivô, estados, Sandbox
+godot --headless -s res://tests/paladin_sprite_test.gd  # Paladino Vivo por sprites (alternativa): frames, pivô, estados
+godot --headless -s res://tests/paladin_rig_test.gd  # Paladino Vivo 2.5D: gameplay idêntico, espada/escudo, direções, estados
 ```
 Cada teste sai com código 0 se passar e 1 se falhar.
 

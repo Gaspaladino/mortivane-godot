@@ -48,7 +48,9 @@ func _test_catalog_rule() -> void:
 
 
 func _test_pair(living_id: StringName, shadow_id: StringName) -> void:
-	var live: CodeDrawnUnitVisual = _make(living_id)
+	# O Paladino Vivo agora usa o rig 2.5D; o Paladino Sombra (fora do escopo daquela etapa) continua
+	# derivado do PaladinVisual por código — a comparação de silhueta é com essa base.
+	var live: CodeDrawnUnitVisual = _make(living_id, PaladinVisual if living_id == &"sac_paladin" else null)
 	var dead: CodeDrawnUnitVisual = _make(shadow_id)
 	var tag := String(shadow_id)
 	_check(live.shadow_style == null and dead.shadow_style == ShadowStyle.get_default(), "%s: estilo só na sombra" % tag)
@@ -81,10 +83,10 @@ func _test_pair(living_id: StringName, shadow_id: StringName) -> void:
 	dead.free()
 
 
-func _make(id: StringName) -> UnitVisual:
+func _make(id: StringName, script: Script = null) -> UnitVisual:
 	var def := UnitCatalog.get_def(id)
 	var unit := CombatUnit.new(1, def.side, def.to_stats(), Vector2(300, 380))
-	var v: UnitVisual = def.visual_script.new()
+	var v: UnitVisual = (script if script else def.visual_script).new()
 	v.setup(unit, def)
 	return v
 
