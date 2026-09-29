@@ -1,6 +1,6 @@
 # Mortivane — versão desktop (Electron)
 
-Empacota `MortivaneV98.html` como um aplicativo de desktop (Windows, Linux, Mac) pronto para
+Empacota a versão mais nova do jogo (`MortivaneV<número>.html`, por exemplo `MortivaneV99.html`) como um aplicativo de desktop (Windows, Linux, Mac) pronto para
 subir na Steam. O jogo continua sendo o mesmo HTML: o Electron só abre ele numa janela própria.
 
 ## Requisitos
@@ -18,8 +18,8 @@ subir na Steam. O jogo continua sendo o mesmo HTML: o Electron só abre ele numa
 | `npm run build:linux` | Gera `dist/linux-unpacked/mortivane` |
 | `npm run build:mac` | Gera o `.app` (rode num Mac) |
 
-Todo comando copia antes o `MortivaneV98.html` da raiz do repositório para `game/index.html`.
-Para publicar uma versão nova do jogo, basta editar o HTML e rodar o build de novo.
+Todo comando copia antes o `MortivaneV<número>.html` de número mais alto da raiz do repositório para `game/index.html`.
+Para publicar uma versão nova do jogo, basta colocar o novo HTML na raiz e rodar o build de novo.
 
 ## O que muda na versão desktop
 
