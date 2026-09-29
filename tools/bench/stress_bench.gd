@@ -21,6 +21,7 @@ extends SceneTree
 ##   seconds, warmup   segundos de jogo medidos / descartados no início
 ##   realtime          0 = passo fixo (use --fixed-fps 60: cada quadro = 1/60 s de jogo, reproduzível)
 ##                     1 = tempo real (dt do relógio; a Battle faz até 6 passos por quadro quando cai)
+##   dead_enemies      1 = mata todos os inimigos (pela simulação) antes de começar: N vivos × 0 + N cadáveres
 ##   label, out        nome da execução / pasta de saída
 
 const PROFILES := {
@@ -33,7 +34,7 @@ const PROFILES := {
 
 var cfg := {
 	allies = 40, enemies = 40, profile = "warriors", phase = "full", visual = "normal", sim = "bench",
-	timing = 1, probes = 1, seconds = 8.0, warmup = 1.0, realtime = 0, label = "", out = "user://bench",
+	timing = 1, probes = 1, dead_enemies = 0, seconds = 8.0, warmup = 1.0, realtime = 0, label = "", out = "user://bench",
 }
 
 var main: Node
@@ -80,6 +81,16 @@ func _setup() -> void:
 	driver = BenchDriver.new()
 	driver.setup(self)
 	root.add_child(driver)
+	if cfg.dead_enemies == 1:
+		# cenário "N sobreviventes × 0 inimigos vivos + N cadáveres": mata pela própria simulação
+		var killer: CombatUnit = null
+		for u in battle.sim.units:
+			if u.team == CombatUnit.Team.PLAYER:
+				killer = u
+				break
+		for u in battle.sim.units:
+			if u.team == CombatUnit.Team.ENEMY:
+				battle.sim._apply_damage(killer, u, u.hp)
 	if cfg.phase != "spawn":
 		sandbox.start_combat()
 
@@ -138,7 +149,7 @@ class BenchDriver extends Node:
 		views = b._views.values()
 		var visual_mode: String = cfg.visual
 		for v: UnitView in views:
-			v.set_process(false)   # o driver faz o mesmo que UnitView._process, cronometrado
+			v.set_process(false)   # o driver chama o UnitView._process do jogo, cronometrado
 			match visual_mode:
 				"nodraw":
 					v.visual.visible = false
@@ -229,18 +240,15 @@ class BenchDriver extends Node:
 		draw_us.clear()
 		draw_n.clear()
 
-		# --- o mesmo que UnitView._process, cronometrado por classe de visual ---
+		# --- o próprio UnitView._process (código do jogo), cronometrado por classe de visual ---
 		var upd := {}
 		var t_views := Time.get_ticks_usec()
 		if cfg.visual in ["normal", "nodraw"]:
 			for v: UnitView in views:
 				var t0 := Time.get_ticks_usec()
-				v.position = v.unit.position
-				v.visual.update_visual(delta)
+				v._process(delta)
 				var cls := String(v.visual.get_script().get_global_name())
 				upd[cls] = upd.get(cls, 0) + Time.get_ticks_usec() - t0
-				v.queue_redraw()
-				v._overlay.queue_redraw()
 		elif cfg.visual == "minimal":
 			for v: UnitView in views:
 				v.position = v.unit.position
@@ -326,7 +334,7 @@ class BenchDriver extends Node:
 				"redraws_units", "alive_p", "alive_e", "projectiles", "sim_ms"]:
 			s[k] = _mean(rows, k)
 		s.sim_steps_per_frame = _mean(rows, "steps")
-		for k in ["us_paladins", "us_swords", "us_target", "us_move", "us_attack", "us_projectiles"]:
+		for k in ["us_paladins", "us_target", "us_attack", "us_projectiles"]:
 			s[k.replace("us_", "ms_")] = _mean(rows, k) / 1000.0   # ms por quadro
 		for k in start_counters:
 			if not k.begins_with("us_"):

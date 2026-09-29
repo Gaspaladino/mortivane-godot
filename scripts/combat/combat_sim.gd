@@ -54,6 +54,14 @@ var _next_projectile_id := 1
 var _rng := RandomNumberGenerator.new()
 var _next_id := 1
 
+# --- Diagnóstico (contadores inteiros, custo desprezível; lidos pelo benchmark em tools/bench) ---
+## Chamadas de nearest_foe (inclui as das lâminas da Sentinela e do escudo do Paladino).
+var stat_target_queries := 0
+## Quantas dessas fizeram uma varredura de candidatos (o resto saiu pela provocação ou pelo cache).
+var stat_target_scans := 0
+## Unidades examinadas nas varreduras.
+var stat_candidates := 0
+
 
 func _init(seed_value := 0) -> void:
 	_rng.seed = seed_value
@@ -89,9 +97,12 @@ func dispose() -> void:
 ## Inimigo vivo mais próximo; empate fica com o primeiro da lista.
 ## Provocado por um Paladino: o Paladino (HTML: nearestFoe → tauntTarget).
 func nearest_foe(unit: CombatUnit) -> CombatUnit:
+	stat_target_queries += 1
 	var forced := taunt_target(unit)
 	if forced:
 		return forced
+	stat_target_scans += 1
+	stat_candidates += units.size()
 	var best: CombatUnit = null
 	var best_dist := INF
 	for other in units:
@@ -112,6 +123,15 @@ func taunt_target(unit: CombatUnit) -> CombatUnit:
 	if p:
 		_clear_taunt(unit)
 	return null
+
+
+## Inimigos vivos de `unit`, na ordem de criação (usado pelas habilidades).
+func foes_alive(unit: CombatUnit) -> Array[CombatUnit]:
+	var out: Array[CombatUnit] = []
+	for v in units:
+		if v.is_valid_target() and unit.is_enemy_of(v):
+			out.append(v)
+	return out
 
 
 func alive_count(team: CombatUnit.Team) -> int:

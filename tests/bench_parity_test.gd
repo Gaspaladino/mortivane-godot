@@ -1,9 +1,18 @@
 extends SceneTree
-## A BenchCombatSim (só benchmark) em modo FULL reproduz EXATAMENTE a CombatSim do jogo:
-## mesmas posições, HP, estados, alvos e projéteis a cada segundo de uma luta mista (Guerreiro,
-## Sentinela com lâminas, Paladino com provocação/escudo). Também garante que a Battle usa a
-## CombatSim de verdade quando ninguém pede outra coisa.
+## PARIDADE das otimizações de combate.
+##
+## A mesma luta roda na CombatSim do jogo (otimizada) e na ReferenceCombatSim (cópia congelada da
+## CombatSim de antes das otimizações); nos casos pequenos também na BenchCombatSim (instrumentada).
+## Exige IDÊNTICO:
+##   - a cada 0,25 s: posição, HP, estado, alvo, recarga e provocação de toda unidade; projéteis;
+##   - a sequência inteira de eventos: ataques, dano (valor), mortes, provocações, escudo, bloqueios,
+##     disparos e fim de projéteis;
+##   - vencedor, sobreviventes e instante do fim.
+## Composições: Guerreiros, Sentinelas, Paladinos, sombras e mistas; 1×1 até 50×50; 40×2, 2×40.
+## Também garante que a Battle do jogo usa a CombatSim quando ninguém pede outra coisa.
 
+## Teto por luta; a comparação para 1 s depois do fim (sem projéteis no ar).
+const SECONDS := 70.0
 var _failures := 0
 
 
@@ -12,12 +21,22 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_test_parity(&"mixed", 12, 12)
-	_test_parity(&"mixed", 40, 40)
-	_test_parity(&"mixed", 40, 3)
+	var comps := {
+		warriors = [&"warrior"], sentinels = [&"arc_battlemage"], paladins = [&"sac_paladin"],
+		mixed = [&"warrior", &"arc_battlemage"], all = [&"warrior", &"arc_battlemage", &"sac_paladin"],
+		shadows = [&"u_warrior", &"u_arc_battlemage", &"u_sac_paladin"],
+	}
+	var sizes := [[1, 1], [3, 3], [12, 12], [40, 40], [40, 2], [2, 40]]
+	var cases := 0
+	for name in comps:
+		var list: Array = sizes + ([[40, 20], [20, 40], [50, 50]] if name == "mixed" else [])
+		for sz in list:
+			_test_parity(comps[name], sz[0], sz[1], 97 + cases, name)
+			cases += 1
+	_test_parity([&"u_warrior", &"sac_paladin"], 40, 40, 5, "sombras×paladinos")
 	_test_counters()
 	await _test_battle_default()
-	print("bench_parity_test: %s" % ("OK" if _failures == 0 else "%d falha(s)" % _failures))
+	print("bench_parity_test: %s (%d lutas comparadas)" % ["OK" if _failures == 0 else "%d falha(s)" % _failures, cases + 1])
 	quit(1 if _failures > 0 else 0)
 
 
@@ -27,70 +46,109 @@ func _check(cond: bool, msg: String) -> void:
 		print("  FALHOU: " + msg)
 
 
-static func build(sim: CombatSim, allies: int, enemies: int) -> void:
-	var ids := [&"warrior", &"arc_battlemage", &"sac_paladin"]
+## Aliados usam a composição a partir do 1º tipo; inimigos, a partir do 2º (lados diferentes).
+static func build(sim: CombatSim, defs: Array, allies: int, enemies: int) -> void:
 	for side in 2:
 		var team := CombatUnit.Team.PLAYER if side == 0 else CombatUnit.Team.ENEMY
 		for i in (allies if side == 0 else enemies):
-			var def := UnitCatalog.get_def(ids[i % ids.size()])
+			var def := UnitCatalog.get_def(defs[(i + side) % defs.size()])
 			sim.add_unit(team, def.to_stats(), SandboxController.slot_position(team, i))
 
 
-func _snapshot(sim: CombatSim) -> Array:
+static func record(sim: CombatSim, log: Array) -> void:
+	sim.attack_performed.connect(func(a: CombatUnit, t: CombatUnit) -> void: log.append(["atk", sim.time, a.id, t.id]))
+	sim.unit_attacked.connect(func(a: CombatUnit, t: CombatUnit, amt: float) -> void: log.append(["dmg", sim.time, a.id if a else -1, t.id, amt]))
+	sim.unit_died.connect(func(u: CombatUnit) -> void: log.append(["die", sim.time, u.id]))
+	sim.paladin_taunted.connect(func(u: CombatUnit, foes: Array) -> void: log.append(["taunt", sim.time, u.id, foes.map(func(f): return f.id)]))
+	sim.paladin_shield_raised.connect(func(u: CombatUnit) -> void: log.append(["shield", sim.time, u.id]))
+	sim.paladin_shield_blocked.connect(func(u: CombatUnit, p: float) -> void: log.append(["block", sim.time, u.id, p]))
+	sim.projectile_fired.connect(func(p: CombatProjectile) -> void: log.append(["fire", sim.time, p.id, p.owner.id, p.target.id]))
+	sim.projectile_ended.connect(func(p: CombatProjectile, v: CombatUnit) -> void: log.append(["end", sim.time, p.id, v.id if v else -1]))
+
+
+static func snapshot(sim: CombatSim) -> Array:
 	var out := []
 	for u in sim.units:
-		out.append([u.id, u.position, u.hp, u.state, u.target.id if u.target else -1, u.cooldown, u.taunt_t])
+		out.append([u.id, u.position, u.hp, u.state, u.target.id if u.target else -1, u.cooldown, u.taunt_t,
+			u.taunted_by.id if u.taunted_by else -1])
 	for p in sim.projectiles:
 		out.append([p.id, p.position, p.life])
 	return out
 
 
-func _test_parity(_profile: StringName, allies: int, enemies: int) -> void:
-	var real := CombatSim.new(97)
+func _test_parity(defs: Array, allies: int, enemies: int, seed_value: int, label: String) -> void:
+	var t_start := Time.get_ticks_msec()
 	BenchCombatSim.next_mode = BenchCombatSim.Mode.FULL
-	var bench := BenchCombatSim.new(97)
-	build(real, allies, enemies)
-	build(bench, allies, enemies)
+	var sims: Array[CombatSim] = [ReferenceCombatSim.new(seed_value), CombatSim.new(seed_value)]
+	# a BenchCombatSim só envolve a CombatSim (super + cronômetros): basta conferi-la nos casos pequenos
+	if allies + enemies <= 24:
+		sims.append(BenchCombatSim.new(seed_value))
+	var n := sims.size()
+	var logs := []
+	var end_t := []
+	for i in n:
+		logs.append([])
+		end_t.append(-1.0)
+		build(sims[i], defs, allies, enemies)
+		record(sims[i], logs[i])
 	var same := true
-	var steps := 0
-	for second in 40:
-		for k in 120:
-			real.step(CombatSim.STEP)
-			bench.step(CombatSim.STEP)
-			steps += 1
-		if _snapshot(real) != _snapshot(bench):
-			same = false
-			print("    divergiu em t=%ds" % (second + 1))
+	var where := ""
+	for k in int(SECONDS * 4):
+		for s in 30:
+			for i in n:
+				sims[i].step(CombatSim.STEP)
+				if end_t[i] < 0.0 and sims[i].is_finished():
+					end_t[i] = sims[i].time
+		var ref := snapshot(sims[0])
+		for i in range(1, n):
+			if snapshot(sims[i]) != ref:
+				same = false
+				where = "estado em t=%.2f s (%s)" % [sims[0].time, sims[i].get_script().get_global_name()]
+		if not same:
 			break
-	_check(same, "%d×%d misto: BenchCombatSim FULL == CombatSim por 40 s" % [allies, enemies])
-	_check(bench.steps == steps and bench.nearest_calls > 0, "%d×%d: contadores andaram" % [allies, enemies])
-	real.dispose()
-	bench.dispose()
+		var all_done := true
+		for i in n:
+			if end_t[i] < 0.0 or not sims[i].projectiles.is_empty():
+				all_done = false
+		if all_done and sims[0].time > end_t[0] + 1.0:
+			break
+	if same:
+		for i in range(1, n):
+			if logs[i] != logs[0]:
+				same = false
+				where = "eventos (%d × %d)" % [logs[i].size(), logs[0].size()]
+			elif end_t[i] != end_t[0] or sims[i].alive_count(CombatUnit.Team.PLAYER) != sims[0].alive_count(CombatUnit.Team.PLAYER) \
+					or sims[i].alive_count(CombatUnit.Team.ENEMY) != sims[0].alive_count(CombatUnit.Team.ENEMY):
+				same = false
+				where = "fim/vencedor"
+	print("  %s %d×%d: %s (%.1f s de luta, %d eventos, %d ms)" % [label, allies, enemies, "idêntico" if same else "DIVERGIU",
+		sims[0].time, logs[0].size(), Time.get_ticks_msec() - t_start])
+	_check(same, "%s %d×%d: idêntico à referência — divergiu em %s" % [label, allies, enemies, where])
+	for x in sims:
+		x.dispose()
 
 
-## Sem ataques no TARGET_ONLY e sem alvo no MOVE_ONLY; nearest_foe varre N unidades por chamada.
+## Contadores do benchmark: TARGET_ONLY não ataca, MOVE_ONLY não procura alvo.
 func _test_counters() -> void:
 	BenchCombatSim.next_mode = BenchCombatSim.Mode.TARGET_ONLY
 	var t := BenchCombatSim.new(1)
-	build(t, 10, 10)
+	build(t, [&"warrior"], 10, 10)
 	for k in 600:
 		t.step(CombatSim.STEP)
 	_check(t.attacks == 0 and t.damage_events == 0, "TARGET_ONLY não ataca")
-	_check(t.examined == t.nearest_calls * 20, "nearest_foe olha as 20 unidades a cada chamada (%d / %d)" % [t.examined, t.nearest_calls])
+	_check(t.stat_target_queries > 0, "TARGET_ONLY procura alvo")
 	BenchCombatSim.next_mode = BenchCombatSim.Mode.MOVE_ONLY
 	var m := BenchCombatSim.new(1)
-	build(m, 10, 10)
+	build(m, [&"warrior"], 10, 10)
 	for k in 600:
 		m.step(CombatSim.STEP)
-	_check(m.nearest_calls == 0 and m.moves > 0, "MOVE_ONLY anda sem procurar alvo")
+	_check(m.stat_target_queries == 0, "MOVE_ONLY anda sem procurar alvo")
 	BenchCombatSim.next_mode = BenchCombatSim.Mode.FULL
 	t.dispose()
 	m.dispose()
 
 
 func _test_battle_default() -> void:
-	var src := FileAccess.get_file_as_string("res://scripts/combat/battle.gd")
-	_check(src.contains("sim_script.new(rng_seed) if sim_script else CombatSim.new(rng_seed)"), "Battle cria CombatSim quando sim_script é null")
 	var arena: Node = load("res://scenes/arena/arena.tscn").instantiate()
 	root.add_child(arena)
 	await process_frame
