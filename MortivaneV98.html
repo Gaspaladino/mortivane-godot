@@ -5933,6 +5933,7 @@ function killUnit(u, info){
       S.fx.push({t:'p',x:u.x+rnd(-8,8),y:u.y-rnd(0,14),vx:rnd(-10,10),vy:-rnd(14,30),color:'#7a55b0',life:rnd(.4,.7),max:.7,r:rnd(1.4,2.4)});
   }
   u.alive=false; u.hp=0;
+  v98DeathFx(u);
   resetPaladinCombat(u);
   for(const v of S.units)if(v.tauntedBy===u)clearTaunt(v);
   if(paladinUnit(u)){
@@ -6781,6 +6782,74 @@ function spawnDmgNumber(x,y,v,kind,target){
   S.fx.push({t:'n',x:x+rnd(-7,7),y:y-stack*11,vy:-38-stack*4,life:heavy?.95:.8,max:heavy?.95:.8,text:String(v),
     scale:1+clamp(ratio*1.6,0,.7), heavy,
     color: kind==='player' ? (heavy?'#ffd98a':'#f1ead8') : (heavy?'#ff6b5e':'#ff9a8f')});
+}
+/* V98: morte e ressurreição com mais peso (só apresentação) */
+function v98DeathFx(u){
+  if(!u||u.d?.structure) return;
+  const soul = u.team==='enemy' ? '#e4ecff' : '#c3a0ff';
+  S.fx.push({t:'v98soul',x:u.x,y:u.y-(u.r||10)*.7,life:1.25,max:1.25,color:soul,seed:Math.random()*6.3});
+  S.fx.push({t:'v98dust',x:u.x,y:u.y+(u.r||10)*.55,life:.5,max:.5,r:(u.r||10)});
+  if(S.phase!=='battle') return;
+  const big = u.boss||u.elite;
+  const lastEnemy = u.team==='enemy' && !(S.spawnQueue&&S.spawnQueue.length) &&
+    !S.units.some(o=>o.alive&&o.team==='enemy'&&!o.d?.structure&&o!==u);
+  if(lastEnemy){ S.v98Stop=.55; S.v98StopScale=.22; }          // golpe final em câmera lenta
+  else if(big){ S.v98Stop=Math.max(S.v98Stop||0,.14); S.v98StopScale=.1; if(typeof shakeScreen==='function')shakeScreen(4,.2); }
+}
+function v98RaiseFx(x,y,r,u){
+  const fx={t:'v98raise',x,y:y+(r||10)*.55,life:1.15,max:1.15,r:Math.max(18,(r||10)*2.2),seed:Math.random()*6.3,u};
+  // com o Livro aberto o campo fica escondido: guarda e revela quando o livro fechar
+  if(typeof NB!=='undefined'&&NB&&NB.el){ (S.v98RaiseQueue||(S.v98RaiseQueue=[])).push(fx); return; }
+  if(S._v98rt===S.time) S._v98ri++; else { S._v98rt=S.time; S._v98ri=0; }   // vários no mesmo quadro: em sequência
+  fx.life+=S._v98ri*.12; S.fx.push(fx);
+}
+function v98FlushRaises(){
+  const q=S.v98RaiseQueue; S.v98RaiseQueue=[]; if(!q||!q.length) return;
+  q.forEach((f,i)=>{ const u=f.u; if(u&&!u.alive) return;
+    if(u){ f.x=u.x; f.y=u.y+(u.r||10)*.55; } f.u=null;
+    f.life=f.max+i*.14; S.fx.push(f); });                     // em sequência, um após o outro
+  if(typeof SND!=='undefined') SND.play('raise');
+}
+function drawV98Fx(f,k){
+  const age=1-k;
+  if(f.t==='v98soul'){
+    const e=1-Math.pow(1-age,2.2), y=f.y-72*e, x=f.x+Math.sin(age*8+f.seed)*5*age;
+    const a=(age<.12?age/.12:1)*Math.min(1,k/.45);
+    ctx.globalCompositeOperation='lighter';
+    for(let i=4;i>=0;i--){                                   // rastro que afina para baixo
+      const ty=y+i*5.5, tx=f.x+Math.sin((age-i*.035)*8+f.seed)*5*age;
+      ctx.globalAlpha=a*(1-i/5)*.55; ctx.fillStyle=f.color;
+      ctx.beginPath(); ctx.arc(tx,ty,4.6*(1-i/6),0,6.3); ctx.fill();
+    }
+    ctx.globalAlpha=a; ctx.shadowColor=f.color; ctx.shadowBlur=14; ctx.fillStyle='#ffffff';
+    ctx.beginPath(); ctx.arc(x,y,3.4,0,6.3); ctx.fill();
+    ctx.globalAlpha=a*.45; ctx.fillStyle=f.color; ctx.beginPath(); ctx.arc(x,y,8,0,6.3); ctx.fill();
+  }else if(f.t==='v98dust'){
+    const e=1-Math.pow(1-age,3), rr=f.r*.6+f.r*1.5*e;
+    ctx.globalAlpha=.5*k; ctx.strokeStyle='#b8a99a'; ctx.lineWidth=2.2*k+.4;
+    ctx.beginPath(); ctx.ellipse(f.x,f.y,rr,rr*.32,0,0,6.3); ctx.stroke();
+    ctx.globalAlpha=.22*k; ctx.fillStyle='#2a2230'; ctx.beginPath(); ctx.ellipse(f.x,f.y,rr*.8,rr*.25,0,0,6.3); ctx.fill();
+  }else if(f.t==='v98raise'){
+    if(f.life>f.max) return;
+    const inA=Math.min(1,age/.18), a=inA*Math.min(1,k/.4), R=f.r*(.75+.35*Math.min(1,age/.25));
+    ctx.globalCompositeOperation='lighter';
+    // coluna de luz
+    const hgt=110*Math.min(1,age/.2), w=(16*(1-age)+3);
+    const g=ctx.createLinearGradient(0,f.y,0,f.y-hgt);
+    g.addColorStop(0,'rgba(170,120,255,'+(.55*a)+')'); g.addColorStop(1,'rgba(170,120,255,0)');
+    ctx.fillStyle=g; ctx.fillRect(f.x-w/2,f.y-hgt,w,hgt);
+    // círculo rúnico no chão, girando
+    ctx.save(); ctx.translate(f.x,f.y); ctx.scale(1,.36);
+    ctx.globalAlpha=a*.9; ctx.strokeStyle='#b890ff'; ctx.shadowColor='#9b62ff'; ctx.shadowBlur=10; ctx.lineWidth=2.2;
+    ctx.beginPath(); ctx.arc(0,0,R,0,6.3); ctx.stroke();
+    ctx.lineWidth=1.4; ctx.globalAlpha=a*.7; ctx.beginPath(); ctx.arc(0,0,R*.7,0,6.3); ctx.stroke();
+    const rot=f.seed+age*2.6;
+    ctx.globalAlpha=a; ctx.lineWidth=2;
+    for(let i=0;i<8;i++){ const q=rot+i*Math.PI/4; ctx.beginPath(); ctx.arc(0,0,R*.85,q,q+.32); ctx.stroke(); }
+    ctx.rotate(-rot*1.4); ctx.globalAlpha=a*.8; ctx.lineWidth=1.3; ctx.beginPath();
+    for(let i=0;i<=5;i++){ const q=i*Math.PI*4/5; const px=Math.cos(q)*R*.68, py=Math.sin(q)*R*.68; i?ctx.lineTo(px,py):ctx.moveTo(px,py); }
+    ctx.stroke(); ctx.restore();
+  }
 }
 function slash(a,b){ S.fx.push({t:'s',x1:a.x,y1:a.y,x2:b.x,y2:b.y,life:.14,max:.14,color:a.team==='player'?'#bda6ff':'#ff9a8f'}); }
 function ring(x,y,color,rMax,life){ S.fx.push({t:'r',x,y,color,rMax,life,max:life}); }
@@ -7703,6 +7772,7 @@ function raiseCorpses(list){
     const u = makeUnit(outId, 'player', spot.x, spot.y, { special: c.special,elite:c.elite });  // identidade preservada
     soulApplyRaise(u,c);
     u.spawnT = 0.5;
+    v98RaiseFx(u.x, u.y, u.r, u);
     if(rigTroop(u)){ u.raiseFx = COMMON_ANIM.raise;   // brilho → sobe → olhos acendem → aura
       for(let i=0;i<8;i++) S.fx.push({t:'p',x:u.x+rnd(-10,10),y:u.y+rnd(-2,8),vx:rnd(-8,8),vy:-rnd(20,45),color:'#9c74d8',life:rnd(.45,.75),max:.75,r:rnd(1.2,2.2)}); }
     paladinCue(u,'raise');
@@ -11421,6 +11491,7 @@ function drawFx(){
     ctx.save();
     if(['punitiveLight','shadowTrail','chargedImpact'].includes(f.t)){drawRelicFeedback(f,k);}
     else if(f.t==='corpseToss'){drawCorpseToss(f,k);}
+    else if(f.t==='v98soul'||f.t==='v98dust'||f.t==='v98raise'){drawV98Fx(f,k);}
     else if(f.t==='arcStep'){drawArcStepTrail(f,k);}
     else if(f.t==='execX'){drawExecutionX(f,k);}
     else if(f.t==='commonFall'){drawCommonFall(f);}
@@ -15395,9 +15466,10 @@ document.getElementById('battleSpeedControl').addEventListener('click',e=>{
  const b=e.target.closest('button[data-speed]');if(b)setBattleSpeed(Number(b.dataset.speed));
 });
 function advanceBattleClock(dt){
- if(S.phase!=='battle'){battleAccumulator=0;return false;}
+ if(S.phase!=='battle'){battleAccumulator=0;S.v98Stop=0;return false;}
  if(S.paused||hasPendingChoice()||(ADMIN.on&&ADMIN.paused)||arenaObscured())return true;
  const rate=ADMIN.on?ADMIN.speed:battleSpeed;
+ if(S.v98Stop>0){ S.v98Stop-=dt; dt*=S.v98StopScale||.15; }   // V98: câmera lenta curta; o passo fixo da simulação não muda
  battleAccumulator+=dt*rate;
  while(battleAccumulator+1e-10>=BATTLE_STEP&&S.phase==='battle'){
   battleAccumulator-=BATTLE_STEP;
@@ -18070,6 +18142,42 @@ body:has(#menu:not(.hidden)) :is(#panels,#essenceHud,#relicHud,#commandGauge,#ru
 @keyframes v98Glow{0%,100%{filter:drop-shadow(0 0 10px #9b62ff66)}50%{filter:drop-shadow(0 0 22px #b286ffbb)}}
 @keyframes v98Shine{0%,60%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
 @media(prefers-reduced-motion:reduce){.v98-mote{display:none}#ambientFxLayer::before,#menu .box>*,#menu .title em,#menu #startBtn::after{animation:none}}
+
+/* ---------- V98: transições entre fases ---------- */
+#v98Banner{position:absolute;left:0;right:0;top:38%;z-index:5;pointer-events:none;display:flex;flex-direction:column;align-items:center;
+  padding:14px 0 12px;opacity:0;visibility:hidden;
+  background:linear-gradient(90deg,transparent,rgba(10,6,20,.78) 22%,rgba(10,6,20,.78) 78%,transparent)}
+#v98Banner::before,#v98Banner::after{content:"";position:absolute;left:14%;right:14%;height:1px;
+  background:linear-gradient(90deg,transparent,#d8bd83,transparent)}
+#v98Banner::before{top:0}#v98Banner::after{bottom:0}
+#v98Banner .k{font:600 11px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.5em;color:#cdb68a;text-transform:uppercase;margin-bottom:6px}
+#v98Banner .t{font:600 clamp(34px,5.4vw,64px)/1 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;color:#f5e8cb;
+  letter-spacing:.06em;text-shadow:0 3px 0 #0009,0 0 26px #b286ff88}
+#v98Banner .s{font:500 13px/1.2 ui-sans-serif,system-ui,sans-serif;letter-spacing:.24em;text-transform:uppercase;margin-top:8px;color:var(--v98-acc,#c9b3ee)}
+#v98Banner.go{visibility:visible;animation:v98Band 1.7s cubic-bezier(.2,.8,.2,1) both}
+#v98Banner.go .t{animation:v98Slam 1.7s cubic-bezier(.2,.9,.25,1) both}
+#v98Banner.go::before,#v98Banner.go::after{animation:v98Line 1.7s ease-out both}
+#v98Banner.boss .t{color:#ffd3c4;text-shadow:0 3px 0 #0009,0 0 30px #ff5a3caa}
+@keyframes v98Band{0%{opacity:0;transform:scaleY(.3)}12%{opacity:1;transform:none}78%{opacity:1}100%{opacity:0;transform:translateY(-10px)}}
+@keyframes v98Slam{0%{transform:scale(1.9);letter-spacing:.4em;opacity:0;filter:blur(6px)}16%{transform:scale(.97);letter-spacing:.06em;opacity:1;filter:none}
+  24%{transform:scale(1)}100%{transform:scale(1.04)}}
+@keyframes v98Line{0%{transform:scaleX(0)}30%{transform:scaleX(1)}100%{transform:scaleX(1)}}
+/* véu da necromancia / fechamento / morte: tinge só a arena */
+#v98Veil{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0}
+#v98Veil.necro{background:radial-gradient(ellipse at 50% 60%,rgba(150,90,255,.42),rgba(40,10,80,.55) 60%,rgba(8,2,18,.75));animation:v98Veil 1.1s ease-out both}
+#v98Veil.close{background:rgba(6,3,12,.9);animation:v98Blink .6s ease-in-out both}
+#v98Veil.dead{background:radial-gradient(ellipse at 50% 55%,rgba(120,10,20,.25),rgba(30,0,6,.8));animation:v98Dead 1.6s ease-out both}
+@keyframes v98Veil{0%{opacity:0}25%{opacity:1}100%{opacity:0}}
+@keyframes v98Blink{0%{opacity:0}40%{opacity:1}100%{opacity:0}}
+@keyframes v98Dead{0%{opacity:0}30%{opacity:1}100%{opacity:.75}}
+/* resumo da onda: entra com impulso e os quadros aparecem em sequência */
+#roundPop:not(.hidden){animation:v98PopIn .45s cubic-bezier(.2,1.2,.4,1) both}
+#roundPop:not(.hidden) .tiles>*{animation:v98FadeUp .45s cubic-bezier(.2,.8,.2,1) both}
+#roundPop:not(.hidden) .tiles>*:nth-child(1){animation-delay:.12s}#roundPop:not(.hidden) .tiles>*:nth-child(2){animation-delay:.2s}
+#roundPop:not(.hidden) .tiles>*:nth-child(3){animation-delay:.28s}#roundPop:not(.hidden) .tiles>*:nth-child(4){animation-delay:.36s}
+#roundPop:not(.hidden) #roundPopClose{animation:v98FadeUp .4s .5s both}
+@keyframes v98PopIn{from{opacity:0;scale:.9}to{opacity:1;scale:1}}
+@media(prefers-reduced-motion:reduce){#v98Banner.go,#v98Banner.go .t,#v98Banner.go::before,#v98Banner.go::after,#v98Veil,#roundPop:not(.hidden),#roundPop:not(.hidden) *{animation-duration:.01s!important}}
 </style>
 <script id="v98PolishJs">
 /* V98: monta as almas do ambiente e passa a arte da arena para o fundo do menu */
@@ -18095,6 +18203,50 @@ body:has(#menu:not(.hidden)) :is(#panels,#essenceHud,#relicHud,#commandGauge,#ru
     const box = menu.querySelector('.box');
     if(box && !box.querySelector('.v98-kicker')){ const k=document.createElement('div'); k.className='v98-kicker'; k.textContent='Mortivane'; box.prepend(k); }
     motes(menu, small?10:18, '-100vh');
+  }
+
+  /* Transições: observa a fase e dispara banner/véu; os números do resumo contam para cima */
+  const wrap=document.getElementById('arenaWrap');
+  if(wrap && typeof S!=='undefined'){
+    const banner=document.createElement('div'); banner.id='v98Banner'; banner.setAttribute('aria-hidden','true');
+    banner.innerHTML='<div class="k"></div><div class="t"></div><div class="s"></div>'; wrap.appendChild(banner);
+    const veil=document.createElement('div'); veil.id='v98Veil'; veil.setAttribute('aria-hidden','true'); wrap.appendChild(veil);
+    const replay=(node,cls)=>{node.className=''; void node.offsetWidth; node.className=cls;};
+    const pop=document.getElementById('roundPop');
+    let last=S.phase, popVisible=false;
+    function countUp(){
+      if(reduce||!pop) return;
+      pop.querySelectorAll('.tiles .n2').forEach(n=>{
+        const alvo=parseFloat(n.textContent); if(!isFinite(alvo)||alvo<=0||/[^\d.]/.test(n.textContent.trim())) return;
+        const t0=performance.now(), dur=650;
+        (function step(t){const q=Math.min(1,(t-t0)/dur), e=1-Math.pow(1-q,3); n.textContent=Math.round(alvo*e); if(q<1)requestAnimationFrame(step);})(t0);
+      });
+    }
+    (function watch(){
+      const ph=S.phase;
+      if(ph!==last){
+        if(ph==='battle' && !(typeof ADMIN!=='undefined'&&ADMIN.on)){
+          const fac=(typeof FACTION_DEFS!=='undefined'&&S.waveFaction)?FACTION_DEFS[S.waveFaction]:null;
+          const boss=typeof TIMELINE_CONFIG!=='undefined'&&S.wave===TIMELINE_CONFIG.bossWave;
+          banner.querySelector('.k').textContent=boss?'A batalha final':'A batalha começa';
+          banner.querySelector('.t').textContent='Onda '+S.wave;
+          banner.querySelector('.s').textContent=fac?fac.name:'';
+          banner.style.setProperty('--v98-acc',fac?.accent||'#c9b3ee');
+          replay(banner,'go'+(boss?' boss':''));
+        }
+        else if(ph==='necromancy') replay(veil,'necro');
+        else if(ph==='prep' && last==='necromancy') replay(veil,'close');
+        else if(ph==='dead') replay(veil,'dead');
+        if(ph==='menu'||ph==='prep'&&last!=='necromancy'){ if(veil.className==='dead') veil.className=''; }
+        last=ph;
+      }
+      if(S.v98RaiseQueue&&S.v98RaiseQueue.length&&ph!=='necromancy'&&!(typeof NB!=='undefined'&&NB.el)&&typeof v98FlushRaises==='function') v98FlushRaises();
+      if(ph==='menu') S.v98RaiseQueue=[];
+      const vis=!!pop&&!pop.classList.contains('hidden');
+      if(vis&&!popVisible) setTimeout(countUp,120);
+      popVisible=vis;
+      requestAnimationFrame(watch);
+    })();
   }
 })();
 </script>
