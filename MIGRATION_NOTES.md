@@ -881,6 +881,34 @@ Capturas grandes dos 16 estados, folha comparativa e capturas em escala real no 
   - As sprite sheets e a cena de sprites continuam no projeto como alternativa.
   - `PaladinVisual` continua existindo porque é a base do Sombra.
 
+### Profiling e stress test do combate (só medição) ✔ (aguardando validação)
+
+**Pedido.** Descobrir, com números, por que o FPS cai com muitas unidades dos dois lados — sem otimizar e sem
+mudar combate, IA, stats, targeting ou visual. Cenários 10×10 a 50×50 (incluindo 40×2, 2×40, 40×20, 20×40),
+perfis Guerreiros / Sentinelas / misto (+ Paladinos à parte), fases parado / movimento / alvo / combate,
+comparações visual × lógica, e relatório com evidência, hipótese e recomendação separadas.
+
+**Feito.**
+- `BenchCombatSim` (só benchmark) com contadores e cronômetros por seção; `tests/bench_parity_test.gd` garante
+  luta idêntica à `CombatSim`. Único gancho no jogo: `Battle.sim_script` (null = `CombatSim`).
+- `tools/bench/`: `stress_bench.gd` (cenário no fluxo real + driver de quadro + sondas de `_draw` + monitores do
+  Godot), `run_matrix.sh`, `make_report.py` e `godot_profiler.py` (Profiler do Godot via depuração remota, sem
+  editor).
+- Matriz executada: 108 execuções headless, 36 com render (llvmpipe), comparações visual × lógica, overhead,
+  tempo real, Paladinos, linha do tempo e profiler. Resultado em `PROFILING_REPORT.md`; tabelas e dados em
+  `docs/profiling/`.
+
+**Conclusões principais** (detalhes e números no relatório):
+1. maior gargalo: visual procedural redesenhado a cada quadro (~130 draw calls por Guerreiro, ~11 mil por quadro
+   em 40×40; ~60% do quadro sem render), inclusive cadáveres;
+2. segundo: busca de alvo O(N²) a 120 Hz por unidade, varrendo mortos e aliados, com o mesmo resultado em
+   98–100% das vezes (5,4 ms em 40×40; > 10 ms em 50×50);
+3. physics ≈ 0; nós não são excesso; draw calls são problema;
+4. Paladino é o visual mais caro (~260 µs de update por unidade);
+5. em tempo real, quadro lento → até 6 passos da simulação por quadro (cascata).
+
+**Limitações.** Sem GPU no ambiente (render por software): draw calls valem, ms de render não. Nada otimizado.
+
 ### Paladino Vivo refeito pela referência direita/esquerda (`PaladinLiveVisual`) ✔ (aguardando validação)
 
 **Pedido.** Usar a imagem anexada (Paladino olhando para a direita e para a esquerda) como referência principal

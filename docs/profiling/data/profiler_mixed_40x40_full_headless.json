@@ -1,0 +1,1273 @@
+{
+ "frames": 481,
+ "messages": {
+  "set_pid": 1,
+  "output": 2,
+  "error": 17,
+  "window:title": 1,
+  "servers:function_signature": 314,
+  "servers:profile_frame": 541,
+  "performance:profile_frame": 19
+ },
+ "errors": [
+  [
+   0,
+   0,
+   0,
+   215,
+   "res://scripts/sandbox/sandbox_ui.gd",
+   "GDScript::reload",
+   105,
+   "UNUSED_PARAMETER",
+   "The parameter \"def\" is never used in the function \"show_unit()\". If this is intended, prefix it with an underscore: \"_def\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   221,
+   "res://scripts/sandbox/sandbox_controller.gd",
+   "GDScript::reload",
+   151,
+   "INTEGER_DIVISION",
+   "Integer division. Decimal part will be discarded.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   298,
+   "res://scripts/visuals/backdrop/nodes/backdrop_cloud.gd",
+   "GDScript::reload",
+   22,
+   "SHADOWED_GLOBAL_IDENTIFIER",
+   "The variable \"seed\" has the same name as a built-in function.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   318,
+   "res://scripts/visuals/backdrop/nodes/candle_glow.gd",
+   "GDScript::reload",
+   8,
+   "SHADOWED_GLOBAL_IDENTIFIER",
+   "The variable \"seed\" has the same name as a built-in function.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   500,
+   "res://scripts/visuals/units/sentinel_visual.gd",
+   "GDScript::reload",
+   220,
+   "SHADOWED_VARIABLE_BASE_CLASS",
+   "The local variable \"ready\" is shadowing an already-declared signal in the base class \"Node\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   577,
+   "res://scripts/visuals/units/paladin/paladin_mesh.gd",
+   "GDScript::reload",
+   223,
+   "SHADOWED_VARIABLE",
+   "The local function parameter \"mat\" is shadowing an already-declared variable at line 213 in the current class.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   611,
+   "res://scripts/visuals/units/paladin/paladin_rig.gd",
+   "GDScript::reload",
+   152,
+   "SHADOWED_VARIABLE_BASE_CLASS",
+   "The local function parameter \"name\" is shadowing an already-declared property in the base class \"Node\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   611,
+   "res://scripts/visuals/units/paladin/paladin_rig.gd",
+   "GDScript::reload",
+   170,
+   "SHADOWED_VARIABLE_BASE_CLASS",
+   "The local function parameter \"name\" is shadowing an already-declared property in the base class \"Node\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   617,
+   "res://scripts/visuals/units/paladin/paladin_animator.gd",
+   "GDScript::reload",
+   448,
+   "UNUSED_PARAMETER",
+   "The parameter \"pose\" is never used in the function \"_update_debug()\". If this is intended, prefix it with an underscore: \"_pose\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   625,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "GDScript::reload",
+   461,
+   "UNUSED_VARIABLE",
+   "The local variable \"cu\" is declared but never used in the block. If this is intended, prefix it with an underscore: \"_cu\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   625,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "GDScript::reload",
+   500,
+   "UNUSED_VARIABLE",
+   "The local variable \"torso_c\" is declared but never used in the block. If this is intended, prefix it with an underscore: \"_torso_c\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   625,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "GDScript::reload",
+   730,
+   "UNUSED_PARAMETER",
+   "The parameter \"side\" is never used in the function \"_draw_pauldron()\". If this is intended, prefix it with an underscore: \"_side\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   625,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "GDScript::reload",
+   756,
+   "SHADOWED_GLOBAL_IDENTIFIER",
+   "The variable \"len\" has the same name as a built-in function.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   666,
+   "res://scripts/visuals/units/shadow_fx.gd",
+   "GDScript::reload",
+   38,
+   "SHADOWED_GLOBAL_IDENTIFIER",
+   "The function parameter \"seed\" has the same name as a built-in function.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   666,
+   "res://scripts/visuals/units/shadow_fx.gd",
+   "GDScript::reload",
+   57,
+   "SHADOWED_VARIABLE",
+   "The local function parameter \"pulse\" is shadowing an already-declared function at line 75 in the current class.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   666,
+   "res://scripts/visuals/units/shadow_fx.gd",
+   "GDScript::reload",
+   66,
+   "SHADOWED_VARIABLE",
+   "The local function parameter \"pulse\" is shadowing an already-declared function at line 75 in the current class.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   666,
+   "res://scripts/visuals/units/shadow_fx.gd",
+   "GDScript::reload",
+   75,
+   "SHADOWED_GLOBAL_IDENTIFIER",
+   "The function parameter \"seed\" has the same name as a built-in function.",
+   true,
+   0
+  ]
+ ],
+ "engine_ms_per_frame": {
+  "frame_time": 34.42655301455299,
+  "process_time": 34.37460498960501,
+  "physics_time": 0.04662370062370059,
+  "script_time": 21.611773388773404
+ },
+ "servers_ms_per_frame": {
+  "physics_3d::flush_queries": 0.0045155925155925215,
+  "audio_thread::audio_server": 0.004172557172557171,
+  "physics_2d::flush_queries": 0.0016798336798336938,
+  "audio_thread::audio_driver": 0.0007338877338877353,
+  "physics_3d::integrate_forces": 0.0,
+  "physics_3d::generate_islands": 0.0,
+  "physics_3d::setup_constraints": 0.0,
+  "physics_3d::solve_constraints": 0.0,
+  "physics_3d::integrate_velocities": 0.0,
+  "physics_2d::integrate_forces": 0.0,
+  "physics_2d::generate_islands": 0.0,
+  "physics_2d::setup_constraints": 0.0,
+  "physics_2d::solve_constraints": 0.0,
+  "physics_2d::integrate_velocities": 0.0
+ },
+ "functions": [
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::86::CodeDrawnUnitVisual._poly",
+   "calls_per_frame": 1960.0,
+   "self_ms_per_frame": 3.992367983367985,
+   "total_ms_per_frame": 5.029548856548857
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::108::BenchCombatSim.nearest_foe",
+   "calls_per_frame": 192.53222453222452,
+   "self_ms_per_frame": 3.8441392931392935,
+   "total_ms_per_frame": 13.50276715176715
+  },
+  {
+   "function": "res://scripts/combat/combat_unit.gd::83::CombatUnit.is_enemy_of",
+   "calls_per_frame": 15210.045738045737,
+   "self_ms_per_frame": 1.4001538461538452,
+   "total_ms_per_frame": 1.4001538461538452
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::683::SentinelVisual._c",
+   "calls_per_frame": 2400.0,
+   "self_ms_per_frame": 0.9421330561330568,
+   "total_ms_per_frame": 0.9421330561330568
+  },
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::77::CodeDrawnUnitVisual._c",
+   "calls_per_frame": 5160.0,
+   "self_ms_per_frame": 0.915340956340957,
+   "total_ms_per_frame": 0.915340956340957
+  },
+  {
+   "function": "res://scripts/visuals/effects/arcane_blade.gd::17::ArcaneBlade.draw",
+   "calls_per_frame": 78.79625779625779,
+   "self_ms_per_frame": 0.8293929313929307,
+   "total_ms_per_frame": 0.9262869022869014
+  },
+  {
+   "function": "res://scripts/combat/combat_unit.gd::79::CombatUnit.is_valid_target",
+   "calls_per_frame": 8474.898128898129,
+   "self_ms_per_frame": 0.80760498960499,
+   "total_ms_per_frame": 2.9538128898128937
+  },
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::96::CodeDrawnUnitVisual._circle",
+   "calls_per_frame": 200.0,
+   "self_ms_per_frame": 0.7247650727650727,
+   "total_ms_per_frame": 0.8024844074844076
+  },
+  {
+   "function": "res://scripts/combat/combat_unit.gd::74::CombatUnit.is_alive",
+   "calls_per_frame": 9321.482328482329,
+   "self_ms_per_frame": 0.6525821205821201,
+   "total_ms_per_frame": 0.6525821205821201
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::462::SentinelVisual._draw_robe",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.39313305613305605,
+   "total_ms_per_frame": 0.9733742203742206
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::147::BenchCombatSim._update_unit",
+   "calls_per_frame": 115.26611226611226,
+   "self_ms_per_frame": 0.3744719334719338,
+   "total_ms_per_frame": 14.458515592515576
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::535::SentinelVisual._draw_capelet",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.3116424116424118,
+   "total_ms_per_frame": 1.122848232848232
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::215::BenchCombatSim._update_projectiles",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.3058004158004158,
+   "total_ms_per_frame": 1.384950103950102
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::223::BenchDriver._process",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.28834511434511434,
+   "total_ms_per_frame": 1.3265821205821204
+  },
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::104::CodeDrawnUnitVisual._line",
+   "calls_per_frame": 680.0,
+   "self_ms_per_frame": 0.24835343035343044,
+   "total_ms_per_frame": 0.24835343035343044
+  },
+  {
+   "function": "res://scripts/combat/combat_projectile.gd::51::CombatProjectile.can_hit",
+   "calls_per_frame": 1527.4553014553014,
+   "self_ms_per_frame": 0.23577338877338855,
+   "total_ms_per_frame": 0.6434449064449064
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::427::WarriorVisual._draw_pauldron",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.221037422037422,
+   "total_ms_per_frame": 0.6854469854469861
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::234::SentinelVisual._blade_windup",
+   "calls_per_frame": 224.0810810810811,
+   "self_ms_per_frame": 0.20092307692307693,
+   "total_ms_per_frame": 0.273935550935551
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::590::SentinelVisual._draw_hat",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.1964033264033266,
+   "total_ms_per_frame": 1.180715176715176
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::580::SentinelVisual._draw_eyes",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.19163409563409556,
+   "total_ms_per_frame": 0.19163409563409556
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::560::SentinelVisual._draw_head",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.18440748440748408,
+   "total_ms_per_frame": 1.031806652806653
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::206::BenchDriver._on_draw",
+   "calls_per_frame": 273.05821205821206,
+   "self_ms_per_frame": 0.17900000000000013,
+   "total_ms_per_frame": 0.29793970893970934
+  },
+  {
+   "function": "res://scripts/combat/abilities/sentinel_swords.gd::59::SentinelSwords.update",
+   "calls_per_frame": 77.26611226611226,
+   "self_ms_per_frame": 0.17377546777546776,
+   "total_ms_per_frame": 5.711754677754678
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::140::BenchCombatSim._tick_paladins",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.1678045738045738,
+   "total_ms_per_frame": 0.1678045738045738
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::618::SentinelVisual._draw_blades",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.1355634095634096,
+   "total_ms_per_frame": 1.6063846153846149
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::288::WarriorVisual._draw_rig",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.13107276507276508,
+   "total_ms_per_frame": 5.811920997920999
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_controller.gd::146::SandboxController.count_side",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.1100207900207901,
+   "total_ms_per_frame": 0.1100207900207901
+  },
+  {
+   "function": "res://scripts/visuals/projectiles/projectile_view.gd::108::ProjectileView._draw_impact",
+   "calls_per_frame": 9.88981288981289,
+   "self_ms_per_frame": 0.10341787941787943,
+   "total_ms_per_frame": 0.11898752598752586
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::353::WarriorVisual._draw_leg",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.10288149688149678,
+   "total_ms_per_frame": 1.1879584199584203
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::268::SentinelVisual._compute_pose",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.10278586278586263,
+   "total_ms_per_frame": 0.22591060291060322
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::171::WarriorVisual._compute_pose",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.10277754677754666,
+   "total_ms_per_frame": 0.16787733887733883
+  },
+  {
+   "function": "res://scripts/visuals/projectiles/projectile_view.gd::72::ProjectileView._draw_orb",
+   "calls_per_frame": 8.91891891891892,
+   "self_ms_per_frame": 0.10172557172557165,
+   "total_ms_per_frame": 0.10538461538461541
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::385::SentinelVisual._draw",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.10080873180873177,
+   "total_ms_per_frame": 7.824490644490646
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::166::SentinelVisual.update_visual",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.0964428274428274,
+   "total_ms_per_frame": 0.5573846153846156
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::230::SentinelVisual._blade_ready",
+   "calls_per_frame": 157.2765072765073,
+   "self_ms_per_frame": 0.09264656964656955,
+   "total_ms_per_frame": 0.15411018711018726
+  },
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::68::CodeDrawnUnitVisual._with",
+   "calls_per_frame": 776.0124740124741,
+   "self_ms_per_frame": 0.09121205821205819,
+   "total_ms_per_frame": 0.09121205821205819
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::118::CombatSim.alive_count",
+   "calls_per_frame": 5.496881496881497,
+   "self_ms_per_frame": 0.09002494802494794,
+   "total_ms_per_frame": 0.1547151767151767
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::207::SentinelVisual._update_blades",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.08732432432432426,
+   "total_ms_per_frame": 0.19813721413721422
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::328::WarriorVisual._draw_shadow",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.08476507276507272,
+   "total_ms_per_frame": 0.08476507276507272
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::128::BenchCombatSim.taunt_target",
+   "calls_per_frame": 352.5322245322245,
+   "self_ms_per_frame": 0.08262162162162148,
+   "total_ms_per_frame": 0.08262162162162148
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::83::BenchCombatSim._now",
+   "calls_per_frame": 628.5779625779626,
+   "self_ms_per_frame": 0.07613721413721414,
+   "total_ms_per_frame": 0.07613721413721414
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::136::WarriorVisual.update_visual",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.07531185031185036,
+   "total_ms_per_frame": 0.26833679833679863
+  },
+  {
+   "function": "res://scripts/combat/unit_view.gd::108::UnitView._draw_hp_bar",
+   "calls_per_frame": 57.553014553014556,
+   "self_ms_per_frame": 0.07472141372141371,
+   "total_ms_per_frame": 0.0957151767151767
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::439::WarriorVisual._draw_arm",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.07431808731808737,
+   "total_ms_per_frame": 0.695675675675676
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/arena_backdrop.gd::54::ArenaBackdrop._apply",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.07296465696465694,
+   "total_ms_per_frame": 0.08924324324324322
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::491::SentinelVisual._draw_flaps",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.07154261954261952,
+   "total_ms_per_frame": 0.42997505197505165
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::387::WarriorVisual._draw_head",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.06980873180873184,
+   "total_ms_per_frame": 0.7312598752598749
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::242::SentinelVisual._blade_anchor",
+   "calls_per_frame": 77.29313929313929,
+   "self_ms_per_frame": 0.06923492723492725,
+   "total_ms_per_frame": 0.24279209979209976
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::434::SentinelVisual._draw_shadow",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.06371309771309769,
+   "total_ms_per_frame": 0.06371309771309769
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::181::CombatSim._tick_paladins",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.06291268191268193,
+   "total_ms_per_frame": 0.13762993762993772
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::514::SentinelVisual._draw_hand_charge",
+   "calls_per_frame": 16.012474012474012,
+   "self_ms_per_frame": 0.06179417879417877,
+   "total_ms_per_frame": 0.06179417879417877
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::361::WarriorVisual._draw_waist",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.057775467775467736,
+   "total_ms_per_frame": 0.4136361746361748
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::451::WarriorVisual._draw_sword",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.0571205821205821,
+   "total_ms_per_frame": 0.6387505197505201
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::411::SentinelVisual._draw_body",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.0569667359667359,
+   "total_ms_per_frame": 5.825207900207907
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::336::WarriorVisual._draw_cape",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.0537941787941787,
+   "total_ms_per_frame": 0.3011351351351352
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_drift.gd::30::BackdropDrift._process",
+   "calls_per_frame": 3.0,
+   "self_ms_per_frame": 0.05229729729729728,
+   "total_ms_per_frame": 0.07117671517671524
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::369::WarriorVisual._draw_torso",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.05181496881496882,
+   "total_ms_per_frame": 0.3903409563409566
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::283::WarriorVisual._draw",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.04829937629937633,
+   "total_ms_per_frame": 6.01057172557173
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/candle_flame.gd::32::CandleFlame._draw",
+   "calls_per_frame": 12.0,
+   "self_ms_per_frame": 0.046733887733887716,
+   "total_ms_per_frame": 0.07340332640332635
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::448::SentinelVisual._draw_boots",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.04450727650727654,
+   "total_ms_per_frame": 0.27139501039501057
+  },
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::72::CodeDrawnUnitVisual._tf",
+   "calls_per_frame": 360.0,
+   "self_ms_per_frame": 0.04226195426195426,
+   "total_ms_per_frame": 0.04226195426195426
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::148::SentinelVisual.projectile_style",
+   "calls_per_frame": 40.44282744282744,
+   "self_ms_per_frame": 0.04065488565488569,
+   "total_ms_per_frame": 0.04065488565488569
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::409::WarriorVisual._draw_visor",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.03993555093555091,
+   "total_ms_per_frame": 0.05590436590436592
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::508::SentinelVisual._draw_arm",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.038939708939708946,
+   "total_ms_per_frame": 0.3418856548856547
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::455::SentinelVisual._hem_points",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.03679833679833681,
+   "total_ms_per_frame": 0.03679833679833681
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::528::SentinelVisual._capelet_half",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.03474220374220378,
+   "total_ms_per_frame": 0.03474220374220378
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::87::BenchCombatSim.step",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.033981288981289,
+   "total_ms_per_frame": 16.16490644490643
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_controller.gd::146::SandboxController.<anonymous lambda>(lambda)",
+   "calls_per_frame": 160.0,
+   "self_ms_per_frame": 0.03258419958419959,
+   "total_ms_per_frame": 0.03258419958419959
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::307::BenchDriver._finish",
+   "calls_per_frame": 0.002079002079002079,
+   "self_ms_per_frame": 0.032257796257796255,
+   "total_ms_per_frame": 0.04663409563409564
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::440::SentinelVisual._draw_back_cloak",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.03166528066528064,
+   "total_ms_per_frame": 0.22583575883575874
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::170::Battle._on_projectile_fired",
+   "calls_per_frame": 0.44282744282744285,
+   "self_ms_per_frame": 0.02932016632016634,
+   "total_ms_per_frame": 0.03486070686070686
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_ui.gd::134::SandboxUI.show_preview_controls",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.026051975051975058,
+   "total_ms_per_frame": 0.026051975051975058
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::257::CombatSim._clamp_to_battlefield",
+   "calls_per_frame": 59.83367983367983,
+   "self_ms_per_frame": 0.0244428274428275,
+   "total_ms_per_frame": 0.0244428274428275
+  },
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::46::CodeDrawnUnitVisual._draw_with_rim",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.0243139293139293,
+   "total_ms_per_frame": 11.70787318087318
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_moon.gd::37::BackdropMoon._process",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.02297713097713099,
+   "total_ms_per_frame": 0.02574844074844074
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::238::WarriorVisual._death_pose",
+   "calls_per_frame": 21.06029106029106,
+   "self_ms_per_frame": 0.02246153846153846,
+   "total_ms_per_frame": 0.03490228690228688
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_cloud.gd::98::BackdropCloud._draw",
+   "calls_per_frame": 0.014553014553014554,
+   "self_ms_per_frame": 0.022382536382536383,
+   "total_ms_per_frame": 0.022382536382536383
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_controller.gd::218::SandboxController._status_text",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.022351351351351335,
+   "total_ms_per_frame": 0.21222869022869034
+  },
+  {
+   "function": "res://scripts/visuals/projectiles/projectile_view.gd::48::ProjectileView._process",
+   "calls_per_frame": 18.81912681912682,
+   "self_ms_per_frame": 0.02103534303534302,
+   "total_ms_per_frame": 0.025261954261954257
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::402::WarriorVisual._draw_plume",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.02055925155925155,
+   "total_ms_per_frame": 0.15649064449064448
+  },
+  {
+   "function": "res://scripts/combat/unit_view.gd::101::UnitView._draw_overlay",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.019259875259875256,
+   "total_ms_per_frame": 0.18146569646569657
+  },
+  {
+   "function": "res://scripts/combat/abilities/sentinel_swords.gd::31::Blade.is_ready",
+   "calls_per_frame": 167.33056133056132,
+   "self_ms_per_frame": 0.018918918918918916,
+   "total_ms_per_frame": 0.018918918918918916
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_lights.gd::38::CastleLights.windows",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.018700623700623694,
+   "total_ms_per_frame": 0.030463617463617438
+  },
+  {
+   "function": "res://scripts/combat/unit_view.gd::91::UnitView._draw",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.018428274428274445,
+   "total_ms_per_frame": 0.018428274428274445
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_window.gd::25::CastleWindow._draw",
+   "calls_per_frame": 1.5405405405405406,
+   "self_ms_per_frame": 0.017557172557172544,
+   "total_ms_per_frame": 0.017557172557172544
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_lights.gd::27::CastleLights.window_level",
+   "calls_per_frame": 24.0,
+   "self_ms_per_frame": 0.015199584199584193,
+   "total_ms_per_frame": 0.039513513513513475
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_lights.gd::46::CastleLights._update",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.013571725571725564,
+   "total_ms_per_frame": 0.09108316008315998
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::350::BenchDriver.<anonymous lambda>(lambda)",
+   "calls_per_frame": 35.17671517671518,
+   "self_ms_per_frame": 0.013076923076923075,
+   "total_ms_per_frame": 0.021844074844074846
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::576::SentinelVisual._draw_face_shade",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.012629937629937629,
+   "total_ms_per_frame": 0.08519334719334712
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::466::WarriorVisual._blade_shape",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.011592515592515578,
+   "total_ms_per_frame": 0.011592515592515578
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_lights.gd::52::CastleLights._hash",
+   "calls_per_frame": 75.0,
+   "self_ms_per_frame": 0.01155925155925156,
+   "total_ms_per_frame": 0.01155925155925156
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::207::BenchCombatSim._apply_damage",
+   "calls_per_frame": 0.5343035343035343,
+   "self_ms_per_frame": 0.010457380457380448,
+   "total_ms_per_frame": 0.010864864864864859
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_fog.gd::30::BackdropFog._apply",
+   "calls_per_frame": 3.0,
+   "self_ms_per_frame": 0.00958419958419958,
+   "total_ms_per_frame": 0.00958419958419958
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/candle_flame.gd::45::CandleFlame._tongue",
+   "calls_per_frame": 24.0,
+   "self_ms_per_frame": 0.009521829521829516,
+   "total_ms_per_frame": 0.009521829521829516
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::446::WarriorVisual._draw_hand",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.009039501039501038,
+   "total_ms_per_frame": 0.1932619542619544
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::69::BenchCombatSim.counters",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.007792099792099785,
+   "total_ms_per_frame": 0.007792099792099785
+  },
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::60::CodeDrawnUnitVisual._wobble",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.007428274428274427,
+   "total_ms_per_frame": 0.007428274428274427
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::203::CombatSim._fire",
+   "calls_per_frame": 0.4074844074844075,
+   "self_ms_per_frame": 0.00648024948024948,
+   "total_ms_per_frame": 0.03961330561330561
+  },
+  {
+   "function": "res://scripts/visuals/projectiles/projectile_view.gd::63::ProjectileView._draw",
+   "calls_per_frame": 19.261954261954262,
+   "self_ms_per_frame": 0.006457380457380453,
+   "total_ms_per_frame": 0.2566486486486487
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::652::SentinelVisual._draw_dying_blades",
+   "calls_per_frame": 1.3866943866943866,
+   "self_ms_per_frame": 0.006386694386694389,
+   "total_ms_per_frame": 0.018234927234927232
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_cloud.gd::45::BackdropCloud.@moon_light_setter",
+   "calls_per_frame": 17.0,
+   "self_ms_per_frame": 0.0057817047817047725,
+   "total_ms_per_frame": 0.0057817047817047725
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_animated.gd::10::BackdropAnimated.running",
+   "calls_per_frame": 36.0,
+   "self_ms_per_frame": 0.00574220374220374,
+   "total_ms_per_frame": 0.00574220374220374
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/candle_flame.gd::26::CandleFlame._process",
+   "calls_per_frame": 12.0,
+   "self_ms_per_frame": 0.005661122661122655,
+   "total_ms_per_frame": 0.008349272349272348
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_ui.gd::101::SandboxUI.set_status",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.005293139293139277,
+   "total_ms_per_frame": 0.005293139293139277
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::614::SentinelVisual._draw_wisps",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.005099792099792091,
+   "total_ms_per_frame": 0.005099792099792091
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_window.gd::19::CastleWindow.@level_setter",
+   "calls_per_frame": 24.0,
+   "self_ms_per_frame": 0.004981288981288981,
+   "total_ms_per_frame": 0.004981288981288981
+  },
+  {
+   "function": "res://scripts/visuals/projectiles/projectile_view.gd::28::ProjectileView._init",
+   "calls_per_frame": 0.44282744282744285,
+   "self_ms_per_frame": 0.004588357588357586,
+   "total_ms_per_frame": 0.004588357588357586
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/candle_glow.gd::26::CandleGlow._apply",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.004426195426195433,
+   "total_ms_per_frame": 0.004426195426195433
+  },
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::124::CodeDrawnUnitVisual._ease_out",
+   "calls_per_frame": 47.62370062370062,
+   "self_ms_per_frame": 0.004336798336798334,
+   "total_ms_per_frame": 0.004336798336798334
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::348::WarriorVisual._cape_shape",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.004320166320166324,
+   "total_ms_per_frame": 0.004320166320166324
+  },
+  {
+   "function": "res://scripts/combat/combat_projectile.gd::46::CombatProjectile.is_sword",
+   "calls_per_frame": 20.14760914760915,
+   "self_ms_per_frame": 0.004220374220374221,
+   "total_ms_per_frame": 0.004220374220374221
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::152::SentinelVisual.top_y",
+   "calls_per_frame": 38.61330561330561,
+   "self_ms_per_frame": 0.004118503118503123,
+   "total_ms_per_frame": 0.004118503118503123
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/banner_sway.gd::34::BannerSway._apply",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.004074844074844083,
+   "total_ms_per_frame": 0.004074844074844083
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_drift.gd::47::BackdropDrift._local_dist",
+   "calls_per_frame": 17.0,
+   "self_ms_per_frame": 0.0038419958419958506,
+   "total_ms_per_frame": 0.0038419958419958506
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::219::BenchDriver._sim_counters",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.0030374220374220448,
+   "total_ms_per_frame": 0.011694386694386693
+  },
+  {
+   "function": "res://scripts/visuals/projectiles/projectile_view.gd::94::ProjectileView._draw_sword",
+   "calls_per_frame": 0.45322245322245325,
+   "self_ms_per_frame": 0.002773388773388772,
+   "total_ms_per_frame": 0.011621621621621623
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::382::WarriorVisual._draw_torso_wear",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.0026964656964657005,
+   "total_ms_per_frame": 0.0026964656964657005
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::324::WarriorVisual._draw_fx_front",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.002692307692307696,
+   "total_ms_per_frame": 0.002692307692307696
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::355::BenchDriver._mean",
+   "calls_per_frame": 0.05405405405405406,
+   "self_ms_per_frame": 0.0026902286902286904,
+   "total_ms_per_frame": 0.010392931392931392
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::422::WarriorVisual._draw_helmet_wear",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.002567567567567574,
+   "total_ms_per_frame": 0.002567567567567574
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::461::WarriorVisual._draw_blade_extra",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.002372141372141379,
+   "total_ms_per_frame": 0.002372141372141379
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::184::BenchDriver._category",
+   "calls_per_frame": 0.44282744282744285,
+   "self_ms_per_frame": 0.0023721413721413715,
+   "total_ms_per_frame": 0.0023721413721413715
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_controller.gd::191::SandboxController._refresh_preview_controls",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.0022869022869022966,
+   "total_ms_per_frame": 0.031180873180873193
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::121::WarriorVisual.top_y",
+   "calls_per_frame": 18.93970893970894,
+   "self_ms_per_frame": 0.0022723492723492706,
+   "total_ms_per_frame": 0.0022723492723492706
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::123::Battle._process",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.0022307692307692297,
+   "total_ms_per_frame": 16.21633264033265
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::349::SentinelVisual._hit_extra",
+   "calls_per_frame": 40.0,
+   "self_ms_per_frame": 0.002110187110187115,
+   "total_ms_per_frame": 0.002110187110187115
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::165::CombatSim._apply_damage",
+   "calls_per_frame": 0.5343035343035343,
+   "self_ms_per_frame": 0.002108108108108109,
+   "total_ms_per_frame": 0.00942619542619543
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::353::SentinelVisual._death_pose",
+   "calls_per_frame": 1.3866943866943866,
+   "self_ms_per_frame": 0.0020727650727650716,
+   "total_ms_per_frame": 0.003249480249480249
+  },
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::128::CodeDrawnUnitVisual._ease_in_out",
+   "calls_per_frame": 15.422037422037421,
+   "self_ms_per_frame": 0.0018316008316008395,
+   "total_ms_per_frame": 0.0018316008316008395
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::180::BenchDriver._hook_node",
+   "calls_per_frame": 0.44282744282744285,
+   "self_ms_per_frame": 0.001686070686070685,
+   "total_ms_per_frame": 0.0067442827442827456
+  },
+  {
+   "function": "res://scripts/visuals/projectiles/projectile_view.gd::37::ProjectileView.finish",
+   "calls_per_frame": 0.4553014553014553,
+   "self_ms_per_frame": 0.0016278586278586295,
+   "total_ms_per_frame": 0.0016278586278586295
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_controller.gd::170::SandboxController._process",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.0015738045738045846,
+   "total_ms_per_frame": 0.2547318087318086
+  },
+  {
+   "function": "res://scripts/visuals/projectiles/projectile_view.gd::0::ProjectileView.@implicit_new",
+   "calls_per_frame": 0.44282744282744285,
+   "self_ms_per_frame": 0.0015093555093555098,
+   "total_ms_per_frame": 0.0015093555093555098
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_fog.gd::24::BackdropFog._process",
+   "calls_per_frame": 3.0,
+   "self_ms_per_frame": 0.0014261954261954337,
+   "total_ms_per_frame": 0.01391268191268191
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::214::BenchDriver._end_draw_mark",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.0014012474012474099,
+   "total_ms_per_frame": 0.001717255717255732
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::156::CombatSim._attack",
+   "calls_per_frame": 0.49064449064449067,
+   "self_ms_per_frame": 0.0012702702702702697,
+   "total_ms_per_frame": 0.05166528066528065
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::91::Battle.view_of",
+   "calls_per_frame": 1.4677754677754677,
+   "self_ms_per_frame": 0.0012307692307692336,
+   "total_ms_per_frame": 0.0033679833679833675
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::676::SentinelVisual._arm_angle_to",
+   "calls_per_frame": 0.4074844074844075,
+   "self_ms_per_frame": 0.0011060291060291055,
+   "total_ms_per_frame": 0.0011060291060291055
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::183::Battle._on_projectile_ended",
+   "calls_per_frame": 0.4553014553014553,
+   "self_ms_per_frame": 0.0011039501039501048,
+   "total_ms_per_frame": 0.004320166320166318
+  },
+  {
+   "function": "res://scripts/combat/combat_projectile.gd::34::CombatProjectile._init",
+   "calls_per_frame": 0.44282744282744285,
+   "self_ms_per_frame": 0.001012474012474013,
+   "total_ms_per_frame": 0.0013180873180873177
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::118::SentinelVisual.on_attack_performed",
+   "calls_per_frame": 0.4074844074844075,
+   "self_ms_per_frame": 0.0009688149688149694,
+   "total_ms_per_frame": 0.0027359667359667366
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::159::BenchDriver.<anonymous lambda>(lambda)",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.0009667359667359739,
+   "total_ms_per_frame": 0.0009667359667359739
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/arena_backdrop.gd::39::ArenaBackdrop._process",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.0009106029106029167,
+   "total_ms_per_frame": 0.09161538461538461
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::89::finish",
+   "calls_per_frame": 0.002079002079002079,
+   "self_ms_per_frame": 0.000841995841995842,
+   "total_ms_per_frame": 0.0008503118503118504
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/candle_glow.gd::20::CandleGlow._process",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.0008066528066528084,
+   "total_ms_per_frame": 0.007043659043659042
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/banner_sway.gd::28::BannerSway._process",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.0008045738045738069,
+   "total_ms_per_frame": 0.00667359667359666
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::127::CombatSim.is_finished",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.0006382536382536392,
+   "total_ms_per_frame": 0.04510187110187106
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::214::CombatSim._launch_sword",
+   "calls_per_frame": 0.035343035343035345,
+   "self_ms_per_frame": 0.0006320166320166318,
+   "total_ms_per_frame": 0.004068607068607069
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::670::SentinelVisual._arm_dir",
+   "calls_per_frame": 0.4074844074844075,
+   "self_ms_per_frame": 0.0005987525987525989,
+   "total_ms_per_frame": 0.0005987525987525989
+  },
+  {
+   "function": "res://scripts/combat/combat_unit.gd::88::CombatUnit.take_damage",
+   "calls_per_frame": 0.5343035343035343,
+   "self_ms_per_frame": 0.0005093555093555083,
+   "total_ms_per_frame": 0.0008066528066528071
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_lights.gd::21::CastleLights._process",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.000505197505197504,
+   "total_ms_per_frame": 0.0939106029106029
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::311::BenchDriver.<anonymous lambda>(lambda)",
+   "calls_per_frame": 0.7484407484407485,
+   "self_ms_per_frame": 0.0004906444906444906,
+   "total_ms_per_frame": 0.0004906444906444906
+  },
+  {
+   "function": "res://scripts/combat/combat_projectile.gd::0::CombatProjectile.@implicit_new",
+   "calls_per_frame": 0.44282744282744285,
+   "self_ms_per_frame": 0.000484407484407484,
+   "total_ms_per_frame": 0.000484407484407484
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::293::BenchDriver.<anonymous lambda>(lambda)",
+   "calls_per_frame": 4.686070686070686,
+   "self_ms_per_frame": 0.00037006237006236925,
+   "total_ms_per_frame": 0.00037006237006236925
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::141::SentinelVisual.muzzle_point",
+   "calls_per_frame": 0.44282744282744285,
+   "self_ms_per_frame": 0.00036382536382536347,
+   "total_ms_per_frame": 0.001627858627858628
+  },
+  {
+   "function": "res://scripts/combat/combat_unit.gd::70::CombatUnit.is_ranged",
+   "calls_per_frame": 0.49064449064449067,
+   "self_ms_per_frame": 0.0002869022869022865,
+   "total_ms_per_frame": 0.0002869022869022865
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::157::Battle._on_unit_attacked",
+   "calls_per_frame": 0.5343035343035343,
+   "self_ms_per_frame": 0.00027234927234927195,
+   "total_ms_per_frame": 0.004022869022869022
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::150::Battle._on_attack_performed",
+   "calls_per_frame": 0.49064449064449067,
+   "self_ms_per_frame": 0.00022869022869022844,
+   "total_ms_per_frame": 0.006446985446985447
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::130::SentinelVisual.on_projectile_fired",
+   "calls_per_frame": 0.44282744282744285,
+   "self_ms_per_frame": 0.00020997920997920978,
+   "total_ms_per_frame": 0.0007422037422037429
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::117::WarriorVisual.on_hit",
+   "calls_per_frame": 0.4095634095634096,
+   "self_ms_per_frame": 0.000191268191268191,
+   "total_ms_per_frame": 0.000191268191268191
+  },
+  {
+   "function": "res://scripts/combat/unit_view.gd::67::UnitView.on_attack_performed",
+   "calls_per_frame": 0.49064449064449067,
+   "self_ms_per_frame": 0.00018503118503118484,
+   "total_ms_per_frame": 0.003698544698544698
+  },
+  {
+   "function": "res://scripts/combat/unit_view.gd::63::UnitView.on_hit",
+   "calls_per_frame": 0.5343035343035343,
+   "self_ms_per_frame": 0.0001746361746361744,
+   "total_ms_per_frame": 0.0011621621621621637
+  },
+  {
+   "function": "res://scripts/combat/unit_view.gd::71::UnitView.on_projectile_fired",
+   "calls_per_frame": 0.44282744282744285,
+   "self_ms_per_frame": 0.00010810810810810803,
+   "total_ms_per_frame": 0.0012640332640332635
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::379::SentinelVisual._death_extra",
+   "calls_per_frame": 1.3866943866943866,
+   "self_ms_per_frame": 9.979209979209976e-05,
+   "total_ms_per_frame": 9.979209979209976e-05
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::259::SentinelVisual._capture_death_blades",
+   "calls_per_frame": 0.02494802494802495,
+   "self_ms_per_frame": 9.563409563409561e-05,
+   "total_ms_per_frame": 0.0003305613305613306
+  },
+  {
+   "function": "res://scripts/visuals/units/warrior_visual.gd::112::WarriorVisual.on_attack_performed",
+   "calls_per_frame": 0.08316008316008316,
+   "self_ms_per_frame": 9.355509355509352e-05,
+   "total_ms_per_frame": 0.0001517671517671517
+  },
+  {
+   "function": "res://scripts/visuals/units/sentinel_visual.gd::136::SentinelVisual.on_hit",
+   "calls_per_frame": 0.12474012474012475,
+   "self_ms_per_frame": 7.692307692307693e-05,
+   "total_ms_per_frame": 7.692307692307693e-05
+  },
+  {
+   "function": "res://scripts/combat/combat_unit.gd::98::CombatUnit.die",
+   "calls_per_frame": 0.10810810810810811,
+   "self_ms_per_frame": 6.860706860706861e-05,
+   "total_ms_per_frame": 6.860706860706861e-05
+  },
+  {
+   "function": "res://scripts/combat/abilities/sentinel_swords.gd::53::SentinelSwords.anchor",
+   "calls_per_frame": 0.035343035343035345,
+   "self_ms_per_frame": 3.5343035343035346e-05,
+   "total_ms_per_frame": 3.5343035343035346e-05
+  }
+ ]
+}
