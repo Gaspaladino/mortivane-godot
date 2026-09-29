@@ -17,6 +17,8 @@ const MAX_FRAME_DT := 0.05
 @export var effects_path: NodePath
 ## Semente da primeira recarga de cada unidade: a mesma montagem sempre produz a mesma luta.
 @export var rng_seed := 97
+## Só benchmark (tools/bench): script da simulação criada em clear(). null = CombatSim (o jogo).
+var sim_script: Script = null
 
 var sim: CombatSim
 var _views: Dictionary = {}   # id da unidade → UnitView
@@ -50,7 +52,7 @@ func clear() -> void:
 	_projectile_views.clear()
 	if sim:
 		sim.dispose()
-	sim = CombatSim.new(rng_seed)
+	sim = sim_script.new(rng_seed) if sim_script else CombatSim.new(rng_seed)
 	sim.attack_performed.connect(_on_attack_performed)
 	sim.unit_attacked.connect(_on_unit_attacked)
 	sim.projectile_fired.connect(_on_projectile_fired)

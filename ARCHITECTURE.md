@@ -64,6 +64,7 @@ res://
   assets/art/arena_layers/           # primeiro plano extraído da arte (chão, laterais, estandartes, velas)
   tools/arena_backdrop/build_layers.py  # extrai o primeiro plano (Python, só desenvolvimento)
   tools/arena_backdrop/generate_backdrop_scene.gd  # gera arena_backdrop.tscn UMA vez (depois: editar no editor)
+  tools/bench/                          # stress test / profiling do combate (só medição; ver tools/bench/README.md)
   tools/sprites/slice_paladin_sheets.py  # fatia as 5 sprite sheets do Paladino Vivo (atlas + SpriteFrames + JSON)
   assets/units/paladin/               # Paladino Vivo: source/ (sheets originais, .gdignore), atlas, SpriteFrames, JSON
   scenes/units/paladin_live_visual.tscn    # visual PADRÃO do Paladino Vivo (PaladinLiveVisual; parâmetros no Inspector)
@@ -101,6 +102,7 @@ res://
     combat/abilities/sentinel_swords.gd  # class_name SentinelSwords — lâminas da Sentinela (dado puro)
     combat/abilities/paladin_taunt.gd    # class_name PaladinTaunt — provocação + Escudo Sagrado (dado puro)
     combat/unit_view.gd              # class_name UnitView — seleção + barra de HP + debug; hospeda o visual
+    debug/bench/bench_combat_sim.gd  # class_name BenchCombatSim — SÓ benchmark: CombatSim com contadores/cronômetros
     visuals/units/unit_visual.gd     # class_name UnitVisual — base/interface do "corpo" de uma unidade
     visuals/units/circle_unit_visual.gd     # class_name CircleUnitVisual — círculo padrão (sem visual_script)
     visuals/units/code_drawn_unit_visual.gd # class_name CodeDrawnUnitVisual — utilitários de desenho comuns
@@ -976,6 +978,7 @@ godot --headless -s res://tests/paladin_test.gd  # Paladino: mecânica do HTML, 
 godot --headless -s res://tests/paladin_sprite_test.gd  # Paladino Vivo por sprites (alternativa): frames, pivô, estados
 godot --headless -s res://tests/paladin_live_test.gd  # Paladino Vivo padrão: gameplay idêntico, família visual, espada/escudo, estados
 godot --headless -s res://tests/paladin_rig_test.gd  # rig 2.5D (alternativa): espada/escudo, direções, estados
+godot --headless -s res://tests/bench_parity_test.gd  # BenchCombatSim (só benchmark) == CombatSim, luta idêntica
 ```
 Cada teste sai com código 0 se passar e 1 se falhar.
 
@@ -1036,6 +1039,28 @@ rochedo, as pontes do castelo são filhas do castelo e todo pilar/ponte desce at
 - disparo criando `ProjectileView`;
 - Reiniciar e Limpar limpando projéteis;
 - sair do Sandbox com projéteis em voo sem vazar nós.
+
+---
+
+## Benchmark e profiling (`tools/bench`) — só medição
+
+Ferramentas para medir o custo do combate com muitas unidades, **sem mudar o jogo** (detalhes e como repetir em
+`tools/bench/README.md`; resultados e conclusões em `PROFILING_REPORT.md`).
+
+- `BenchCombatSim extends CombatSim` (`scripts/debug/bench/`): cópia fiel de `step`, `nearest_foe`,
+  `taunt_target`, `_update_unit` e `_update_projectiles` com contadores e cronômetros por seção, e os modos
+  `FULL` / `TARGET_ONLY` / `MOVE_ONLY`. `tests/bench_parity_test.gd` garante que `FULL` reproduz a `CombatSim`
+  exatamente.
+- `Battle.sim_script`: único gancho no código do jogo. `null` (padrão) = `CombatSim`; o stress test põe
+  `BenchCombatSim` antes de `Battle.clear()`.
+- `tools/bench/stress_bench.gd`: um cenário no fluxo real (Main → Sandbox → Arena → Battle → UnitView). Um nó
+  "driver", último a processar, faz o que o `UnitView._process` faz (com cronômetro por classe de visual), liga uma
+  sonda ao sinal `draw` de cada `CanvasItem` (tempo de `_draw` por categoria) e lê os monitores do Godot (draw
+  calls, primitivas, nós, render). Modos visuais `normal` / `nodraw` / `minimal` / `hidden` para separar visual e
+  lógica.
+- `tools/bench/godot_profiler.py`: servidor de depuração remota que liga o Profiler do Godot (servers + funções de
+  script) sem o editor — o jogo roda com `--remote-debug tcp://127.0.0.1:PORTA`.
+- `tools/bench/run_matrix.sh` (matriz completa) e `tools/bench/make_report.py` (tabelas Markdown).
 
 ---
 
