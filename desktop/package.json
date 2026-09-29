@@ -1,0 +1,55 @@
+{
+  "name": "mortivane",
+  "productName": "Mortivane",
+  "version": "0.9.8",
+  "description": "Mortivane: necromancia tática",
+  "main": "main.js",
+  "private": true,
+  "author": "Gaspaladino",
+  "scripts": {
+    "prepare-game": "node scripts/copy-game.js",
+    "start": "npm run prepare-game && electron .",
+    "start:admin": "npm run prepare-game && electron . --admin",
+    "build:win": "npm run prepare-game && electron-builder --win dir zip",
+    "build:linux": "npm run prepare-game && electron-builder --linux dir",
+    "build:mac": "npm run prepare-game && electron-builder --mac dir",
+    "build:win:full": "npm run prepare-game && electron-builder --win dir zip -c.win.signAndEditExecutable=true"
+  },
+  "devDependencies": {
+    "electron": "44.5.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.gaspaladino.mortivane",
+    "productName": "Mortivane",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "game/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "icon": "build/icon.png",
+      "signAndEditExecutable": false
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Game",
+      "executableName": "mortivane"
+    },
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.games"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Gaspaladino/mortivane-godot.git"
+  }
+}

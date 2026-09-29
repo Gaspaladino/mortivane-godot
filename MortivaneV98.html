@@ -18102,6 +18102,7 @@ if(typeof document!=='undefined' && typeof window!=='undefined' && document.addE
   radial-gradient(ellipse 70% 80% at 32% 48%,rgba(12,7,24,.38),rgba(6,4,12,.86) 72%,rgba(4,2,8,.96)),
   var(--v98-art,none) center 40%/cover no-repeat,#07050d}
 #menu .box{position:relative;z-index:1}
+#menu .v98-motes{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0}
 #menu .box>*{animation:v98FadeUp .7s cubic-bezier(.2,.8,.2,1) both}
 #menu .box>*:nth-child(2){animation-delay:.08s}#menu .box>*:nth-child(3){animation-delay:.16s}
 #menu .box>*:nth-child(4){animation-delay:.24s}#menu .box>*:nth-child(5){animation-delay:.3s}#menu .box>*:nth-child(6){animation-delay:.36s}
@@ -18202,7 +18203,8 @@ body:has(#menu:not(.hidden)) :is(#panels,#essenceHud,#relicHud,#commandGauge,#ru
     if(typeof ARENA_ART_SRC==='string') menu.style.setProperty('--v98-art','url("'+ARENA_ART_SRC+'")');
     const box = menu.querySelector('.box');
     if(box && !box.querySelector('.v98-kicker')){ const k=document.createElement('div'); k.className='v98-kicker'; k.textContent='Mortivane'; box.prepend(k); }
-    motes(menu, small?10:18, '-100vh');
+    const layer=document.createElement('div'); layer.className='v98-motes'; layer.setAttribute('aria-hidden','true'); menu.prepend(layer);
+    motes(layer, small?10:18, '-100vh');
   }
 
   /* Transições: observa a fase e dispara banner/véu; os números do resumo contam para cima */
@@ -18248,6 +18250,184 @@ body:has(#menu:not(.hidden)) :is(#panels,#essenceHud,#relicHud,#commandGauge,#ru
       requestAnimationFrame(watch);
     })();
   }
+})();
+</script>
+<style id="v98SaveCss">
+#menu .v98-continue{display:flex;flex-direction:column;align-items:flex-start;gap:3px;margin:0 0 14px;padding:11px 18px;border-radius:7px;
+  background:linear-gradient(160deg,#2a1c44,#1a1129);border:1px solid #d8bd83aa;color:#f5e8cb;cursor:pointer;text-align:left;
+  box-shadow:0 8px 22px #0009,0 0 18px #d8bd8322;transition:transform .15s,box-shadow .15s,border-color .15s}
+#menu .v98-continue:hover{transform:translateY(-1px);border-color:#e7d3a1;box-shadow:0 10px 26px #000a,0 0 26px #d8bd8344}
+#menu .v98-continue:focus-visible{outline:2px solid #e7d3a1;outline-offset:3px}
+#menu .v98-continue .a{font-size:17px}
+#menu .v98-continue .b{font:500 12px/1.3 ui-sans-serif,system-ui,sans-serif;color:#cdb68a;letter-spacing:.04em}
+#menu .v98-note{font:500 12px/1.4 ui-sans-serif,system-ui,sans-serif;color:#9a8fb8;margin:8px 0 0}
+#menu .v98-desk{display:flex;gap:8px;margin-top:10px}
+#menu .v98-desk button{border-radius:7px;background:#140e20cc;border-color:#3d3050;color:#a99bc0}
+</style>
+<script id="v98SaveJs">
+/* V98: salvamento da run em andamento.
+   Salva sozinho na PREPARAÇÃO (sem janela ou escolha aberta) e apaga na derrota/vitória.
+   Continuar volta ao começo da preparação da onda em que o jogador parou. */
+(function(){
+  const KEY='mortivaneRunSave', FORMAT=1;
+  const store={
+    get(){ try{ return localStorage.getItem(KEY); }catch(e){ return null; } },
+    set(v){ try{ localStorage.setItem(KEY,v); return true; }catch(e){ return false; } },
+    del(){ try{ localStorage.removeItem(KEY); }catch(e){} }
+  };
+  const REGS={UNIT_DEFS,SCHOOLS,FACTION_DEFS,RELIC_DEFS,RITUAL_DEFS,SPECIALS};
+  let regMap=null;
+  function registry(){
+    if(regMap) return regMap; regMap=new Map();
+    for(const [n,o] of Object.entries(REGS)) for(const [k,v] of Object.entries(o||{})) if(v&&typeof v==='object'&&!regMap.has(v)) regMap.set(v,n+'.'+k);
+    return regMap;
+  }
+  // Codifica mantendo identidade (o Necromante está em S.necro e em S.units), Set/Map e defs por nome
+  function encode(root){
+    const ids=new Map(); let next=1; const reg=registry(); regMap=null;   // defs novas criadas na run entram no próximo mapa
+    function enc(v){
+      if(v===undefined) return {$u:1};
+      if(typeof v==='number'){ if(Number.isNaN(v)) return {$n:'NaN'}; if(!Number.isFinite(v)) return {$n:v>0?'Inf':'-Inf'}; return v; }
+      if(v===null||typeof v!=='object') return typeof v==='function'?{$u:1}:v;
+      if(reg.has(v)) return {$r:reg.get(v)};
+      if(ids.has(v)) return {$p:ids.get(v)};
+      const id=next++; ids.set(v,id);
+      if(Array.isArray(v)){                                  // listas com campos extras (ex.: composição da onda)
+        const r={$o:id,a:Array.from(v,enc)}, extra=Object.keys(v).filter(k=>!/^\d+$/.test(k));
+        if(extra.length){ r.x={}; for(const k of extra) r.x[k]=enc(v[k]); }
+        return r;
+      }
+      if(v instanceof Set) return {$o:id,s:[...v].map(enc)};
+      if(v instanceof Map) return {$o:id,m:[...v].map(([k,x])=>[enc(k),enc(x)])};
+      const pr=Object.getPrototypeOf(v);
+      if(pr!==Object.prototype&&pr!==null) throw new Error('objeto não salvável');
+      const o={}; for(const k of Object.keys(v)) o[k]=enc(v[k]); return {$o:id,v:o};
+    }
+    return enc(root);
+  }
+  function decode(data){
+    const ids=new Map();
+    function dec(x){
+      if(x===null||typeof x!=='object') return x;
+      if(x.$u) return undefined;
+      if(x.$n) return x.$n==='NaN'?NaN:(x.$n==='Inf'?Infinity:-Infinity);
+      if(x.$r){ const [n,k]=x.$r.split('.'); const v=REGS[n]&&REGS[n][k]; if(!v) throw new Error('def ausente '+x.$r); return v; }
+      if(x.$p){ if(!ids.has(x.$p)) throw new Error('ref inválida'); return ids.get(x.$p); }
+      if(x.a){ const r=[]; ids.set(x.$o,r); for(const y of x.a) r.push(dec(y)); if(x.x) for(const k of Object.keys(x.x)) r[k]=dec(x.x[k]); return r; }
+      if(x.s){ const r=new Set(); ids.set(x.$o,r); for(const y of x.s) r.add(dec(y)); return r; }
+      if(x.m){ const r=new Map(); ids.set(x.$o,r); for(const [k,y] of x.m) r.set(dec(k),dec(y)); return r; }
+      const r={}; ids.set(x.$o,r); for(const k of Object.keys(x.v)) r[k]=dec(x.v[k]); return r;
+    }
+    return dec(data);
+  }
+  const TRANSIENT=['fx','projectiles','pendingChoiceView','modal','paused','selectedAlly','confirmAlly','hoverCorpse','cardFor','linkKey','massSacrifice','portalEat','portalBite'];
+  // Loja/baú de relíquias aberto pode ser salvo (as ofertas ficam no estado e reabrem ao continuar);
+  // a evolução da escola é recalculada do estado. Recompensa surpresa e demais janelas bloqueiam.
+  function relicShopOpen(){ const p=S.pendingChoiceView; return !!(p&&p.type==='relic'&&S.relicEvent&&S.relicEvent.type!=='surprise'); }
+  function blockingOverlay(){
+    return [...document.querySelectorAll('.overlay, #roundPop')].some(e=>{
+      if(e.id==='schoolChoiceHud'||e.id==='menu'||(e.id==='relicOv'&&relicShopOpen())) return false;
+      const c=getComputedStyle(e); return c.display!=='none'&&c.visibility!=='hidden'&&e.getClientRects().length>0;
+    });
+  }
+  function canSave(){
+    if(S.phase!=='prep' || (typeof ADMIN!=='undefined'&&ADMIN.on) || !S.necro || !S.necro.alive) return false;
+    if(hasPendingChoice() ? !relicShopOpen() : !!S.relicEvent) return false;
+    return !S.factionIntro && !blockingOverlay() && !formationGrid.drag && !dragUnit;
+  }
+  let lastBlob='';
+  function save(){
+    if(!canSave()) return false;
+    let body;
+    try{
+      const snap={}; for(const k of Object.keys(S)) if(!TRANSIENT.includes(k)) snap[k]=S[k];
+      body=JSON.stringify({f:FORMAT,S:encode(snap),nextId,elapsed:performance.now()-(S.runStarted||performance.now()),
+        wave:S.wave,schoolId:Object.keys(SCHOOLS).find(k=>SCHOOLS[k]===S.school)||DEFAULT_SCHOOL,essence:S.essence,
+        army:S.units.filter(u=>u.alive&&u.team==='player'&&!u.isNecro).length,necroHp:Math.round(S.necro.hp),necroMax:Math.round(S.necro.maxHp),at:Date.now()});
+    }catch(e){ console.warn('Mortivane: save ignorado —',e.message); return false; }
+    if(body===lastBlob) return true;
+    lastBlob=body; return store.set(body);
+  }
+  function read(){
+    const raw=store.get(); if(!raw) return null;
+    try{ const d=JSON.parse(raw); return d&&d.f===FORMAT&&d.S?d:null; }catch(e){ return null; }
+  }
+  function clear(){ store.del(); lastBlob=''; refreshMenu(); }
+  function load(){
+    const d=read(); if(!d){ refreshMenu(); return false; }
+    let restored;
+    try{ restored=decode(d.S); }catch(e){ console.warn('Mortivane: save inválido —',e.message); clear(); return false; }
+    ADMIN.on=false; ADMIN.ignoreCap=false; ADMIN.debug=false; ADMIN.logging=false; ADMIN.speed=1; ADMIN.paused=false; ADMIN.sel=null; ADMIN.brush=null; ADMIN.snapshot=null;
+    chosenSchool=d.schoolId;
+    el('menu').classList.add('hidden');
+    startRun(d.schoolId);                                   // zera HUD, caches e música; depois o estado salvo substitui o novo
+    for(const k of Object.keys(restored)) S[k]=restored[k];
+    S.fx=[]; S.projectiles=[]; S.pendingChoiceView=null; S.modal=null; S.paused=false;
+    if(!(S.selected instanceof Set)) S.selected=new Set(); S.selected.clear();
+    S.selectedAlly=null; S.confirmAlly=null; S.hoverCorpse=null; S.massSacrifice=null; S.portalEat=null; S.portalBite=null;
+    S.v98Stop=0; S.v98RaiseQueue=[];
+    nextId=Math.max(nextId,d.nextId||1);
+    S.runStarted=performance.now()-(d.elapsed||0);
+    rebuildRitualCache(); rtsUnits.clear(); clearLinkRegistry();
+    relicHudKey=''; capGaugeKey=''; hudRows=[]; hudOrder=[];
+    ensureGridFormation(false,false);
+    setMusicState('preparation');
+    syncUI();
+    if(S.relicEvent) openRelicOverlay();                    // a loja estava aberta: reabre com as mesmas ofertas
+    lastBlob=''; save();
+    return true;
+  }
+  // Menu: botão "Continuar run" quando existe save válido
+  let contBtn=null, note=null;
+  function refreshMenu(){
+    const box=document.querySelector('#menu .box'); if(!box) return;
+    const d=read();
+    if(!contBtn){
+      contBtn=document.createElement('button'); contBtn.type='button'; contBtn.className='v98-continue'; contBtn.id='continueRunBtn';
+      contBtn.addEventListener('click',()=>{ SND.resume(); SND.play('ui'); load(); });
+      note=document.createElement('p'); note.className='v98-note';
+      box.insertBefore(contBtn,el('startBtn'));
+      box.appendChild(note);
+    }
+    contBtn.hidden=!d; note.hidden=!d;
+    if(d){
+      contBtn.innerHTML='<span class="a">Continuar run</span><span class="b">Onda '+(d.wave+1)+' · Necromante '+d.necroHp+'/'+d.necroMax+
+        ' · '+d.army+' tropas · '+d.essence+' essências</span>';
+      note.textContent='Começar uma nova run substitui a run salva.';
+    }
+  }
+  // Salva durante a preparação e apaga quando a run termina
+  let lastPhase=S.phase;
+  setInterval(()=>{
+    const ph=S.phase;
+    if(ph==='dead'||ph==='victory'){ if(read()) clear(); }
+    else if(ph==='prep') save();
+    if(ph==='menu'&&lastPhase!=='menu') refreshMenu();
+    lastPhase=ph;
+  },1200);
+  addEventListener('beforeunload',()=>{ if(S.phase==='prep') save(); });
+  refreshMenu();
+  window.MortivaneSave={save,load,clear,read};
+})();
+</script>
+<script id="v98DesktopJs">
+/* V98: integração com a versão desktop (Electron). No navegador comum nada disso aparece. */
+(function(){
+  const desk=window.mortivaneDesktop; if(!desk) return;
+  document.documentElement.classList.add('is-desktop');
+  const admin=el('adminBtn');
+  if(desk.release && admin){ admin.hidden=true; admin.style.display='none'; }   // versão final: sem modo administrador
+  const box=document.querySelector('#menu .box'); if(!box) return;
+  const row=document.createElement('div'); row.className='v98-desk';
+  const fs=document.createElement('button'); fs.type='button'; fs.id='fullscreenBtn';
+  const quit=document.createElement('button'); quit.type='button'; quit.id='quitBtn'; quit.textContent='Sair do jogo';
+  const label=on=>{ fs.textContent=on?'Modo janela':'Tela cheia'; };
+  desk.isFullscreen().then(label).catch(()=>label(false));
+  if(desk.onFullscreenChange) desk.onFullscreenChange(label);
+  fs.addEventListener('click',()=>{ SND.play('ui'); desk.toggleFullscreen().then(label); });
+  quit.addEventListener('click',()=>{ if(window.MortivaneSave) MortivaneSave.save(); desk.quit(); });
+  row.append(fs,quit);
+  box.insertBefore(row, box.querySelector('.v98-note'));
 })();
 </script>
 </body>
