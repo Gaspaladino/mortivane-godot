@@ -23,6 +23,10 @@ var _rim_pass := false
 var flash_color := Color.WHITE
 ## Irregularidade geral do movimento (0 = limpo).
 var jitter := 0.0
+## Etapa 3 da otimização: formas que se repetem (mesmos pontos no espaço da peça) viram malhas
+## cacheadas (DrawCache), desenhadas com `draw_mesh` — mesma geometria e mesmos pixels, sem triangular
+## a cada quadro e com metade dos draw calls por contorno. false = sempre o caminho direto.
+var use_draw_cache := true
 
 var _time := 0.0
 var _seed := 0.0
@@ -86,18 +90,49 @@ func _poly(pts: PackedVector2Array, fill: Color) -> void:
 	if _rim_pass:
 		_rim_poly(pts)
 		return
-	draw_colored_polygon(pts, fill)
-	var closed := pts.duplicate()
-	closed.append(pts[0])
-	draw_polyline(closed, _c(outline), outline_w, true)
+	_fill_poly(pts, fill)
+	_outline_closed(pts, _c(outline), outline_w)
 
 
 func _circle(center: Vector2, radius: float, fill: Color) -> void:
 	if _rim_pass:
-		draw_circle(center, radius + shadow_style.rim_width, _rim_color())
+		_fill_circle(center, radius + shadow_style.rim_width, _rim_color())
 		return
-	draw_circle(center, radius, fill)
-	draw_arc(center, radius, 0.0, TAU, 16, _c(outline), outline_w, true)
+	_fill_circle(center, radius, fill)
+	var m := DrawCache.arc_mesh(center, radius, 0.0, TAU, 16, outline_w) if use_draw_cache else null
+	if m:
+		draw_mesh(m, null, Transform2D.IDENTITY, _c(outline))
+	else:
+		draw_arc(center, radius, 0.0, TAU, 16, _c(outline), outline_w, true)
+
+
+## = draw_colored_polygon(pts, col), pela malha cacheada quando a forma se repete.
+func _fill_poly(pts: PackedVector2Array, col: Color) -> void:
+	var m := DrawCache.fill_mesh(pts) if use_draw_cache else null
+	if m:
+		draw_mesh(m, null, Transform2D.IDENTITY, col)
+	else:
+		draw_colored_polygon(pts, col)
+
+
+## = draw_polyline(pts + [pts[0]], col, width, true) (contorno fechado suavizado).
+func _outline_closed(pts: PackedVector2Array, col: Color, width: float) -> void:
+	var closed := pts.duplicate()
+	closed.append(pts[0])
+	var m := DrawCache.outline_mesh(closed, width) if use_draw_cache else null
+	if m:
+		draw_mesh(m, null, Transform2D.IDENTITY, col)
+	else:
+		draw_polyline(closed, col, width, true)
+
+
+## = draw_circle(center, radius, col) (cheio, sem suavização).
+func _fill_circle(center: Vector2, radius: float, col: Color) -> void:
+	var m := DrawCache.circle_mesh(center, radius) if use_draw_cache else null
+	if m:
+		draw_mesh(m, null, Transform2D.IDENTITY, col)
+	else:
+		draw_circle(center, radius, col)
 
 
 func _line(a: Vector2, b: Vector2, col: Color, width: float) -> void:
@@ -114,10 +149,8 @@ func _rim_color() -> Color:
 
 func _rim_poly(pts: PackedVector2Array) -> void:
 	var col := _rim_color()
-	draw_colored_polygon(pts, col)
-	var closed := pts.duplicate()
-	closed.append(pts[0])
-	draw_polyline(closed, col, outline_w + shadow_style.rim_width * 2.0, true)
+	_fill_poly(pts, col)
+	_outline_closed(pts, col, outline_w + shadow_style.rim_width * 2.0)
 
 
 static func _ease_out(x: float) -> float:

@@ -28,6 +28,8 @@ var debug_visible := false:
 		debug_visible = value
 		_frozen = false   # o debug de um morto também é redesenhado; volta a congelar depois
 		queue_redraw()
+		if _overlay:
+			_overlay.queue_redraw()
 ## Destaque de seleção (Sandbox).
 var selected := false:
 	set(value):
@@ -39,6 +41,11 @@ var _font: Font
 ## Cadáver assentado: não atualiza nem redesenha mais (a última pose desenhada fica no RenderingServer).
 ## Só sai daqui se a unidade voltar a viver (Necromancia) ou se o debug for ligado.
 var _frozen := false
+## Etapa 3: o anel de seleção e a barra de HP só são redesenhados quando o que mostram muda
+## (antes: os dois, todo quadro, para todas as unidades). Com o debug ligado, todo quadro.
+var _hp_drawn := -1.0
+var _alive_drawn := true
+var _top_drawn := 0.0
 
 
 func _init(p_unit: CombatUnit, def: UnitDef) -> void:
@@ -93,8 +100,17 @@ func _process(delta: float) -> void:
 		_frozen = false   # voltou a viver: anima de novo
 	position = unit.position
 	visual.update_visual(delta)
-	queue_redraw()
-	_overlay.queue_redraw()
+	if debug_visible:
+		queue_redraw()   # alcance e linha até o alvo mudam todo quadro
+		_overlay.queue_redraw()
+	else:
+		var alive := unit.is_alive()
+		var top := visual.top_y()
+		if unit.hp != _hp_drawn or alive != _alive_drawn or top != _top_drawn:
+			_hp_drawn = unit.hp
+			_alive_drawn = alive
+			_top_drawn = top
+			_overlay.queue_redraw()
 	if not unit.is_alive() and not debug_visible and visual.is_settled_corpse():
 		_frozen = true   # este quadro já pediu o último redesenho da pose final
 

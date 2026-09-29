@@ -86,6 +86,7 @@ var _parts: Array = []
 
 
 func setup(p_unit: CombatUnit, p_def: UnitDef) -> void:
+	use_draw_cache = false   # polígonos projetados a cada quadro: não se repetem
 	super(p_unit, p_def)
 	_seed = float(unit.id) * 1.618
 	_time = fmod(_seed * 3.1, TAU)

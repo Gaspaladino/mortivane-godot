@@ -37,6 +37,8 @@ func _run() -> void:
 		stage.add_child(view)
 		views.append(view)
 	await process_frame
+	for v: UnitView in views:   # depois do _ready (o Godot religa o _process no _ready)
+		v.set_process(false)
 	for v: UnitView in views:
 		for k in 20:
 			v._process(DT)

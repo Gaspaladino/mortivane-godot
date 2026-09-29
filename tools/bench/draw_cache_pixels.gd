@@ -38,6 +38,8 @@ func _run() -> void:
 			stage.add_child(view)
 			views.append([view, row])
 	await process_frame
+	for e in views:   # depois do _ready (o Godot religa o _process no _ready)
+		(e[0] as UnitView).set_process(false)
 	# poses: 0 parado · 1 andando · 2 golpe · 3 dano · 4 morte em andamento
 	for k in 40:
 		for e in views:

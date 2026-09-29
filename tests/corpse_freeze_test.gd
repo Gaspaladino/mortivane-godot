@@ -36,6 +36,7 @@ func _test_unit(id: StringName) -> void:
 	view.set_process(false)   # o teste chama o _process do jogo quadro a quadro
 	root.add_child(view)
 	await process_frame
+	view.set_process(false)   # depois do _ready (o Godot religa o _process no _ready)
 	var draws := [0]
 	for ci: CanvasItem in [view, view.visual, view._overlay]:
 		ci.draw.connect(func() -> void: draws[0] += 1)
