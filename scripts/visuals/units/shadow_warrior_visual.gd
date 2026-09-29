@@ -59,6 +59,11 @@ func _apply_shadow_style(s: ShadowStyle) -> void:
 	flash_color = s.energy_core
 
 
+## Dissolução da morte termina em 2,4 s (ver _draw_fx_front).
+func corpse_settle_time() -> float:
+	return maxf(death_time + 1.0, 2.5)
+
+
 ## 1 = de pé; cai a 0 enquanto o corpo escurece na morte.
 func _life() -> float:
 	return 1.0 - clampf(p_dim / 0.2, 0.0, 1.0)

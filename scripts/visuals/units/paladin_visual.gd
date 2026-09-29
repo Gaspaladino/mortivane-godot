@@ -186,6 +186,15 @@ func ground_point() -> Vector2:
 	return Vector2(0, FOOT_Y)
 
 
+func death_elapsed() -> float:
+	return _death_t
+
+
+## Queda em DEATH_TIME, quique amortecido e escurecimento em DEATH_TIME + 0,3. A Sombra dissolve até 2,6 s.
+func corpse_settle_time() -> float:
+	return 2.8
+
+
 func update_visual(delta: float) -> void:
 	_time += delta
 	var alive := unit.is_alive()

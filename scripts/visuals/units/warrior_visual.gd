@@ -132,6 +132,16 @@ func ground_point() -> Vector2:
 	return Vector2(0, FOOT_Y)
 
 
+func death_elapsed() -> float:
+	return _death_t
+
+
+## Queda em death_time, quique amortecido (exp(−9·b): < 0,01° depois de 1 s) e escurecimento em
+## death_time + 0,3.
+func corpse_settle_time() -> float:
+	return death_time + 1.0
+
+
 func update_visual(delta: float) -> void:
 	_time += delta
 	var alive := unit.is_alive()

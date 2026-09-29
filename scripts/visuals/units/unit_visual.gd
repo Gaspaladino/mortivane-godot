@@ -73,3 +73,21 @@ func pick_rect() -> Rect2:
 ## Ponto do chão (local) sob a unidade: base do anel de seleção.
 func ground_point() -> Vector2:
 	return Vector2.ZERO
+
+
+# --- Cadáver estático ------------------------------------------------------------------------
+## Segundos desde que ESTE visual viu a morte (−1 = vivo, ou prévia da morte no Sandbox).
+func death_elapsed() -> float:
+	return -1.0
+
+
+## Segundos depois da morte a partir dos quais nada mais muda no desenho: queda terminada, quique
+## amortecido, escurecimento completo, armas no chão e efeitos acabados. INF = nunca assenta.
+func corpse_settle_time() -> float:
+	return INF
+
+
+## Cadáver assentado: o UnitView para de atualizar e de redesenhar este visual (ver UnitView).
+func is_settled_corpse() -> bool:
+	var t := death_elapsed()
+	return t >= 0.0 and t >= corpse_settle_time()

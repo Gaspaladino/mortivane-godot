@@ -26,6 +26,7 @@ var visual: UnitVisual
 var debug_visible := false:
 	set(value):
 		debug_visible = value
+		_frozen = false   # o debug de um morto também é redesenhado; volta a congelar depois
 		queue_redraw()
 ## Destaque de seleção (Sandbox).
 var selected := false:
@@ -35,6 +36,9 @@ var selected := false:
 
 var _overlay: Node2D
 var _font: Font
+## Cadáver assentado: não atualiza nem redesenha mais (a última pose desenhada fica no RenderingServer).
+## Só sai daqui se a unidade voltar a viver (Necromancia) ou se o debug for ligado.
+var _frozen := false
 
 
 func _init(p_unit: CombatUnit, def: UnitDef) -> void:
@@ -81,10 +85,23 @@ func contains_point(world_point: Vector2) -> bool:
 
 
 func _process(delta: float) -> void:
+	if _frozen:
+		if not unit.is_alive():
+			if position != unit.position:
+				position = unit.position   # só a transformação do nó; o desenho não muda
+			return
+		_frozen = false   # voltou a viver: anima de novo
 	position = unit.position
 	visual.update_visual(delta)
 	queue_redraw()
 	_overlay.queue_redraw()
+	if not unit.is_alive() and not debug_visible and visual.is_settled_corpse():
+		_frozen = true   # este quadro já pediu o último redesenho da pose final
+
+
+## Cadáver congelado (sem atualização nem redesenho por quadro)?
+func is_frozen() -> bool:
+	return _frozen
 
 
 func _draw() -> void:

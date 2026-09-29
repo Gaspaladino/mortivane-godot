@@ -158,6 +158,16 @@ func pick_rect() -> Rect2:
 	return Rect2(-12, FOOT_Y - 40, 24, 42)
 
 
+func death_elapsed() -> float:
+	return _death_t
+
+
+## Queda em death_time, lâminas somem em 0,85 s, quique amortecido (exp(−8·b)) e escurecimento em
+## death_time + 0,3. A Sombra: fiapos assentam em ~1,96 s (death_time 1,1 → 2,2).
+func corpse_settle_time() -> float:
+	return death_time + 1.1
+
+
 func ground_point() -> Vector2:
 	return Vector2(0, FOOT_Y)
 

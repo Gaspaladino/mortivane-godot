@@ -164,6 +164,16 @@ func ground_point() -> Vector2:
 	return Vector2(0, FOOT_Y)
 
 
+## Só a morte real (a prévia de morte do Sandbox continua animada).
+func death_elapsed() -> float:
+	return animator.death_t if animator.dead and animator.preview_kind == &"" else -1.0
+
+
+## Queda em 1,35 s, espada/escudo no chão em ~1,1 s, escurecimento em 1,65 s, efeitos (0,9 s).
+func corpse_settle_time() -> float:
+	return 2.0
+
+
 func update_visual(delta: float) -> void:
 	_update(delta)
 	queue_redraw()
