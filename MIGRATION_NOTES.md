@@ -881,6 +881,37 @@ Capturas grandes dos 16 estados, folha comparativa e capturas em escala real no 
   - As sprite sheets e a cena de sprites continuam no projeto como alternativa.
   - `PaladinVisual` continua existindo porque é a base do Sombra.
 
+### Otimização 1 — 40 × 40 (6 etapas incrementais) ✔ (aguardando validação)
+
+**Pedido.** Primeira rodada de otimização a partir do profiling: melhorar muito o 40×40 sem mudar
+comportamento, stats, habilidades, aparência, morte nem resultado da batalha. Etapas na ordem pedida, cada
+uma medida (FPS, quadro, sim, alvo, update visual, `_draw`, draw calls).
+
+**Feito** (um commit por etapa; detalhes e tabelas em `OPTIMIZATION_REPORT.md`):
+0. Base: referência congelada da CombatSim (`tests/support/`), paridade de 40 lutas, contadores baratos na
+   CombatSim, bench que envolve a simulação real.
+1. Mortos fora do targeting: listas de ativos por time. 40 vivos × 40 cadáveres: 384 mil → 0 candidatos/s.
+2. Cadáveres estáticos: o UnitView congela o cadáver assentado (sem update nem redraw).
+3. Redraw dos vivos: anel/barra só por mudança; `DrawCache` (geometria do motor portada, pixels idênticos):
+   draw calls 40×40 Guerreiros 10.977 → 6.327; `_draw` com render 63,8 → 14,6 ms.
+4. Targeting com cache de garantia (resultado idêntico): varreduras −81% a −98%.
+5. Paladino: pose 3D descartada deixa de ser montada; trilhas constantes calculadas uma vez. Update visual
+   −48%.
+6. `Battle.MAX_SIM_STEPS_PER_FRAME = 4`: nada de 6 passos num quadro lento (câmera lenta em vez de cascata).
+
+**Validado.** 15 suítes OK (novas: `corpse_freeze_test`, `redraw_test`, `sim_pacing_test`;
+`bench_parity_test` reescrito). Pixels: etapa 3 = 0 diferenças; etapa 5 = 1 pixel (1/255).
+
+**Resultado 40×40** (headless): Guerreiros 62 → 83 FPS, misto 49 → 74, Paladinos 19 → 32. Com render
+(sem a rasterização por software): Guerreiros 77,8 → 26,1 ms, misto 95 → 47 ms, Paladinos 157 → 135 ms.
+
+**Limitações / pendências.**
+- Cadáver congelado: param micro-animações (chapéu da Sentinela; névoa e fumaça das sombras).
+- Abaixo de 30 FPS o jogo anda mais devagar que antes (por projeto da etapa 6).
+- O desenho do Paladino segue caro (~1,4 ms e ~181 draw calls por unidade): próximo passo é desenhar as
+  peças rígidas no espaço local para o cache funcionar.
+- Sem GPU no ambiente: FPS com render é de software.
+
 ### Profiling e stress test do combate (só medição) ✔ (aguardando validação)
 
 **Pedido.** Descobrir, com números, por que o FPS cai com muitas unidades dos dois lados — sem otimizar e sem

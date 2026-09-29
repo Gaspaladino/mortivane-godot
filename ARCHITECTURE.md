@@ -106,6 +106,7 @@ res://
     visuals/units/unit_visual.gd     # class_name UnitVisual — base/interface do "corpo" de uma unidade
     visuals/units/circle_unit_visual.gd     # class_name CircleUnitVisual — círculo padrão (sem visual_script)
     visuals/units/code_drawn_unit_visual.gd # class_name CodeDrawnUnitVisual — utilitários de desenho comuns
+    visuals/units/draw_cache.gd      # class_name DrawCache — formas repetidas viram malhas (mesma geometria do motor)
     visuals/units/sentinel_visual.gd        # class_name SentinelVisual — Sentinela Arcana viva
     visuals/units/sentinel_shadow_visual.gd # class_name SentinelShadowVisual — Sentinela Sombra (herda a viva)
     visuals/effects/arcane_blade.gd         # class_name ArcaneBlade — desenho da lâmina (pairando e em voo)
@@ -281,6 +282,10 @@ ondas nem formação.
     `unit_at(ponto)` e `view_of(unit)`.
   - Nasce vazia e **parada**. Só depois de `start()` acumula o dt do quadro (limitado a 0,05 s) e avança a
     simulação em passos fixos de `CombatSim.STEP` = 1/120 s.
+  - **No máximo `MAX_SIM_STEPS_PER_FRAME` = 4 passos por quadro** (cobre 30 FPS sem perder tempo). Um quadro
+    lento não faz mais que isso: a sobra (até 4 passos) é recuperada nos quadros seguintes e o excesso é
+    descartado (`dropped_time`) — câmera lenta em vez de efeito cascata. O resultado da luta não muda
+    (mesma sequência de passos). Diagnóstico: `steps_last_frame`.
   - Cria um `UnitView` por unidade em `Stage/World/Entities`.
   - Emite `finished(winner_team)` uma vez, quando um lado fica sem ninguém vivo (−1 = ninguém sobrou).
     A simulação continua rodando depois disso, e os sobreviventes passam a `IDLE`.
@@ -288,6 +293,11 @@ ondas nem formação.
   - anel de seleção (elipse nos pés) e, com F4, alcance e linha até o alvo;
   - filho `Body` = o `UnitVisual` da `UnitDef`;
   - filho `Overlay` = barra de HP e texto do F4, sempre por cima do corpo.
+  - Redesenho: o corpo todo quadro (animação); o anel e a barra **só quando o que mostram muda** (HP, vida,
+    altura, seleção) ou com o F4 ligado.
+  - **Cadáver congelado:** quando o visual diz que o cadáver assentou (`is_settled_corpse()`), o UnitView
+    para de chamar `update_visual` e `queue_redraw`; a última pose fica no RenderingServer. Mover o cadáver só
+    muda a posição do nó; reviver (Necromancia) ou ligar o F4 volta a animar.
 - A `Battle` repassa os sinais como eventos **só visuais**:
   - `attack_performed` → `on_attack_performed()` no atacante;
   - `unit_attacked` → `on_hit()` no alvo;
@@ -297,7 +307,14 @@ ondas nem formação.
 
 **Regras por passo** (para cada unidade viva, em ordem de criação)
 1. Desconta a recarga.
-2. Alvo = inimigo **vivo** mais próximo (distância centro a centro). Sem nenhum → `IDLE`.
+2. Alvo = inimigo **vivo** mais próximo (distância centro a centro; empate = o primeiro criado). Sem nenhum → `IDLE`.
+   Implementação (otimização 1, resultado idêntico ao de varrer todo mundo a cada passo):
+   - só percorre as listas de unidades **ativas** por time (quem morre sai na hora; cadáveres e aliados nunca
+     são examinados);
+   - mantém o alvo enquanto há **garantia** de que ele continua estritamente o mais próximo: na varredura guarda
+     os 3 inimigos seguintes e a distância do resto; como a simulação sabe quanto cada unidade andou (odômetro,
+     `_move_unit`) e quanto o time inimigo andou no máximo, só varre de novo quando a folga acaba ou o alvo morre.
+   - Contadores `stat_target_queries/scans/candidates` para o benchmark.
 3. `dist > attack_range` → `MOVING`: anda até o alvo, no máximo `move_speed × dt` por passo, parando em
    0,85 × alcance. A posição é presa à área jogável, usando o raio.
 4. Senão → `ATTACKING`: não se move. Com a recarga zerada, aplica `damage` e recarrega com `attack_interval`.
@@ -368,6 +385,14 @@ Nenhum PNG, SVG, sprite sheet ou asset externo. Cadeia: `CombatUnit` → `UnitVi
   - Tamanho: ≈ 36 unidades do mundo de altura (≈ 58 px em 1600×896). Os pés ficam 9 abaixo do centro lógico.
 - A cada quadro, `update_visual` recalcula uma **pose** (`p_*`: ângulos e deslocamentos) a partir do estado real,
   e `_draw()` só a aplica.
+- **Cadáver estático:** todo visual informa `death_elapsed()` e `corpse_settle_time()` (quando queda, quique,
+  escurecimento e efeitos terminam); daí em diante o UnitView não o atualiza nem redesenha mais.
+- **Geometria cacheada (`DrawCache`):** `_poly`, `_circle` e `_rim_poly` do `CodeDrawnUnitVisual` desenham cada
+  forma repetida (mesmos pontos no espaço da peça) como uma malha branca feita uma vez, com a cor pelo
+  `modulate`. A geometria é a mesma que o Godot 4.7 gera para polígono, contorno suavizado (3 faixas → 1 malha),
+  círculo e arco (portada do motor, float32): pixels idênticos, metade dos draw calls por contorno e nenhuma
+  triangulação por quadro. Formas que mudam todo quadro seguem pelo caminho direto (`use_draw_cache = false`
+  no Paladino Vivo, cujos polígonos são projetados a cada quadro).
 
 | Estado | Como é lido | O que acontece |
 |---|---|---|
@@ -978,7 +1003,10 @@ godot --headless -s res://tests/paladin_test.gd  # Paladino: mecânica do HTML, 
 godot --headless -s res://tests/paladin_sprite_test.gd  # Paladino Vivo por sprites (alternativa): frames, pivô, estados
 godot --headless -s res://tests/paladin_live_test.gd  # Paladino Vivo padrão: gameplay idêntico, família visual, espada/escudo, estados
 godot --headless -s res://tests/paladin_rig_test.gd  # rig 2.5D (alternativa): espada/escudo, direções, estados
-godot --headless -s res://tests/bench_parity_test.gd  # BenchCombatSim (só benchmark) == CombatSim, luta idêntica
+godot --headless -s res://tests/bench_parity_test.gd  # CombatSim otimizada == referência congelada (40 lutas) + BenchCombatSim
+godot --headless -s res://tests/corpse_freeze_test.gd  # cadáver assentado não é mais atualizado nem redesenhado
+godot --headless -s res://tests/redraw_test.gd  # anel/barra só por mudança; DrawCache (1ª vez direto, 2ª malha)
+godot --headless -s res://tests/sim_pacing_test.gd  # limite de passos por quadro; mesmo resultado em 60/30/5 FPS
 ```
 Cada teste sai com código 0 se passar e 1 se falhar.
 
@@ -1047,10 +1075,11 @@ rochedo, as pontes do castelo são filhas do castelo e todo pilar/ponte desce at
 Ferramentas para medir o custo do combate com muitas unidades, **sem mudar o jogo** (detalhes e como repetir em
 `tools/bench/README.md`; resultados e conclusões em `PROFILING_REPORT.md`).
 
-- `BenchCombatSim extends CombatSim` (`scripts/debug/bench/`): cópia fiel de `step`, `nearest_foe`,
-  `taunt_target`, `_update_unit` e `_update_projectiles` com contadores e cronômetros por seção, e os modos
-  `FULL` / `TARGET_ONLY` / `MOVE_ONLY`. `tests/bench_parity_test.gd` garante que `FULL` reproduz a `CombatSim`
-  exatamente.
+- `BenchCombatSim extends CombatSim` (`scripts/debug/bench/`): envolve a CombatSim (chama `super` e só cronometra
+  e conta), com os modos `FULL` / `TARGET_ONLY` / `MOVE_ONLY`. Os contadores de alvo vêm da própria CombatSim.
+- `tests/support/reference_combat_sim.gd`: cópia CONGELADA da CombatSim de antes da otimização 1;
+  `tests/bench_parity_test.gd` exige resultado idêntico a ela.
+- Otimização por etapas: `tools/bench/opt_step.sh` + `compare_steps.py`; resultado em `OPTIMIZATION_REPORT.md`.
 - `Battle.sim_script`: único gancho no código do jogo. `null` (padrão) = `CombatSim`; o stress test põe
   `BenchCombatSim` antes de `Battle.clear()`.
 - `tools/bench/stress_bench.gd`: um cenário no fluxo real (Main → Sandbox → Arena → Battle → UnitView). Um nó
