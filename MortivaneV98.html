@@ -9833,7 +9833,7 @@ function drawWarriorSide(c,u,body,p){
   else if(dying){ const e=dying*dying*(3-2*dying); giro = e*1.35; achata = 1-e*.28; }
   else if(erguendo){ const e=clamp((raising-.22)/.4,0,1); const k=1-e*e*(3-2*e); giro = k*1.35; achata = 1-k*.28; }
   if(giro){ c.translate(0,.3*giro/1.35); c.rotate(giro); c.scale(1,achata); }
-  const lean = dead ? 0 : v.move*.07 + (wp.fase==='swing'?.13*(1-wp.k):0) + (wp.fase==='windup'?-.08*wp.k:0);
+  const lean = dead ? 0 : v.move*.07 + (wp.fase==='swing'?.22*(1-wp.k):0) + (wp.fase==='windup'?-.14*wp.k:0) + (wp.fase==='recover'?.08*(1-wp.k):0);
   const ink = outline?'#08070e':pal.line;
   const fill = col => outline ? '#08070e' : (hit>0 ? '#e6ece6' : col);
   const gold = outline ? '#08070e' : pal.gold;
@@ -9880,32 +9880,13 @@ function drawWarriorSide(c,u,body,p){
   flat([[.06,-.56],[.3,-.5],[.39,-.14],[.2,-.02],[.03,-.2]], pal.metalLight);
   poly([[-.41,.19],[-.05,.19],[-.1,.47],[-.44,.42]], pal.metalDark);
   poly([[-.44,.05],[.44,.02],[.43,.18],[-.43,.2]], pal.leather);
-  poly([[.08,.19],[.37,.17],[.36,.7],[.22,.8],[.09,.7]], pal.red, gold, .06);
+  // tabardo curto preso ao cinto: balança com o passo e fica para trás ao andar/golpear
+  const aba = dead ? 0 : v.move*.16 + step*.14 + Math.sin(v.clock*2.2)*.02 + (wp.fase==='swing'?.18*(1-wp.k):0);
+  c.save(); c.translate(.23,.17); c.rotate(aba);
+  poly([[-.14,0],[.14,-.01],[.13,.36],[0,.47],[-.13,.36]], pal.red, gold, .06);
+  c.restore();
   if(!outline){ c.strokeStyle=gold; c.lineWidth=.05; c.strokeRect(.19,.04,.13,.13); }                  // fivela
   if(shadow && !outline){ c.save(); c.globalAlpha=(dead?.25:.55)*(1-dying*.7); line(.14,-.42,.22,-.24,pal.glow,.04); c.restore(); }
-
-  // braço da espada: mesmas fases do golpe; em repouso a lâmina aponta para frente e para baixo
-  const repouso = 1.2 + step*.18 + idle*.03, alto = -2.25, fim = .75;
-  let arm, off;
-  if(wp.fase==='windup'){ arm = repouso+(alto-repouso)*easeOut(wp.k); off = .85+(.12-.85)*wp.k; }
-  else if(wp.fase==='swing'){ arm = alto+(fim-alto)*easeOut(wp.k); off = .12; }
-  else if(wp.fase==='recover'){ arm = fim+(repouso-fim)*wp.k; off = .12+(.85-.12)*wp.k; }
-  else { arm = repouso; off = .85; }
-  if(dead){ arm = 1.2; off = .6; }
-  let ang = arm - off;
-  if(dying){ arm += dying*.9; ang += dying*1.8; }
-  const ox=.16, oy=-.48, comp=.5;
-  const ex=ox+Math.cos(arm)*comp*.5, ey=oy+Math.sin(arm)*comp*.5+.04, mx=ox+Math.cos(arm)*comp, my=oy+Math.sin(arm)*comp;
-  c.strokeStyle=fill(pal.metalDark); c.lineWidth=.22; c.lineCap='round'; c.lineJoin='round';
-  c.beginPath(); c.moveTo(ox,oy); c.lineTo(ex,ey); c.lineTo(mx,my); c.stroke();
-  c.save(); c.translate(mx,my); c.rotate(ang);
-  line(-.16,0,.2,0,fill(pal.leather),.1);                                                   // cabo
-  poly([[.26,-.1],[1.18,-.08],[1.4,0],[1.18,.08],[.26,.1]], pal.blade);                // lâmina longa
-  if(!outline) line(.3,-.02,1.2,-.02,pal.bladeEdge,.045);                                          // aresta de luz
-  line(.21,-.22,.21,.22,gold,.09);                                                           // guarda dourada
-  dot(-.18,0,.07,fill(pal.gold));                                                            // pomo
-  poly([[-.09,-.1],[.1,-.1],[.1,.1],[-.09,.1]], pal.glove);                                  // mão no cabo
-  c.restore();
 
   // cachecol vermelho e elmo fechado: friso dourado, viseira em T, rebite
   poly([[-.3,-.62],[.26,-.7],[.36,-.55],[.1,-.48],[-.26,-.5]], pal.red);
@@ -9924,8 +9905,40 @@ function drawWarriorSide(c,u,body,p){
     dot(-.02,-1.0,.08,pal.gold);                                                             // rebite
   }
 
+  // braço da espada: mesmas fases do golpe; em repouso a lâmina aponta para frente e para baixo
+  const repouso = 1.2 + step*.18 + idle*.03, alto = -2.25, fim = .75;
+  let arm, off;
+  if(wp.fase==='windup'){ arm = repouso+(alto-repouso)*easeOut(wp.k); off = .85+(.12-.85)*wp.k; }
+  else if(wp.fase==='swing'){ arm = alto+(fim-alto)*easeOut(wp.k); off = .12; }
+  else if(wp.fase==='recover'){ arm = fim+(repouso-fim)*wp.k; off = .12+(.85-.12)*wp.k; }
+  else { arm = repouso; off = .85; }
+  if(dead){ arm = 1.2; off = .6; }
+  let ang = arm - off;
+  if(dying){ arm += dying*.9; ang += dying*1.8; }
+  // o ombro acompanha o golpe: recua e sobe no preparo, avança no corte
+  let sx=0, sy=0;
+  if(wp.fase==='windup'){ sx=-.1*wp.k; sy=-.07*wp.k; }
+  else if(wp.fase==='swing'){ const e=easeOut(wp.k); sx=-.1+.24*e; sy=-.07+.1*e; }
+  else if(wp.fase==='recover'){ sx=.14*(1-wp.k); sy=.03*(1-wp.k); }
+  const ox=.24+sx, oy=-.5+sy, comp=.52;
+  const ex=ox+Math.cos(arm)*comp*.5, ey=oy+Math.sin(arm)*comp*.5+.05, mx=ox+Math.cos(arm)*comp, my=oy+Math.sin(arm)*comp;
+  // braço blindado: contorno + placa (dois traços no mesmo caminho)
+  c.beginPath(); c.moveTo(ox,oy); c.lineTo(ex,ey); c.lineTo(mx,my); c.lineCap='round'; c.lineJoin='round';
+  c.strokeStyle=ink; c.lineWidth=.3; c.stroke();
+  c.strokeStyle=fill(pal.metal); c.lineWidth=.2; c.stroke();
+  c.save(); c.translate(mx,my); c.rotate(ang);
+  line(-.16,0,.2,0,fill(pal.leather),.1);                                                   // cabo
+  poly([[.26,-.1],[1.18,-.08],[1.4,0],[1.18,.08],[.26,.1]], pal.blade);                // lâmina longa
+  if(!outline) line(.3,-.02,1.2,-.02,pal.bladeEdge,.045);                                          // aresta de luz
+  line(.21,-.22,.21,.22,gold,.09);                                                           // guarda dourada
+  dot(-.18,0,.07,fill(pal.gold));                                                            // pomo
+  poly([[-.09,-.1],[.1,-.1],[.1,.1],[-.09,.1]], pal.glove);                                  // mão no cabo
+  c.restore();
+  c.beginPath(); c.arc(ox,oy,.13,0,6.283); c.fillStyle=fill(pal.metal); c.fill();              // ombreira do braço da espada
+
   // braço de perto: pende ao lado, balança com o passo; ombreira grande por cima
-  c.save(); c.translate(-.26,-.46); c.rotate(.16-step*.35+idle*.02);
+  const contra = wp.fase==='windup' ? .3*wp.k : wp.fase==='swing' ? .3-.55*easeOut(wp.k) : wp.fase==='recover' ? -.25*(1-wp.k) : 0;
+  c.save(); c.translate(-.26,-.46); c.rotate(.16-step*.35+idle*.02+contra);
   flat([[-.12,0],[.12,0],[.11,.3],[-.11,.3]], pal.chain);
   poly([[-.13,.26],[.13,.26],[.12,.52],[-.12,.52]], pal.metal);
   poly([[-.14,.5],[.12,.5],[.13,.68],[-.12,.7]], pal.glove);
