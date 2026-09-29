@@ -13,6 +13,8 @@ const REFRESH := 0.2
 const BG := Color(0.03, 0.03, 0.05, 0.62)
 
 var battle: Battle
+## Comparação de render (F7): o painel mostra o modo em uso.
+var render_compare: RenderCompare
 var _label: Label
 var _acc := 0.0
 var _frames := 0
@@ -130,6 +132,8 @@ func _refresh() -> void:
 		var c := (sim.stat_candidates - _cand0) / _acc
 		lines.append("Alvo/s: %s buscas · %s varreduras · %s candidatos" % [_fmt(q), _fmt(sc), _fmt(c)])
 	lines.append("Visual (update): %.2f ms/quadro" % (_view_us / 1000.0 / n))
+	if render_compare:
+		lines.append("Visual (F7): %s" % render_compare.mode_name())
 	_label.text = "\n".join(lines)
 
 

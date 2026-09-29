@@ -18,6 +18,9 @@ nada daqui: a única mudança fora desta pasta é o gancho `Battle.sim_script`, 
 | `tools/bench/corpse_pixels.gd` | etapa 2: o que o cadáver congelado deixa de mostrar (pixels). |
 | `tools/bench/paladin_pixels.gd` | etapa 5: roteiro fixo de 24 poses do Paladino para comparar commits. |
 | `tests/support/reference_combat_sim.gd` | cópia congelada da CombatSim de antes da otimização (referência de paridade). |
+| `tools/bench/render_breakdown.gd` | custo de RENDER das unidades com a simulação PARADA (Sandbox em preparação): draw calls, objetos, primitivas, quadro, nos modos `normal` / `frozen` (sem redesenho) / `squares` (1 quadrado por unidade) / `merged` (simula 1 triangle array por unidade) / `hidden`. |
+| `tools/bench/render_probe/` | `make_probe_copy.py` cria uma CÓPIA instrumentada do projeto em que todo `draw_*` dos visuais passa por `draw_probe.gd` (conta por parte/tipo e pode desligar categorias com `skip=`). O projeto real não muda. |
+| `tools/bench/render_matrix.sh` | matriz de render: comandos e draw calls por tipo de unidade e por categoria (cópia instrumentada) + tempos no projeto real. Resultado em `RENDER_REPORT.md`. |
 
 ## Como repetir
 
@@ -61,6 +64,15 @@ python3 tools/bench/godot_profiler.py --port 6010 --skip 60 --out perfil.json --
     godot --headless --path . --fixed-fps 60 --remote-debug tcp://127.0.0.1:6010 \
     -s res://tools/bench/stress_bench.gd -- allies=40 enemies=40 profile=warriors phase=full
 ```
+
+Custo de render (simulação parada):
+
+```bash
+GODOT=/caminho/do/godot DISPLAY=:99 tools/bench/render_matrix.sh /tmp/render   # ~20 min
+godot --path . -s res://tools/bench/render_breakdown.gd -- allies=u_warrior:40 enemies=warrior:40 mode=squares
+```
+
+No jogo (no PC de verdade): Sandbox, F6 (painel) e **F7** (normal → congelado → quadrados → lote simulado).
 
 ## Como cada número é medido
 

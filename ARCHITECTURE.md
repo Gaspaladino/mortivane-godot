@@ -66,6 +66,7 @@ res://
   tools/arena_backdrop/generate_backdrop_scene.gd  # gera arena_backdrop.tscn UMA vez (depois: editar no editor)
   tools/bench/                          # stress test / profiling do combate (só medição; ver tools/bench/README.md)
                                         #   perf_overlay_shots.gd: capturas do painel de desempenho (F6) no Sandbox
+                                        #   render_breakdown.gd / render_matrix.sh / render_probe/: custo de render (RENDER_REPORT.md)
   tools/sprites/slice_paladin_sheets.py  # fatia as 5 sprite sheets do Paladino Vivo (atlas + SpriteFrames + JSON)
   assets/units/paladin/               # Paladino Vivo: source/ (sheets originais, .gdignore), atlas, SpriteFrames, JSON
   scenes/units/paladin_live_visual.tscn    # visual PADRÃO do Paladino Vivo (PaladinLiveVisual; parâmetros no Inspector)
@@ -142,8 +143,9 @@ res://
     menu/main_menu.gd                # class_name MainMenu — só emite sinais
     sandbox/sandbox_controller.gd    # class_name SandboxController — montagem, ações, seleção
     sandbox/sandbox_ui.gd            # class_name SandboxUI — liga os Controls da cena a sinais
-    main/main.gd                     # troca de tela + atalhos globais (F3/F4/F6/F9/F11) + avisos
+    main/main.gd                     # troca de tela + atalhos globais (F3/F4/F6/F7/F9/F11) + avisos
     debug/perf_overlay.gd            # class_name PerfOverlay — painel de desempenho do Sandbox (F6, só leitura)
+    debug/render_compare.gd          # class_name RenderCompare — comparação de render das unidades (F7, só a tela)
   tests/
     combat_test.gd                   # teste headless do combate (SceneTree)
     sandbox_test.gd                  # teste headless de ponta a ponta: menu + Sandbox na cena real
@@ -166,7 +168,7 @@ e fica fora do Git.
 ## Cenas
 
 ```
-Main (Node)                      main.gd — troca de tela, atalhos globais (F3, F4, F6, F9, F11) e avisos
+Main (Node)                      main.gd — troca de tela, atalhos globais (F3, F4, F6, F7, F9, F11) e avisos
 ├─ <tela atual>                  uma por vez: MainMenu ou Sandbox (instanciada por Main)
 └─ NoticeLayer (CanvasLayer 110) / NoticeLabel   aviso temporário no rodapé
 
@@ -177,7 +179,8 @@ MainMenu (Control)               main_menu.gd — título + Jogar / Sandbox; sin
 Sandbox (Node)                   sandbox_controller.gd — montagem, ações, seleção; sinal exit_requested
 ├─ Arena                         a MESMA arena.tscn (instância), sem nada específico de Sandbox
 ├─ SandboxUI (sandbox_ui.tscn)    faixa inferior com Controls editáveis (ver "Sandbox")
-└─ PerfOverlay (CanvasLayer 60)  painel de desempenho, topo esquerdo, desligado por padrão (F6)
+├─ PerfOverlay (CanvasLayer 60)  painel de desempenho, topo esquerdo, desligado por padrão (F6)
+└─ RenderCompare (Node)          comparação de render das unidades (F7); no modo normal não processa
 
 Arena (Node2D)                   arena.gd — enquadramento; set_debug_visible()
    ├─ Camera2D                   posicionada pelo enquadramento
@@ -223,6 +226,7 @@ As ações ficam no **InputMap** (`project.godot`, seção `[input]`) e usam a *
 | `combat_debug_toggle` | F4 | liga/desliga o debug de combate (alcance, alvo, HP, estado) |
 | `combat_restart` | F9 | atalho secundário de **Reiniciar combate** no Sandbox (o principal é o botão) |
 | `perf_overlay_toggle` | F6 | liga/desliga o painel de desempenho do Sandbox (começa desligado) |
+| `render_compare_cycle` | F7 | diagnóstico no Sandbox: visual das unidades normal → congelado → quadrados → lote simulado |
 
 - Atalhos globais ficam **só em `Main`** e são tratados em `_input`, antes da interface, para que nenhum
   controle de UI consiga "engolir" as teclas. Os botões usam `focus_mode = NONE`, então teclas nunca os apertam.
@@ -1011,6 +1015,20 @@ lembra o estado. Atualiza o texto 5×/s (janela de 0,2 s). Desligado, não proce
 - Não mede o `_draw` nem o render (isso é do `tools/bench`); o tempo de alvo aparece como taxa, não em ms (medir
   cada busca custaria mais que a própria busca).
 
+**Comparação de render (F7, ferramenta de debug).** `RenderCompare` (`scripts/debug/render_compare.gd`), filho do
+Sandbox. Troca só a TELA das mesmas unidades, para medir no próprio PC com o painel F6 (que mostra o modo):
+
+| modo | o que faz | para medir |
+|---|---|---|
+| normal | o jogo como é | referência |
+| congelado | os UnitView param de atualizar e redesenhar; os draw calls continuam | custo de CPU do `_draw` (diferença para o normal) |
+| quadrados | corpo e barra escondidos; 1 quadrado por unidade | limite inferior do custo por unidade |
+| lote simulado | 1 triangle array por unidade com o nº de triângulos do visual real, refeito todo quadro | ganho esperado de desenhar cada unidade num lote só (`RENDER_REPORT.md`) |
+
+- Só esconde/mostra nós e adiciona um nó temporário por unidade; voltar ao normal desfaz tudo. Unidades
+  recriadas (Reiniciar) recebem o modo em uso. Não muda simulação, IA, stats nem os visuais.
+- Diagnóstico e proposta: `RENDER_REPORT.md`.
+
 ---
 
 ## Testes headless
@@ -1033,6 +1051,7 @@ godot --headless -s res://tests/corpse_freeze_test.gd  # cadáver assentado não
 godot --headless -s res://tests/redraw_test.gd  # anel/barra só por mudança; DrawCache (1ª vez direto, 2ª malha)
 godot --headless -s res://tests/sim_pacing_test.gd  # limite de passos por quadro; mesmo resultado em 60/30/5 FPS
 godot --headless -s res://tests/perf_overlay_test.gd  # painel F6: liga/desliga, métricas, não bloqueia, não muda a luta
+godot --headless -s res://tests/render_compare_test.gd  # F7: ciclo de modos, restauração, Reiniciar, mesma luta em todos os modos
 ```
 Cada teste sai com código 0 se passar e 1 se falhar.
 
@@ -1116,6 +1135,9 @@ Ferramentas para medir o custo do combate com muitas unidades, **sem mudar o jog
 - `tools/bench/godot_profiler.py`: servidor de depuração remota que liga o Profiler do Godot (servers + funções de
   script) sem o editor — o jogo roda com `--remote-debug tcp://127.0.0.1:PORTA`.
 - `tools/bench/run_matrix.sh` (matriz completa) e `tools/bench/make_report.py` (tabelas Markdown).
+- Render das unidades: `tools/bench/render_breakdown.gd` (modos normal/frozen/squares/merged/hidden) e
+  `tools/bench/render_probe/` (cópia instrumentada: todo `draw_*` dos visuais contado por parte e desligável por
+  categoria). Resultado em `RENDER_REPORT.md`.
 
 ---
 

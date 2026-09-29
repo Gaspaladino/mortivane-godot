@@ -10,6 +10,7 @@ extends Node
 ##   combat_debug_toggle F4  — liga/desliga o debug de combate (alvo, alcance, HP, estado)
 ##   combat_restart      F9  — atalho secundário de "Reiniciar combate" no Sandbox
 ##   perf_overlay_toggle F6  — painel de desempenho do Sandbox (FPS, quadro, vivos, draw calls, tempos)
+##   render_compare_cycle F7 — comparação de render no Sandbox: normal → congelado → quadrados → lote simulado
 ##   fullscreen_toggle   F11 — alterna janela ↔ tela cheia
 ## O estado de F3/F4 é lembrado aqui e reaplicado a cada Arena nova.
 ##
@@ -91,6 +92,12 @@ func _input(event: InputEvent) -> void:
 		_perf_overlay = not _perf_overlay
 		if current_screen is SandboxController:
 			current_screen.perf_overlay.set_shown(_perf_overlay)
+	elif event.is_action_pressed("render_compare_cycle", false, true):
+		get_viewport().set_input_as_handled()
+		if current_screen is SandboxController:
+			var rc: RenderCompare = current_screen.render_compare
+			rc.cycle()
+			show_notice("Visual das unidades (F7, diagnóstico): %s" % rc.mode_name())
 	elif event.is_action_pressed("combat_restart", false, true):
 		get_viewport().set_input_as_handled()
 		if current_screen is SandboxController:

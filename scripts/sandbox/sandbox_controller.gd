@@ -43,6 +43,8 @@ class Placement:
 var mode := Mode.PREP
 ## Painel de desempenho (debug; F6 via Main). Nasce desligado.
 var perf_overlay := PerfOverlay.new()
+## Comparação de custo de render (F7, debug): troca só a TELA das unidades (normal/congelado/quadrados/lote).
+var render_compare := RenderCompare.new()
 var placements: Array[Placement] = []
 var selected: Placement = null
 
@@ -50,6 +52,9 @@ var selected: Placement = null
 func _ready() -> void:
 	perf_overlay.battle = arena.battle
 	add_child(perf_overlay)
+	render_compare.battle = arena.battle
+	perf_overlay.render_compare = render_compare
+	add_child(render_compare)
 	arena.battle.finished.connect(_on_battle_finished)
 	ui.spawn_requested.connect(add_unit)
 	ui.start_pressed.connect(start_combat)

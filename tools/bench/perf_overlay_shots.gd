@@ -1,13 +1,15 @@
 extends SceneTree
 ## Capturas do painel de desempenho (F6) no Sandbox real, em tempo real (sem passo fixo).
-## args: <saida.png> <aliados> <inimigos> <perfil: warriors|sentinels|paladins|mixed> [segundos=4]
+## args: <saida.png> <aliados> <inimigos> <perfil: warriors|sentinels|paladins|mixed|shadow_vs_warriors> [segundos=4]
+##       [f7=vezes que aperta o F7 (comparação de render)] [combate=1|0 (0 = simulação parada)]
 var out := ""
 var main: Node
 var t := 0.0
 var wait := 4.0
 var step := 0
 const PROFILES := {warriors = [&"warrior"], sentinels = [&"arc_battlemage"], paladins = [&"sac_paladin"],
-	mixed = [&"warrior", &"arc_battlemage", &"sac_paladin"]}
+	mixed = [&"warrior", &"arc_battlemage", &"sac_paladin"],
+	shadow_vs_warriors = [&"u_warrior", &"warrior"]}
 
 
 func _initialize() -> void:
@@ -28,16 +30,24 @@ func _process(delta: float) -> bool:
 		main._arena_debug = false
 		main.show_sandbox()
 		var sb: SandboxController = main.current_screen
+		var split := a[3] == "shadow_vs_warriors"   # aliados = 1º tipo, inimigos = 2º (como nos prints do usuário)
 		for i in allies:
-			sb.add_unit(UnitCatalog.get_def(defs[i % defs.size()]), CombatUnit.Team.PLAYER)
+			sb.add_unit(UnitCatalog.get_def(defs[0] if split else defs[i % defs.size()]), CombatUnit.Team.PLAYER)
 		for i in enemies:
-			sb.add_unit(UnitCatalog.get_def(defs[(i + 1) % defs.size()]), CombatUnit.Team.ENEMY)
+			sb.add_unit(UnitCatalog.get_def(defs[1] if split else defs[(i + 1) % defs.size()]), CombatUnit.Team.ENEMY)
 		# F6 de verdade (mesmo caminho do teclado)
 		var ev := InputEventKey.new()
 		ev.physical_keycode = KEY_F6
 		ev.pressed = true
 		Input.parse_input_event(ev)
-		sb.start_combat()
+		for i in int(a[5]) if a.size() > 5 else 0:
+			for pressed in [true, false]:
+				var f7 := InputEventKey.new()
+				f7.physical_keycode = KEY_F7
+				f7.pressed = pressed
+				Input.parse_input_event(f7)
+		if a.size() <= 6 or a[6] != "0":
+			sb.start_combat()
 		t = 0.0
 	elif step == 1 and t > wait:
 		root.get_texture().get_image().save_png(out)

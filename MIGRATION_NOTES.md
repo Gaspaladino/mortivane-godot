@@ -881,6 +881,36 @@ Capturas grandes dos 16 estados, folha comparativa e capturas em escala real no 
   - As sprite sheets e a cena de sprites continuam no projeto como alternativa.
   - `PaladinVisual` continua existindo porque é a base do Sombra.
 
+### Diagnóstico do render das unidades (simulação parada) ✔ (aguardando validação)
+
+**Pedido.** Pelos prints do painel F6 no PC do usuário, 80 unidades visíveis com a simulação parada dão 13 FPS e
+10.814 draw calls. Descobrir de onde vêm os draw calls (por tipo de unidade e por parte), comparar com um quadrado
+por unidade e propor a solução de maior impacto e menor risco, **sem mudar** gameplay, IA, stats, combate nem
+aparência.
+
+**Feito** (só medição; detalhes em `RENDER_REPORT.md`):
+- `tools/bench/render_probe/`: cópia instrumentada do projeto em que todo `draw_*` dos visuais é contado por parte
+  e tipo e pode ser desligado por categoria. O projeto real não muda.
+- `tools/bench/render_breakdown.gd` + `render_matrix.sh`: draw calls, objetos e primitivas por tipo de unidade e por
+  categoria; modos normal / congelado / quadrados / lote simulado / oculto.
+- **F7 no Sandbox** (`RenderCompare`, debug): os mesmos modos no jogo, para medir no PC do usuário com o F6.
+
+**Resultado.**
+- Cada comando de desenho vira 1 draw call; linhas suavizadas viram 3.
+- Draw calls por unidade: Guerreiro 72, Guerreiro Sombra 189, Sentinela 119, Sentinela Sombra 218,
+  Paladino 180, Paladino Sombra 253.
+- Nas sombras: silhueta roxa +52–58 e VFX +26–50.
+- Quadrados: 10.817 → 377 draw calls, e o quadro volta ao do cenário vazio.
+- Lote simulado: 10.817 → 456.
+- **Proposta**: um triangle array por unidade no `_draw` (mesma geometria e mesma ordem de hoje), começando por
+  Guerreiro e Guerreiro Sombra.
+
+**Validado.** 17 suítes OK (nova: `render_compare_test`).
+
+**Limitações.**
+- Sem GPU aqui: os tempos com render são de software. O ganho real se mede no PC com F7.
+- O headless tem piso de 6,9 ms por quadro.
+
 ### Painel de desempenho do Sandbox (F6) ✔ (aguardando validação)
 
 **Pedido.** Ferramenta de debug para medir o desempenho no PC do usuário: painel discreto no Sandbox com FPS,
