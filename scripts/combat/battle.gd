@@ -37,6 +37,8 @@ var _accumulator := 0.0
 ## Diagnóstico: passos executados no último quadro e tempo de jogo descartado (s) desde o início.
 var steps_last_frame := 0
 var dropped_time := 0.0
+## Diagnóstico (painel de desempenho, F6): µs gastos nos passos da simulação no último quadro.
+var sim_usec_last_frame := 0
 var _running := false
 var _finished := false
 var _debug_visible := false
@@ -134,14 +136,18 @@ func is_debug_visible() -> bool:
 
 ## Depois do fim a simulação continua (sobreviventes passam a IDLE); `finished` sai uma vez só.
 func _process(delta: float) -> void:
+	sim_usec_last_frame = 0
 	if not _running:
+		steps_last_frame = 0
 		return
+	var t0 := Time.get_ticks_usec()
 	_accumulator += minf(delta, MAX_FRAME_DT)
 	steps_last_frame = 0
 	while _accumulator >= CombatSim.STEP and steps_last_frame < MAX_SIM_STEPS_PER_FRAME:
 		steps_last_frame += 1
 		_accumulator -= CombatSim.STEP
 		sim.step(CombatSim.STEP)
+	sim_usec_last_frame = Time.get_ticks_usec() - t0
 	var max_debt := CombatSim.STEP * MAX_SIM_STEPS_PER_FRAME
 	if _accumulator > max_debt:
 		dropped_time += _accumulator - max_debt

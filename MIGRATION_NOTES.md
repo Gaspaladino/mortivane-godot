@@ -881,6 +881,28 @@ Capturas grandes dos 16 estados, folha comparativa e capturas em escala real no 
   - As sprite sheets e a cena de sprites continuam no projeto como alternativa.
   - `PaladinVisual` continua existindo porque é a base do Sombra.
 
+### Painel de desempenho do Sandbox (F6) ✔ (aguardando validação)
+
+**Pedido.** Ferramenta de debug para medir o desempenho no PC do usuário: painel discreto no Sandbox com FPS,
+quadro, aliados/inimigos, cadáveres, total, draw calls, objetos/nós e, se houver instrumentação, sim / alvo /
+update visual. Sem mudar gameplay, IA, stats, visual das unidades nem combate.
+
+**Feito.**
+- `PerfOverlay` (`scripts/debug/perf_overlay.gd`): `CanvasLayer` 60, painel no topo esquerdo, fundo
+  semitransparente, fonte 11, não bloqueia cliques, atualiza 5×/s, desligado por padrão.
+- Tecla **F6** (`perf_overlay_toggle`): o F4 sugerido já é o debug de combate. `Main` trata e lembra o estado.
+- Instrumentação mínima: `Battle.sim_usec_last_frame` (2 leituras de relógio por quadro) e
+  `UnitView.profiling`/`stat_usec` (cronômetro no `_process` só com o painel ligado). Alvo usa os contadores
+  que a CombatSim já tinha (taxa por segundo).
+- `tests/perf_overlay_test.gd`; `tools/bench/perf_overlay_shots.gd` (capturas com render).
+
+**Validado.** 16 suítes OK. Capturas com o painel ligado: 10×10, 20×20, 40×40 Guerreiros, Sentinelas e Paladinos.
+
+**Limitações.**
+- Draw calls/objetos são N/A sem render (headless).
+- `_draw` e render não entram no painel (ver `tools/bench`).
+- As capturas daqui usam render por software, então os FPS delas não representam uma GPU.
+
 ### Otimização 1 — 40 × 40 (6 etapas incrementais) ✔ (aguardando validação)
 
 **Pedido.** Primeira rodada de otimização a partir do profiling: melhorar muito o 40×40 sem mudar

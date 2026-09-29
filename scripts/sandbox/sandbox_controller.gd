@@ -41,11 +41,15 @@ class Placement:
 @onready var ui: SandboxUI = $SandboxUI
 
 var mode := Mode.PREP
+## Painel de desempenho (debug; F6 via Main). Nasce desligado.
+var perf_overlay := PerfOverlay.new()
 var placements: Array[Placement] = []
 var selected: Placement = null
 
 
 func _ready() -> void:
+	perf_overlay.battle = arena.battle
+	add_child(perf_overlay)
 	arena.battle.finished.connect(_on_battle_finished)
 	ui.spawn_requested.connect(add_unit)
 	ui.start_pressed.connect(start_combat)

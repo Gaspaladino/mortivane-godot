@@ -65,6 +65,7 @@ res://
   tools/arena_backdrop/build_layers.py  # extrai o primeiro plano (Python, só desenvolvimento)
   tools/arena_backdrop/generate_backdrop_scene.gd  # gera arena_backdrop.tscn UMA vez (depois: editar no editor)
   tools/bench/                          # stress test / profiling do combate (só medição; ver tools/bench/README.md)
+                                        #   perf_overlay_shots.gd: capturas do painel de desempenho (F6) no Sandbox
   tools/sprites/slice_paladin_sheets.py  # fatia as 5 sprite sheets do Paladino Vivo (atlas + SpriteFrames + JSON)
   assets/units/paladin/               # Paladino Vivo: source/ (sheets originais, .gdignore), atlas, SpriteFrames, JSON
   scenes/units/paladin_live_visual.tscn    # visual PADRÃO do Paladino Vivo (PaladinLiveVisual; parâmetros no Inspector)
@@ -141,7 +142,8 @@ res://
     menu/main_menu.gd                # class_name MainMenu — só emite sinais
     sandbox/sandbox_controller.gd    # class_name SandboxController — montagem, ações, seleção
     sandbox/sandbox_ui.gd            # class_name SandboxUI — liga os Controls da cena a sinais
-    main/main.gd                     # troca de tela + atalhos globais (F3/F4/F9/F11) + avisos
+    main/main.gd                     # troca de tela + atalhos globais (F3/F4/F6/F9/F11) + avisos
+    debug/perf_overlay.gd            # class_name PerfOverlay — painel de desempenho do Sandbox (F6, só leitura)
   tests/
     combat_test.gd                   # teste headless do combate (SceneTree)
     sandbox_test.gd                  # teste headless de ponta a ponta: menu + Sandbox na cena real
@@ -164,7 +166,7 @@ e fica fora do Git.
 ## Cenas
 
 ```
-Main (Node)                      main.gd — troca de tela, atalhos globais (F3, F4, F9, F11) e avisos
+Main (Node)                      main.gd — troca de tela, atalhos globais (F3, F4, F6, F9, F11) e avisos
 ├─ <tela atual>                  uma por vez: MainMenu ou Sandbox (instanciada por Main)
 └─ NoticeLayer (CanvasLayer 110) / NoticeLabel   aviso temporário no rodapé
 
@@ -174,7 +176,8 @@ MainMenu (Control)               main_menu.gd — título + Jogar / Sandbox; sin
 
 Sandbox (Node)                   sandbox_controller.gd — montagem, ações, seleção; sinal exit_requested
 ├─ Arena                         a MESMA arena.tscn (instância), sem nada específico de Sandbox
-└─ SandboxUI (sandbox_ui.tscn)    faixa inferior com Controls editáveis (ver "Sandbox")
+├─ SandboxUI (sandbox_ui.tscn)    faixa inferior com Controls editáveis (ver "Sandbox")
+└─ PerfOverlay (CanvasLayer 60)  painel de desempenho, topo esquerdo, desligado por padrão (F6)
 
 Arena (Node2D)                   arena.gd — enquadramento; set_debug_visible()
    ├─ Camera2D                   posicionada pelo enquadramento
@@ -219,11 +222,12 @@ As ações ficam no **InputMap** (`project.godot`, seção `[input]`) e usam a *
 | `fullscreen_toggle` | F11 | alterna entre janela e tela cheia (`Window.mode`: `MODE_WINDOWED` ↔ `MODE_FULLSCREEN`) |
 | `combat_debug_toggle` | F4 | liga/desliga o debug de combate (alcance, alvo, HP, estado) |
 | `combat_restart` | F9 | atalho secundário de **Reiniciar combate** no Sandbox (o principal é o botão) |
+| `perf_overlay_toggle` | F6 | liga/desliga o painel de desempenho do Sandbox (começa desligado) |
 
 - Atalhos globais ficam **só em `Main`** e são tratados em `_input`, antes da interface, para que nenhum
   controle de UI consiga "engolir" as teclas. Os botões usam `focus_mode = NONE`, então teclas nunca os apertam.
-- `Main` guarda o estado de F3/F4 e o aplica a toda Arena nova, então ele sobrevive a sair e voltar ao Sandbox.
-  No menu, F3/F4 só mudam esse estado guardado.
+- `Main` guarda o estado de F3/F4/F6 e o aplica a toda Arena (e todo Sandbox) nova, então ele sobrevive a sair e
+  voltar ao Sandbox. No menu, F3/F4/F6 só mudam esse estado guardado.
 - Uma tela com Arena expõe `get_arena()`. A Arena expõe `set_debug_visible()` / `is_debug_visible()`, e
   `arena.battle` expõe os mesmos métodos para o debug de combate.
 - **Jogo embutido no editor.** A Godot 4.4+ roda o jogo dentro da aba *Game* por padrão:
@@ -986,6 +990,27 @@ SandboxUI (CanvasLayer 50)
 - Cores, bordas e fonte: `sandbox_theme.tres`.
 - Gerados por código: só os botões das listas (um por `UnitDef`).
 
+**Painel de desempenho (F6, ferramenta de debug).** `PerfOverlay` (`scripts/debug/perf_overlay.gd`), filho do
+Sandbox, `CanvasLayer` 60 (acima da UI do Sandbox, abaixo dos avisos). Painel pequeno no **topo esquerdo**, fundo
+semitransparente, `mouse_filter = IGNORE` (não bloqueia cliques). Começa **desligado**; F6 liga/desliga e o `Main`
+lembra o estado. Atualiza o texto 5×/s (janela de 0,2 s). Desligado, não processa nem mede nada.
+
+| linha | de onde vem |
+|---|---|
+| FPS · Quadro (pior) | média e pior quadro da janela de 0,2 s (FPS = quadros / tempo da janela) |
+| Aliados · Inimigos | `sim.alive_count(time)` |
+| Vivos · Cadáveres · Total | vivos, `sim.units.size() − vivos`, `sim.units.size()` |
+| Projéteis | `sim.projectiles.size()` |
+| Draw calls · Objetos · Nós | monitores oficiais `RENDER_TOTAL_DRAW_CALLS_IN_FRAME`, `RENDER_TOTAL_OBJECTS_IN_FRAME`, `OBJECT_NODE_COUNT`; **N/A** sem render (headless) |
+| Sim | `Battle.sim_usec_last_frame` (tempo dos passos da simulação no quadro) e passos por quadro; "parada" fora do combate |
+| Alvo/s | taxa dos contadores já existentes da CombatSim: buscas (`stat_target_queries`), varreduras, candidatos |
+| Visual (update) | soma do `UnitView._process` de todas as unidades, medida só com o painel ligado (`UnitView.profiling`) |
+
+- Só **lê**: não muda regra, IA, stats, alvo nem desenho. O teste confirma a mesma luta com o painel ligado e
+  desligado.
+- Não mede o `_draw` nem o render (isso é do `tools/bench`); o tempo de alvo aparece como taxa, não em ms (medir
+  cada busca custaria mais que a própria busca).
+
 ---
 
 ## Testes headless
@@ -1007,6 +1032,7 @@ godot --headless -s res://tests/bench_parity_test.gd  # CombatSim otimizada == r
 godot --headless -s res://tests/corpse_freeze_test.gd  # cadáver assentado não é mais atualizado nem redesenhado
 godot --headless -s res://tests/redraw_test.gd  # anel/barra só por mudança; DrawCache (1ª vez direto, 2ª malha)
 godot --headless -s res://tests/sim_pacing_test.gd  # limite de passos por quadro; mesmo resultado em 60/30/5 FPS
+godot --headless -s res://tests/perf_overlay_test.gd  # painel F6: liga/desliga, métricas, não bloqueia, não muda a luta
 ```
 Cada teste sai com código 0 se passar e 1 se falhar.
 

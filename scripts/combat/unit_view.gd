@@ -41,6 +41,10 @@ var _font: Font
 ## Cadáver assentado: não atualiza nem redesenha mais (a última pose desenhada fica no RenderingServer).
 ## Só sai daqui se a unidade voltar a viver (Necromancia) ou se o debug for ligado.
 var _frozen := false
+## Painel de desempenho (F6): enquanto ligado, soma o tempo de _process de todos os UnitView (µs);
+## o painel lê e zera. Desligado, não mede nada.
+static var profiling := false
+static var stat_usec := 0
 ## Etapa 3: o anel de seleção e a barra de HP só são redesenhados quando o que mostram muda
 ## (antes: os dois, todo quadro, para todas as unidades). Com o debug ligado, todo quadro.
 var _hp_drawn := -1.0
@@ -92,6 +96,15 @@ func contains_point(world_point: Vector2) -> bool:
 
 
 func _process(delta: float) -> void:
+	if profiling:
+		var t0 := Time.get_ticks_usec()
+		_update(delta)
+		stat_usec += Time.get_ticks_usec() - t0
+	else:
+		_update(delta)
+
+
+func _update(delta: float) -> void:
 	if _frozen:
 		if not unit.is_alive():
 			if position != unit.position:
