@@ -21,6 +21,7 @@ extends SceneTree
 ##   seconds, warmup   segundos de jogo medidos / descartados no início
 ##   realtime          0 = passo fixo (use --fixed-fps 60: cada quadro = 1/60 s de jogo, reproduzível)
 ##                     1 = tempo real (dt do relógio; a Battle faz até 6 passos por quadro quando cai)
+##   draw_cache        -1 = padrão de cada visual; 0/1 = força desligado/ligado (A/B do DrawCache)
 ##   dead_enemies      1 = mata todos os inimigos (pela simulação) antes de começar: N vivos × 0 + N cadáveres
 ##   label, out        nome da execução / pasta de saída
 
@@ -34,7 +35,7 @@ const PROFILES := {
 
 var cfg := {
 	allies = 40, enemies = 40, profile = "warriors", phase = "full", visual = "normal", sim = "bench",
-	timing = 1, probes = 1, dead_enemies = 0, seconds = 8.0, warmup = 1.0, realtime = 0, label = "", out = "user://bench",
+	timing = 1, probes = 1, dead_enemies = 0, draw_cache = -1, seconds = 8.0, warmup = 1.0, realtime = 0, label = "", out = "user://bench",
 }
 
 var main: Node
@@ -150,6 +151,8 @@ class BenchDriver extends Node:
 		var visual_mode: String = cfg.visual
 		for v: UnitView in views:
 			v.set_process(false)   # o driver chama o UnitView._process do jogo, cronometrado
+			if cfg.draw_cache >= 0 and v.visual is CodeDrawnUnitVisual:
+				v.visual.use_draw_cache = cfg.draw_cache == 1
 			match visual_mode:
 				"nodraw":
 					v.visual.visible = false

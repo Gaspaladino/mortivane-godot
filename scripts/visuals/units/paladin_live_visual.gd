@@ -92,6 +92,7 @@ func setup(p_unit: CombatUnit, p_def: UnitDef) -> void:
 	_time = fmod(_seed * 3.1, TAU)
 	look.walk_cycle = 1.05          # mais pesado que o Guerreiro
 	look.secondary_motion = 0.8
+	animator.compose_pose = false   # este visual só lê o estado do animador (ver PaladinAnimator)
 	animator.setup(look, unit)
 	_yaw = _dir_yaw(animator.dir, animator.lateral)
 	_update(0.0)
@@ -197,9 +198,37 @@ static func neutral() -> Dictionary:
 	}
 
 
+## Pose neutra calculada uma vez (neutral() é chamada várias vezes por quadro).
+static var _NEUTRAL := neutral()
+## Trilhas constantes (golpes, provocação, morte), montadas uma vez na 1ª vez que são usadas.
+static var _tracks := {}
+## Senos/cossenos fixos das curvas do elmo e da ombreira (os mesmos ângulos todo quadro).
+## (mesmas expressões do desenho original, para dar exatamente os mesmos valores)
+static var _HELM_COS := _helm_table(true)
+static var _HELM_SIN := _helm_table(false)
+static var _PAULDRON_COS := _pauldron_table(true)
+static var _PAULDRON_SIN := _pauldron_table(false)
+
+
+static func _helm_table(want_cos: bool) -> PackedFloat64Array:
+	var out := PackedFloat64Array()
+	for i in 13:
+		var ang := PI + i * PI / 12.0
+		out.append(cos(ang) if want_cos else sin(ang))
+	return out
+
+
+static func _pauldron_table(want_cos: bool) -> PackedFloat64Array:
+	var out := PackedFloat64Array()
+	for i in 13:
+		var ang := PI * 1.02 + i * PI * 0.96 / 12.0
+		out.append(cos(ang) if want_cos else sin(ang))
+	return out
+
+
 ## Converte um dicionário de alvos ABSOLUTOS em deltas sobre a pose neutra.
 static func _abs(d: Dictionary) -> Dictionary:
-	var n := neutral()
+	var n := _NEUTRAL
 	var out := {}
 	for k in d:
 		out[k] = float(d[k]) - float(n.get(k, 0.0))
@@ -210,8 +239,7 @@ func _update(delta: float) -> void:
 	_time += delta
 	var an := animator
 	an.update(delta, unit, null)
-	var n := neutral()
-	var p := n.duplicate()
+	var p := _NEUTRAL.duplicate()
 	var t := _time
 
 	# direção (giro suave, sem teleporte); na morte vira de lado para cair atravessado
@@ -249,7 +277,9 @@ func _update(delta: float) -> void:
 		if an.taunt_t >= 0.0:
 			d = _taunt(clampf(an.taunt_t / PaladinPoseLibrary.TAUNT_TIME, 0.0, 1.0))
 		else:
-			d = PaladinPoseLibrary.mix_delta(_abs(_GUARD_READY), _guard(t), an.guard_blend)
+			if not _tracks.has(&"guard_ready"):
+				_tracks[&"guard_ready"] = _abs(_GUARD_READY)
+			d = PaladinPoseLibrary.mix_delta(_tracks[&"guard_ready"], _guard(t), an.guard_blend)
 		p = PaladinPoseLibrary.add(p, d, an.defense_w * (1.0 - an.attack_w * 0.6))
 
 	# ATAQUE: espada recua → quadril → tronco → ombro → braço → espada (cascata) → impacto no
@@ -308,17 +338,42 @@ func _guard(t: float) -> Dictionary:
 
 
 func _taunt(p: float) -> Dictionary:
-	return PaladinPoseLibrary.track([
+	if not _tracks.has(&"taunt"):
+		_tracks[&"taunt"] = _taunt_keys()
+	return PaladinPoseLibrary.track(_tracks[&"taunt"], p)
+
+
+func _taunt_keys() -> Array:
+	return [
 		[0.0, {}, &"linear"],
 		[0.2, _abs({crouch = 1.6, stance = 0.7}), &"out"],
 		[0.42, _abs({crouch = 1.8, stance = 0.7, l_swing = 5.0, l_elbow = 95.0, sh_yaw = 42.0, twist = -8.0, lean = 1.0}), &"inout"],
 		[0.58, _abs({crouch = 1.9, stance = 0.8, l_swing = 86.0, l_elbow = 8.0, sh_yaw = -4.0, sh_fwd = 3.2, twist = 12.0,
 			lean = -3.0, r_swing = -8.0, r_abd = 38.0, r_elbow = 30.0, head_tilt = -6.0, glow = 1.0}), &"back"],
 		[1.0, _abs(_GUARD_READY), &"inout"],
-	], p)
+	]
 
 
 func _attack(p: float, variant: StringName) -> Dictionary:
+	var key := StringName("attack_" + String(variant))
+	if not _tracks.has(key):
+		_tracks[key] = _attack_keys(variant)
+	var keys: Array = _tracks[key]
+	var I := PaladinPoseLibrary.ATTACK_IMPACT
+	var out := PaladinPoseLibrary.track(keys[0], p).duplicate()
+	var a := PaladinPoseLibrary.track(keys[1], p - 0.025)
+	var s := PaladinPoseLibrary.track(keys[2], p - 0.045)
+	for k in a:
+		out[k] = a[k]
+	for k in s:
+		out[k] = s[k]
+	var hit := clampf(1.0 - absf(p - I) / 0.2, 0.0, 1.0)
+	out[&"tab"] = -10.0 * hit
+	return out
+
+
+## Trilhas do golpe (corpo, braço, espada) por variante: constantes.
+func _attack_keys(variant: StringName) -> Array:
 	var I := PaladinPoseLibrary.ATTACK_IMPACT
 	var body: Array
 	var arm: Array
@@ -345,16 +400,7 @@ func _attack(p: float, variant: StringName) -> Dictionary:
 				[I - 0.025, _abs({r_swing = 88.0, r_elbow = 4.0, r_abd = 12.0}), &"in"], [0.62, _abs({r_swing = 58.0, r_elbow = 18.0, r_abd = -5.0}), &"out"], [1.0, {}, &"inout"]]
 			sword = [[0.0, {}, &"linear"], [0.34, _abs({s_elev = 118.0, s_yaw = 40.0}), &"out"],
 				[I - 0.045, _abs({s_elev = -4.0, s_yaw = 0.0}), &"in"], [0.62, _abs({s_elev = -52.0, s_yaw = -35.0}), &"back"], [1.0, {}, &"inout"]]
-	var out := PaladinPoseLibrary.track(body, p).duplicate()
-	var a := PaladinPoseLibrary.track(arm, p - 0.025)
-	var s := PaladinPoseLibrary.track(sword, p - 0.045)
-	for k in a:
-		out[k] = a[k]
-	for k in s:
-		out[k] = s[k]
-	var hit := clampf(1.0 - absf(p - I) / 0.2, 0.0, 1.0)
-	out[&"tab"] = -10.0 * hit
-	return out
+	return [body, arm, sword]
 
 
 ## Empurrão: o centro de gravidade quebra na direção do empurrão e o pé de trás busca apoio.
@@ -375,7 +421,19 @@ func _push(p: float, dir: Vector3) -> Dictionary:
 
 ## Morte pesada (pose absoluta). `tilt` gira o corpo inteiro em volta dos pés (cair de costas).
 func _death(p: float) -> Dictionary:
-	var n := neutral()
+	if not _tracks.has(&"death"):
+		_tracks[&"death"] = _death_keys()
+	var keys: Array = _tracks[&"death"]
+	for i in range(1, keys.size()):
+		if p <= keys[i][0]:
+			var u: float = (p - keys[i - 1][0]) / (keys[i][0] - keys[i - 1][0])
+			return PaladinPoseLibrary.mix(keys[i - 1][1], keys[i][1], PaladinPoseLibrary.ease_by(keys[i][2], u))
+	return keys[keys.size() - 1][1]
+
+
+## Poses-chave da morte (constantes).
+func _death_keys() -> Array:
+	var n := _NEUTRAL
 	var fatal := PaladinPoseLibrary.add(n, _abs({lean = -9.0, head_tilt = -12.0, rootx = -1.0, crouch = 1.0, r_swing = 10.0, l_swing = 25.0}))
 	var kneel := PaladinPoseLibrary.add(n, _abs({crouch = 6.5, stance = 0.6, lean = 16.0, head_tilt = 14.0, r_swing = 8.0, r_elbow = 10.0,
 		s_elev = -80.0, l_swing = 12.0, l_elbow = 20.0, sh_yaw = 45.0, rf = 2.5, lf = -2.5}))
@@ -383,13 +441,8 @@ func _death(p: float) -> Dictionary:
 	var ground := PaladinPoseLibrary.add(n, _abs({tilt = 88.0, crouch = 2.0, lean = -6.0, head_tilt = -10.0, r_swing = 150.0, r_elbow = 10.0,
 		l_swing = 140.0, l_elbow = 20.0, rf = 3.0, lf = 1.0, rl = 1.5, tab = 25.0}))
 	var bounce := PaladinPoseLibrary.add(ground, {tilt = -5.0})
-	var keys := [[0.0, n, &"linear"], [0.11, fatal, &"out"], [0.42, kneel, &"inout"], [0.62, tip, &"in"],
+	return [[0.0, n, &"linear"], [0.11, fatal, &"out"], [0.42, kneel, &"inout"], [0.62, tip, &"in"],
 		[0.8, ground, &"in"], [0.87, bounce, &"out"], [1.0, ground, &"inout"]]
-	for i in range(1, keys.size()):
-		if p <= keys[i][0]:
-			var u: float = (p - keys[i - 1][0]) / (keys[i][0] - keys[i - 1][0])
-			return PaladinPoseLibrary.mix(keys[i - 1][1], keys[i][1], PaladinPoseLibrary.ease_by(keys[i][2], u))
-	return ground
 
 
 static func _pulse(p: float, peak: float) -> float:
@@ -683,8 +736,7 @@ func _draw_head(neck: Vector2, yaw: float, tilt: float) -> void:
 	# elmo fechado arredondado (bucket): base reta, topo em cúpula
 	var helm := PackedVector2Array()
 	for i in 13:
-		var ang := PI + i * PI / 12.0
-		helm.append(Vector2(cos(ang) * w, -h * 0.55 + sin(ang) * h * 0.45))
+		helm.append(Vector2(_HELM_COS[i] * w, -h * 0.55 + _HELM_SIN[i] * h * 0.45))
 	helm.append(Vector2(w * 0.98, 0.0))
 	helm.append(Vector2(-w * 0.98, 0.0))
 	_poly(helm, _c(ivory))
@@ -717,8 +769,14 @@ func _draw_halo(c: Vector2, yaw: float, glow: float) -> void:
 	if glow > 0.01:
 		draw_circle(c, r + 2.5, Color(holy, 0.18 * glow))
 	draw_set_transform_matrix(_body_xf * Transform2D(0.0, Vector2(k, 1.0), 0.0, c))
-	draw_arc(Vector2.ZERO, r, 0.0, TAU, 28, _c(outline), 2.3, true)
-	draw_arc(Vector2.ZERO, r, 0.0, TAU, 28, _c(col), 1.3, true)
+	# o anel é sempre a mesma forma (raio fixo, no espaço da auréola): malha cacheada (DrawCache,
+	# mesma geometria do draw_arc suavizado); o resto do Paladino é projetado e fica no caminho direto
+	for ring in [[2.3, _c(outline)], [1.3, _c(col)]]:
+		var m := DrawCache.arc_mesh(Vector2.ZERO, r, 0.0, TAU, 28, ring[0])
+		if m:
+			draw_mesh(m, null, Transform2D.IDENTITY, ring[1])
+		else:
+			draw_arc(Vector2.ZERO, r, 0.0, TAU, 28, ring[1], ring[0], true)
 	_with(_body_xf)
 	# três pontas pequenas (topo maior)
 	for spec in [[Vector2(0, -r - 1.2), 3.4, 1.0], [Vector2(-r * k - 0.4, 0), 2.0, 0.8], [Vector2(r * k + 0.4, 0), 2.0, 0.8]]:
@@ -746,8 +804,7 @@ func _draw_pauldron(c: Vector2, yaw: float, side: float, shade: float) -> void:
 	var ry := 5.2
 	var pts := PackedVector2Array()
 	for i in 13:
-		var ang := PI * 1.02 + i * PI * 0.96 / 12.0
-		pts.append(c + Vector2(cos(ang) * rx, sin(ang) * ry + 1.2))
+		pts.append(c + Vector2(_PAULDRON_COS[i] * rx, _PAULDRON_SIN[i] * ry + 1.2))
 	pts.append(c + Vector2(rx * 0.95, 2.6))
 	pts.append(c + Vector2(-rx * 0.95, 2.6))
 	_poly(pts, _c(ivory, shade))

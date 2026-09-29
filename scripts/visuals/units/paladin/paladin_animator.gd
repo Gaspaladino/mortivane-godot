@@ -64,6 +64,10 @@ var _vel_body := Vector3.ZERO
 var _first := true
 
 ## Para depuração: estado e progresso da apresentação.
+## Monta a pose 3D completa (dicionários + molas) a cada quadro? Só o rig 2.5D alternativo usa.
+## O PaladinLiveVisual (padrão) lê apenas o ESTADO (direção, pesos, fases, tempos) e desliga isto:
+## antes a pose era montada e descartada todo quadro (etapa 5 da otimização).
+var compose_pose := true
 var debug_state := &"IDLE"
 var debug_progress := 0.0
 
@@ -231,7 +235,8 @@ func update(delta: float, unit: CombatUnit, rig: PaladinRig) -> Dictionary:
 		# cai de costas atravessado na tela (3/4), para o cadáver ficar legível
 		target_yaw = lateral * 1.2 if death_t > 0.12 * PaladinPoseLibrary.DEATH_TIME else yaw
 	yaw = _approach_angle(yaw, target_yaw, delta)
-	_base = PaladinPoseLibrary.mix(_base, PaladinPoseLibrary.base_for(dir, yaw), 1.0 - exp(-delta * 10.0)) if not _base.is_empty() else PaladinPoseLibrary.base_for(dir, yaw)
+	if compose_pose:
+		_base = PaladinPoseLibrary.mix(_base, PaladinPoseLibrary.base_for(dir, yaw), 1.0 - exp(-delta * 10.0)) if not _base.is_empty() else PaladinPoseLibrary.base_for(dir, yaw)
 
 	# --- ataque (sincronizado com a recarga real e o evento de dano) ---
 	if alive and not pv:
@@ -278,9 +283,12 @@ func update(delta: float, unit: CombatUnit, rig: PaladinRig) -> Dictionary:
 	block_t = _advance(block_t, delta, PaladinPoseLibrary.BLOCK_TIME)
 	push_t = _advance(push_t, delta, PaladinPoseLibrary.PUSH_TIME)
 
-	# --- composição ---
+	# --- composição (só para quem usa a pose 3D) ---
 	var pose := _base
 	var act := maxf(attack_w, defense_w)
+	if not compose_pose:
+		_update_state_only(unit, alive, pv, delta)
+		return pose
 	pose = PaladinPoseLibrary.add(pose, PaladinPoseLibrary.idle(_t, look), 1.0 - move_w * 0.85)
 	pose = PaladinPoseLibrary.add(pose, PaladinPoseLibrary.walk(walk_phase, move_w, look), 1.0 - act)
 	if defense_w > 0.0:
@@ -340,6 +348,25 @@ func update(delta: float, unit: CombatUnit, rig: PaladinRig) -> Dictionary:
 
 
 # --- Interno ----------------------------------------------------------------------------------
+
+## Sem pose 3D: só o estado de morte, a prévia e o debug (o mesmo que o final de update() faz).
+func _update_state_only(_unit: CombatUnit, alive: bool, pv: bool, delta: float) -> void:
+	var dying := (not alive and not pv) or (pv and preview_kind == &"death")
+	if dying:
+		if not dead:
+			dead = true
+			death_t = 0.0
+			attack_active = false
+			taunt_t = -1.0
+		death_t += delta
+	elif dead:
+		dead = false
+		sword_drop.clear()
+		shield_drop.clear()
+	if pv and preview_kind != &"walk" and preview_t > _preview_length(preview_kind):
+		preview_kind = &""
+	_update_debug({})
+
 
 func _start_attack(d: PaladinPoseLibrary.Dir) -> void:
 	attack_active = true
