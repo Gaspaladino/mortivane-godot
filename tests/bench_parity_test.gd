@@ -35,6 +35,7 @@ func _run() -> void:
 			cases += 1
 	_test_parity([&"u_warrior", &"sac_paladin"], 40, 40, 5, "sombras×paladinos")
 	_test_counters()
+	_test_corpses_not_scanned()
 	await _test_battle_default()
 	print("bench_parity_test: %s (%d lutas comparadas)" % ["OK" if _failures == 0 else "%d falha(s)" % _failures, cases + 1])
 	quit(1 if _failures > 0 else 0)
@@ -126,6 +127,33 @@ func _test_parity(defs: Array, allies: int, enemies: int, seed_value: int, label
 	_check(same, "%s %d×%d: idêntico à referência — divergiu em %s" % [label, allies, enemies, where])
 	for x in sims:
 		x.dispose()
+
+
+## Etapa 1: 40 vivos × 0 inimigos vivos + 40 cadáveres ⇒ a busca de alvo não examina ninguém.
+func _test_corpses_not_scanned() -> void:
+	var sim := CombatSim.new(3)
+	build(sim, [&"warrior"], 40, 40)
+	var killer: CombatUnit = sim.units[0]
+	for u in sim.units:
+		if u.team == CombatUnit.Team.ENEMY:
+			sim._apply_damage(killer, u, u.hp)
+	var c0 := sim.stat_candidates
+	var s0 := sim.stat_target_scans
+	for k in 240:
+		sim.step(CombatSim.STEP)
+	_check(sim.stat_candidates == c0 and sim.stat_target_scans == s0,
+		"40 vivos × 40 cadáveres: 0 candidatos examinados (%d) e 0 varreduras (%d) em 2 s" % [sim.stat_candidates - c0, sim.stat_target_scans - s0])
+	_check(sim.alive_count(CombatUnit.Team.ENEMY) == 0 and sim.alive_count(CombatUnit.Team.PLAYER) == 40, "contagem de vivos")
+	# morte feita por fora da simulação (take_damage direto) também sai da busca
+	var sim2 := CombatSim.new(3)
+	build(sim2, [&"warrior"], 2, 2)
+	var victim: CombatUnit = sim2.units[2]
+	victim.take_damage(victim.hp)
+	sim2.step(CombatSim.STEP)
+	sim2.step(CombatSim.STEP)
+	_check(sim2.units[0].target != victim and sim2.units[1].target != victim, "morto por fora não vira alvo")
+	sim.dispose()
+	sim2.dispose()
 
 
 ## Contadores do benchmark: TARGET_ONLY não ataca, MOVE_ONLY não procura alvo.

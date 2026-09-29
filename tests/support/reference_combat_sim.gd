@@ -41,8 +41,8 @@ func taunt_target(unit: CombatUnit) -> CombatUnit:
 
 
 ## Inimigos vivos na ordem da lista (o que os laços antigos das habilidades percorriam).
-func foes_alive(unit: CombatUnit) -> Array[CombatUnit]:
-	var out: Array[CombatUnit] = []
+func foes_alive(unit: CombatUnit) -> Array:
+	var out: Array = []
 	for v in units:
 		if v.is_valid_target() and unit.is_enemy_of(v):
 			out.append(v)

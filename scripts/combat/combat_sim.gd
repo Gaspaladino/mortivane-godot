@@ -54,6 +54,16 @@ var _next_projectile_id := 1
 var _rng := RandomNumberGenerator.new()
 var _next_id := 1
 
+## Unidades ATIVAS da simulação, por time (índice = CombatUnit.Team), na ordem de criação.
+## Quem morre sai daqui na hora (_apply_damage); o cadáver continua em `units` (visual, contagem,
+## Necromancia no futuro), mas não é mais varrido pela busca de alvo nem pelas habilidades.
+## A ordem de criação é preservada: o desempate "primeiro da lista" continua o mesmo.
+var _alive: Array = [[], []]
+## Alguém morreu fora de _apply_damage (ex.: teste chamando take_damage direto): refaz as listas.
+var _alive_dirty := false
+## Conjunto de `units` (substitui a varredura `p in units` da provocação).
+var _members := {}
+
 # --- Diagnóstico (contadores inteiros, custo desprezível; lidos pelo benchmark em tools/bench) ---
 ## Chamadas de nearest_foe (inclui as das lâminas da Sentinela e do escudo do Paladino).
 var stat_target_queries := 0
@@ -72,10 +82,15 @@ func add_unit(team: CombatUnit.Team, stats: Dictionary, position: Vector2) -> Co
 	_next_id += 1
 	unit.cooldown = _rng.randf_range(0.0, unit.attack_interval * INITIAL_COOLDOWN_SHARE)
 	units.append(unit)
+	_members[unit] = true
+	if unit.is_alive():
+		_alive[unit.team].append(unit)
 	return unit
 
 
 func step(dt: float) -> void:
+	if _alive_dirty:
+		_rebuild_alive()
 	time += dt
 	_tick_paladins(dt)
 	for unit in units:
@@ -92,6 +107,8 @@ func dispose() -> void:
 		unit.taunted_by = null
 	units.clear()
 	projectiles.clear()
+	_alive = [[], []]
+	_members.clear()
 
 
 ## Inimigo vivo mais próximo; empate fica com o primeiro da lista.
@@ -101,12 +118,17 @@ func nearest_foe(unit: CombatUnit) -> CombatUnit:
 	var forced := taunt_target(unit)
 	if forced:
 		return forced
+	# só os inimigos VIVOS (mortos saíram da lista); nenhum aliado, nenhum cadáver
+	var foes: Array = _alive[1 - unit.team]
+	if foes.is_empty():
+		return null
 	stat_target_scans += 1
-	stat_candidates += units.size()
+	stat_candidates += foes.size()
 	var best: CombatUnit = null
 	var best_dist := INF
-	for other in units:
-		if other == unit or not unit.is_enemy_of(other) or not other.is_valid_target():
+	for other: CombatUnit in foes:
+		if not other.is_valid_target():   # morto por fora de _apply_damage: ignora e refaz as listas
+			_alive_dirty = true
 			continue
 		var d := unit.position.distance_to(other.position)
 		if d < best_dist:
@@ -118,28 +140,36 @@ func nearest_foe(unit: CombatUnit) -> CombatUnit:
 ## HTML: tauntTarget — o Paladino que provocou esta unidade, se a provocação ainda vale.
 func taunt_target(unit: CombatUnit) -> CombatUnit:
 	var p := unit.taunted_by
-	if unit.taunt_t > 0.0 and p and p.is_valid_target() and p.team != unit.team and p in units:
+	if unit.taunt_t > 0.0 and p and p.is_valid_target() and p.team != unit.team and _members.has(p):
 		return p
 	if p:
 		_clear_taunt(unit)
 	return null
 
 
-## Inimigos vivos de `unit`, na ordem de criação (usado pelas habilidades).
-func foes_alive(unit: CombatUnit) -> Array[CombatUnit]:
-	var out: Array[CombatUnit] = []
-	for v in units:
-		if v.is_valid_target() and unit.is_enemy_of(v):
-			out.append(v)
-	return out
+## Inimigos vivos de `unit`, na ordem de criação (usado pelas habilidades). É a lista interna:
+## só leitura, e quem percorre ainda confere is_valid_target() (mortes feitas por fora).
+func foes_alive(unit: CombatUnit) -> Array:
+	if _alive_dirty:
+		_rebuild_alive()
+	return _alive[1 - unit.team]
 
 
 func alive_count(team: CombatUnit.Team) -> int:
 	var count := 0
-	for unit in units:
-		if unit.team == team and unit.is_alive():
+	for unit: CombatUnit in _alive[team]:
+		if unit.is_alive():
 			count += 1
 	return count
+
+
+## Refaz as listas de ativos a partir de `units` (mesma ordem). Só quando alguém morreu por fora.
+func _rebuild_alive() -> void:
+	_alive = [[], []]
+	for u in units:
+		if u.is_alive():
+			_alive[u.team].append(u)
+	_alive_dirty = false
 
 
 ## A luta acabou quando um dos lados não tem mais ninguém vivo.
@@ -187,10 +217,13 @@ func _apply_damage(attacker: CombatUnit, target: CombatUnit, amount: float) -> v
 		if reduced < amount:
 			paladin_shield_blocked.emit(target, amount - reduced)
 		amount = reduced
+	var was_alive := target.is_alive()
 	var applied := target.take_damage(amount)
 	unit_attacked.emit(attacker, target, applied)
 	if not target.is_alive():
-		for v in units:   # HTML: killUnit → clearTaunt de quem este Paladino provocou
+		if was_alive:
+			_alive[target.team].erase(target)   # sai das estruturas ativas NA HORA
+		for v: CombatUnit in _alive[1 - target.team]:   # HTML: killUnit → clearTaunt (só inimigos vivos podem estar provocados por ele)
 			if v.taunted_by == target:
 				_clear_taunt(v)
 		unit_died.emit(target)
@@ -199,12 +232,14 @@ func _apply_damage(attacker: CombatUnit, target: CombatUnit, amount: float) -> v
 ## HTML: tickPaladinCombat — uma passada antes de qualquer unidade agir (independe da ordem).
 func _tick_paladins(dt: float) -> void:
 	for u in units:
+		if not u.is_alive():   # morto: taunt_t = 0, sem provocador e Paladino já resetado (die)
+			continue
 		u.taunt_t = maxf(0.0, u.taunt_t - dt)
 		taunt_target(u)
 		if u.paladin and u.paladin.tick(u, self, dt):
 			paladin_shield_raised.emit(u)
 	for u in units:
-		if u.paladin == null:
+		if u.paladin == null or not u.is_alive():
 			continue
 		var foes := u.paladin.try_taunt(u, self)
 		if not foes.is_empty():
@@ -258,7 +293,7 @@ func _update_projectiles(dt: float) -> void:
 		if tgt and p.position.distance_to(tgt.position) < tgt.radius + CombatProjectile.TARGET_HIT_SLACK:
 			victim = tgt
 		else:
-			for unit in units:
+			for unit: CombatUnit in _alive[1 - p.team]:   # can_hit = vivo e do outro time
 				if p.can_hit(unit) and p.position.distance_to(unit.position) < unit.radius + CombatProjectile.PATH_HIT_SLACK:
 					victim = unit
 					break

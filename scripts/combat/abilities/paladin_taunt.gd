@@ -79,8 +79,8 @@ func try_taunt(unit: CombatUnit, sim: CombatSim) -> Array[CombatUnit]:
 	var foes: Array[CombatUnit] = []
 	if not unit.is_alive() or cooldown > EPS:
 		return foes
-	for v in sim.foes_alive(unit):
-		if unit.position.distance_to(v.position) <= TAUNT_RADIUS:
+	for v: CombatUnit in sim.foes_alive(unit):
+		if v.is_valid_target() and unit.position.distance_to(v.position) <= TAUNT_RADIUS:
 			foes.append(v)
 	if foes.is_empty():
 		return foes
@@ -107,8 +107,8 @@ func _lock_facing(unit: CombatUnit, sim: CombatSim) -> void:
 	if unit.target and unit.target.is_valid_target() and unit.is_enemy_of(unit.target):
 		target = unit.target
 	if target == null:
-		for v in sim.foes_alive(unit):
-			if v.taunted_by == unit:
+		for v: CombatUnit in sim.foes_alive(unit):
+			if v.taunted_by == unit and v.is_valid_target():
 				target = v
 				break
 	if target == null:
