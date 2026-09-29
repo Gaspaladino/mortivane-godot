@@ -94,7 +94,7 @@ func _tick_paladins(dt: float) -> void:
 		return
 	for u in units:
 		if u.paladin and u.is_alive() and u.paladin.cooldown - dt <= PaladinTaunt.EPS:
-			paladin_taunt_checks += alive_count(CombatUnit.Team.ENEMY if u.team == CombatUnit.Team.PLAYER else CombatUnit.Team.PLAYER)
+			paladin_taunt_checks += foes_alive(u).size()   # O(1): só o tamanho da lista de vivos
 	if not timing:
 		super(dt)
 		return
@@ -163,7 +163,7 @@ func _bench_target_only(unit: CombatUnit, dt: float) -> void:
 	if dist > unit.attack_range:
 		unit.state = CombatUnit.State.MOVING
 		var advance := minf(unit.move_speed * dt, dist - unit.attack_range * unit.approach_share)
-		unit.position = _clamp_to_battlefield(unit.position + to_target / dist * advance, unit.radius)
+		_move_unit(unit, _clamp_to_battlefield(unit.position + to_target / dist * advance, unit.radius))
 		return
 	unit.state = CombatUnit.State.ATTACKING
 
@@ -180,4 +180,4 @@ func _bench_walk(unit: CombatUnit, dt: float) -> void:
 		w[2] = 1 - int(w[2])
 		return
 	unit.state = CombatUnit.State.MOVING
-	unit.position = _clamp_to_battlefield(unit.position + to_goal / dist * minf(unit.move_speed * dt, dist), unit.radius)
+	_move_unit(unit, _clamp_to_battlefield(unit.position + to_goal / dist * minf(unit.move_speed * dt, dist), unit.radius))
