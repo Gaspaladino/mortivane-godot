@@ -735,7 +735,7 @@ Limitações: acabamento vetorial com sombreado por vértice (sem textura pintad
 face (3/4 fixo); a espada no frame "espada recua" passa por cima da ombreira; 256 px de frame é pouco para
 ampliar muito além de 2×.
 
-### Paladino Vivo com a sprite sheet aprovada ✔ (aguardando validação)
+### Paladino Vivo com a sprite sheet aprovada ✔ (substituída pelas sheets novas, abaixo)
 Pedido: integrar a sprite sheet do Paladino Vivo (arte aprovada) no lugar do visual por código, com
 AnimatedSprite2D/SpriteFrames, sem mudar mecânica; Paladino Sombra fica como está.
 
@@ -764,3 +764,378 @@ Limitações:
 - A morte na sheet cai para a direita da arte; espelhada no inimigo. Sem sistema de cadáveres (só visual).
 - A sheet piloto renderizada por código (`assets/sprites/paladin_live_pilot/`, cena de protótipo) continua no
   repositório como referência; não é usada pelo jogo.
+
+### Paladino Vivo com as sprite sheets novas (idle, walk, attack, defend, death) ✔ (substituído pelo rig 2.5D, abaixo)
+Pedido: substituir o visual do Paladino Vivo pelas cinco sheets novas (estilo cartunesco mais polido e
+robusto), organizadas numa pasta própria, com AnimatedSprite2D/SpriteFrames, pivô nos pés, escala coerente,
+sem mudar mecânica, stats ou comportamento.
+
+Leitura das sheets (2000 × 667 cada): idle 8 · walk 8 · attack 8 · defend 8 (duas linhas de 4) · death 8.
+- **O fundo já vem transparente** (alfa com borda suave), não preto: nenhuma limpeza de cor foi necessária.
+- As sheets vieram em **escalas diferentes** (defesa ~20% maior que o idle, caminhada ~13%; ataque e morte
+  um pouco menores). O fatiador normaliza tudo pelo elmo do idle.
+- No ataque os arcos invadem o frame vizinho; o fim do arco do 4º frame fica atrás da capa do 5º na
+  própria arte — o corte segue a capa e o arco some suavemente.
+- A sheet de defesa: linha de cima = guarda → giro do escudo (arco) → clarão da bênção → faíscas; linha de
+  baixo = guarda firme (respirando).
+
+Feito:
+- `assets/units/paladin/`: `source/` com as 5 sheets (PNG sem perdas; `.gdignore`), `paladin_atlas.png`
+  (1968 × 930, mipmaps), `paladin_frames.tres` (SpriteFrames), `paladin_frames.json` (contrato e medidas).
+- `tools/sprites/slice_paladin_sheets.py` (ver `ARCHITECTURE.md`): cortes, escala por sheet, pivô por
+  registro (sem tremedeira), células 246 × 186 com pivô (123, 161).
+- Animações: `idle`, `walk`, `attack`, `defend`, `defend_hold`, `defend_block`, `taunt`, `death`.
+- `PaladinSpriteVisual`: nova máquina de defesa (espera = defend frame 0; escudo = defend → defend_hold em
+  loop; bloqueio = defend_block → defend_hold), impacto do golpe no frame 4, dano = pisca + recuo (sem hit),
+  escala 0,37, pivô/célula novos na cena.
+- Removidos a sheet anterior (`assets/sprites/paladin_live/`) e `tools/sprites/slice_paladin_live.py`: o
+  visual antigo não é mais usado.
+- Mecânica, stats, provocação, Escudo Sagrado, seleção, barra de HP e Sandbox inalterados; Paladino Sombra
+  inalterado.
+
+Validado: 9 suítes OK (`paladin_sprite_test` reescrita: animações e loops do contrato, célula/pivô/impacto
+iguais ao JSON, chão no pivô ±2 px em todos os frames de pé, pés do idle centrados, cada estado pela lógica
+real, bloqueio e volta à guarda, dano só pisca, morte parada no frame 7, Sandbox); capturas 1600×896 dos
+estados e do combate real.
+
+Limitações:
+- Não há sheet de **hit** nem de **provocação**: o dano só pisca/recua e a provocação reaproveita o giro
+  do escudo da sheet de defesa (o anel do raio real continua).
+- O `defend_hold` é a respiração desenhada na arte: o 2º frame tem a postura um pouco mais aberta (o
+  escudo anda ~6 unidades no jogo). É da arte; dá para reduzir tirando esse frame ou baixando o FPS.
+- A escala entre sheets foi medida pelo elmo (erro estimado ≤ 3%). Se alguma animação parecer maior ou
+  menor, ajustar `scale` da sheet no topo do fatiador.
+- O walk é um ciclo no lugar; o ritmo segue a velocidade real (`walk_reference_speed` = 44).
+- A morte muda de pose bastante entre frames (queda); o alinhamento é por sobreposição com o frame anterior.
+
+### Paladino Vivo reconstruído 100% por código em rig 2.5D ✔ (substituído pelo PaladinLiveVisual, abaixo)
+
+**Pedido.** Reconstruir do zero o visual do Paladino Vivo a partir de três imagens de referência oficiais.
+- 100% desenhado por código no Godot, sem sprite sheet e sem usar as imagens no jogo.
+- Rig 2D com fake 2.5D, 8 direções com leitura real e todas as animações pedidas.
+- Transições contínuas.
+- Espada SEMPRE na mão direita e escudo SEMPRE no braço esquerdo.
+- Mecânica idêntica.
+- Paladino Sombra e demais tropas inalterados.
+
+**Abordagem.** Esqueleto num espaço 3D do corpo, projetado por uma câmera levemente de cima (detalhes em `ARCHITECTURE.md`).
+- Peças low-poly facetadas, que imitam o sombreamento facetado das referências.
+- Ordenação por profundidade a cada quadro.
+- As direções da esquerda são giros de verdade: a mão da espada nunca troca, nem por espelho.
+- Um animador lê a simulação e compõe camadas: locomoção, ação, reações e morte, com molas para o movimento secundário.
+
+**Feito.**
+- `scripts/visuals/units/paladin/` com 8 scripts:
+  - `PaladinRigVisual` (cola);
+  - `PaladinAnimator` (estados, direção, transições, sincronia);
+  - `PaladinPoseLibrary` (poses-base por direção + clipes);
+  - `PaladinRig` (esqueleto, projeção, desenho);
+  - `PaladinModel` e `PaladinMesh` (26 ossos, 42 peças, decalques);
+  - `PaladinEffects` (efeitos fora do corpo);
+  - `PaladinRigLook` (Inspector).
+- `scenes/units/paladin_rig_visual.tscn` e `data/visuals/paladin_rig_look.tres`.
+- `sac_paladin.tres` usa o rig: `visual_scene`, e também `visual_script` para funcionar sem a cena. Stats iguais.
+- 16 estados (ver tabela em `ARCHITECTURE.md`):
+  - IDLE;
+  - WALK em 8 direções;
+  - ATTACK com 3 variantes (horizontal no RIGHT, de cima no UP_RIGHT, de baixo no DOWN_RIGHT);
+  - HIT, PUSH, TAUNT, GUARD_READY, SHIELD_ACTIVE, BLOCK;
+  - DEATH → CORPSE, com a espada e o escudo se soltando e caindo ao lado.
+- **Push.** A simulação não tem empurrão hoje. O animador reage sozinho a qualquer deslocamento real que a caminhada não explique, e há `on_pushed(dir)` para mecânicas futuras. A animação nunca desloca a unidade.
+- **Sandbox.** Fileira "Prévia (só visual)" para a tropa selecionada, com todas as animações.
+  - Só na preparação.
+  - Iniciar desliga a prévia; Reiniciar e Limpar recriam o visual.
+  - `SandboxUI.preview_requested` e `SandboxController.preview_selected`.
+- **Debug.** Com F4, o Paladino mostra direção, yaw, estado, progresso, direção do alvo e variante do golpe.
+- **Testes.**
+  - Nova suíte `paladin_rig_test`.
+  - `paladin_test` e `shadow_visual_test` passaram a comparar o Sombra com o `PaladinVisual` por código, a base dele, que continua existindo.
+  - `paladin_sprite_test` testa a cena de sprites como alternativa.
+
+**Validado: 10 suítes OK.** A nova suíte cobre:
+- stats, provocação e escudo inalterados;
+- a mesma luta rodada só na simulação e no Sandbox com os visuais (inclusive com empurrões, hits e bloqueios visuais extras disparados durante a luta) tem HP, posição, estado, recarga, provocações e bloqueios idênticos passo a passo;
+- o visual não altera a `CombatUnit`;
+- espada no punho direito e escudo no esquerdo nas 8 direções × 11 estados, sem espelho;
+- andar nas 8 direções vira o corpo;
+- cada estado vem do estado real, e o impacto do golpe cai no evento de dano;
+- no Sandbox: prévia, Reiniciar, Limpar e saída sem nós sobrando;
+- custo de CPU por Paladino.
+
+Capturas grandes dos 16 estados, folha comparativa e capturas em escala real no Sandbox.
+
+**Limitações.**
+- É uma interpretação procedural: as referências são pinturas com microdetalhes (placas sobrepostas, cinto
+  diagonal, frisos em arco no peitoral) que ficaram simplificados em malhas low-poly. Na escala da arena
+  isso não aparece; em close o estilo é "facetado" e não pintado.
+- A ordenação é por peça (não por pixel): em poses extremas uma peça pode passar na frente de outra por uma
+  fração de segundo (ex.: braço cruzando o tronco no fim do golpe).
+- O Paladino Sombra continua no visual por código anterior (fora do escopo); ele não herda o rig novo, então
+  vivo e sombra hoje têm silhuetas diferentes. Uma etapa futura pode aplicar a regra `ShadowStyle` ao rig.
+- **Push.** Não existe mecânica de empurrão na simulação. A reação está pronta e testada, mas em combate
+  normal só aparece se algum dia a simulação deslocar a unidade.
+- **Morte.** O corpo gira até ~70° de lado antes de cair, para o cadáver ficar atravessado e legível.
+- **Desempenho.** O desenho é montado em GDScript a cada quadro, ~1–2 ms de CPU por Paladino. Com dezenas
+  de Paladinos na tela pode valer cachear quadros ou reduzir facetas (`PaladinModel`).
+- **Arquivos fora de uso.**
+  - As sprite sheets e a cena de sprites continuam no projeto como alternativa.
+  - `PaladinVisual` continua existindo porque é a base do Sombra.
+
+### Tropas leves: malha estática com ossos (desenho leve) ✔ (aguardando validação)
+
+**Pedido.** Deixar as tropas leves para o jogo (FPS e RAM), podendo reformular cada uma mantendo o design e o
+sentido; o que mais pesava eram as partes das tropas (no PC do usuário, ~50 ms de CPU do `_draw` + ~12 ms de
+draw calls com 80 unidades).
+
+**Feito.**
+- Base nova em `scripts/visuals/units/lite/`:
+  - `LiteBuilder`: formas → triângulos com cor e borda suavizada como a do motor.
+  - `LitePart`: peça pronta.
+  - `LiteSkin`: malha estática do tipo + esqueleto 2D por unidade.
+  - `LiteFx`: clarão, escurecimento e alfa por shader, com materiais compartilhados.
+  - `LiteShadowParts`: olhos e fissuras da sombra.
+- `CodeDrawnUnitVisual` ganhou o "modo de montagem": as funções `_draw_*` de cada tropa montam as peças UMA vez
+  por tipo. Cada unidade tem 1 comando (a malha), e a pose só move os ossos.
+- As 6 tropas foram convertidas (Guerreiro, Sentinela, Paladino e as sombras). O Paladino Vivo mantém a pose
+  2.5D, com a projeção afim das peças planas e uma malha por ordem de profundidade.
+- O que mudava de forma a cada quadro virou transformação: capa/manto por cisalhamento, abas girando, botas
+  deslizando, joelho dobrando. Fumaça, brasas, lâminas voltando, anéis e brilhos crescem e encolhem em vez de
+  esmaecer. Todo o resto é a mesma geometria de antes.
+- Testes: `redraw_test` e `corpse_freeze_test` seguem o novo contrato (a pose anda pelos ossos, sem redesenho).
+  Os testes de pose, gameplay e 8 direções não mudaram.
+- Ferramenta nova: `tools/bench/unit_gallery.gd` (6 tropas × 9 poses, de perto).
+
+**Resultado** (este ambiente; detalhes em `RENDER_REPORT.md`):
+- Draw calls por unidade: 72–253 → **1** (+ a barra de HP). A cena de 80 unidades dos prints: 10.817 → **536**.
+- CPU por unidade (atualização + desenho, headless):
+
+  | tropa | antes | agora |
+  |---|---|---|
+  | Guerreiro | 0,09 ms | 0,011 ms |
+  | Guerreiro Sombra | 0,40 ms | 0,040 ms |
+  | Sentinela | 0,19 ms | 0,032 ms |
+  | Sentinela Sombra | 0,49 ms | 0,058 ms |
+  | Paladino | 0,32 ms | 0,115 ms |
+  | Paladino Sombra | 0,41 ms | 0,043 ms |
+
+- RAM: cada tipo é uma malha de 4 a 16 mil vértices, compartilhada (≈ 3 MB para os 6 tipos). Cada unidade guarda
+  só o esqueleto (13–67 ossos), em vez de 70–250 comandos de desenho refeitos a cada quadro.
+
+**Validado.** 17 suítes OK. As galerias antes/depois mostram o mesmo visual.
+
+**Limitações.**
+- A fumaça e os brilhos agora crescem/encolhem em vez de esmaecer. A capa da Sombra não tremula mais nas pontas.
+  A pulsação das fissuras ficou fixa.
+- O Paladino Vivo ainda é a tropa mais cara de CPU (pose 2.5D).
+- O FPS real precisa ser medido no PC (F6/F7): aqui o render é por software.
+
+### Diagnóstico do render das unidades (simulação parada) ✔ (aguardando validação)
+
+**Pedido.** Pelos prints do painel F6 no PC do usuário, 80 unidades visíveis com a simulação parada dão 13 FPS e
+10.814 draw calls. Descobrir de onde vêm os draw calls (por tipo de unidade e por parte), comparar com um quadrado
+por unidade e propor a solução de maior impacto e menor risco, **sem mudar** gameplay, IA, stats, combate nem
+aparência.
+
+**Feito** (só medição; detalhes em `RENDER_REPORT.md`):
+- `tools/bench/render_probe/`: cópia instrumentada do projeto em que todo `draw_*` dos visuais é contado por parte
+  e tipo e pode ser desligado por categoria. O projeto real não muda.
+- `tools/bench/render_breakdown.gd` + `render_matrix.sh`: draw calls, objetos e primitivas por tipo de unidade e por
+  categoria; modos normal / congelado / quadrados / lote simulado / oculto.
+- **F7 no Sandbox** (`RenderCompare`, debug): os mesmos modos no jogo, para medir no PC do usuário com o F6.
+
+**Resultado.**
+- Cada comando de desenho vira 1 draw call; linhas suavizadas viram 3.
+- Draw calls por unidade: Guerreiro 72, Guerreiro Sombra 189, Sentinela 119, Sentinela Sombra 218,
+  Paladino 180, Paladino Sombra 253.
+- Nas sombras: silhueta roxa +52–58 e VFX +26–50.
+- Quadrados: 10.817 → 377 draw calls, e o quadro volta ao do cenário vazio.
+- Lote simulado: 10.817 → 456.
+- **Proposta**: um triangle array por unidade no `_draw` (mesma geometria e mesma ordem de hoje), começando por
+  Guerreiro e Guerreiro Sombra.
+- **No PC do usuário (F7)**: normal 78,7 ms; congelado 28,7 ms; quadrados e lote simulado 16,7 ms (vsync).
+  - O maior custo lá é a CPU do `_draw` (~50 ms); os draw calls custam ~12 ms.
+  - O profiler mostra ~75% do `_draw` no caminho genérico por peça (busca no DrawCache com hash do array de pontos,
+    `draw_mesh` por peça, `_c()`).
+  - Proposta revista: lote por unidade com geometria pré-montada, sem busca por hash (ver `RENDER_REPORT.md`).
+
+**Validado.** 17 suítes OK (nova: `render_compare_test`).
+
+**Limitações.**
+- Sem GPU aqui: os tempos com render são de software. O ganho real se mede no PC com F7.
+- O headless tem piso de 6,9 ms por quadro.
+
+### Painel de desempenho do Sandbox (F6) ✔ (aguardando validação)
+
+**Pedido.** Ferramenta de debug para medir o desempenho no PC do usuário: painel discreto no Sandbox com FPS,
+quadro, aliados/inimigos, cadáveres, total, draw calls, objetos/nós e, se houver instrumentação, sim / alvo /
+update visual. Sem mudar gameplay, IA, stats, visual das unidades nem combate.
+
+**Feito.**
+- `PerfOverlay` (`scripts/debug/perf_overlay.gd`): `CanvasLayer` 60, painel no topo esquerdo, fundo
+  semitransparente, fonte 11, não bloqueia cliques, atualiza 5×/s, desligado por padrão.
+- Tecla **F6** (`perf_overlay_toggle`): o F4 sugerido já é o debug de combate. `Main` trata e lembra o estado.
+- Instrumentação mínima: `Battle.sim_usec_last_frame` (2 leituras de relógio por quadro) e
+  `UnitView.profiling`/`stat_usec` (cronômetro no `_process` só com o painel ligado). Alvo usa os contadores
+  que a CombatSim já tinha (taxa por segundo).
+- `tests/perf_overlay_test.gd`; `tools/bench/perf_overlay_shots.gd` (capturas com render).
+
+**Validado.** 16 suítes OK. Capturas com o painel ligado: 10×10, 20×20, 40×40 Guerreiros, Sentinelas e Paladinos.
+
+**Limitações.**
+- Draw calls/objetos são N/A sem render (headless).
+- `_draw` e render não entram no painel (ver `tools/bench`).
+- As capturas daqui usam render por software, então os FPS delas não representam uma GPU.
+
+### Otimização 1 — 40 × 40 (6 etapas incrementais) ✔ (aguardando validação)
+
+**Pedido.** Primeira rodada de otimização a partir do profiling: melhorar muito o 40×40 sem mudar
+comportamento, stats, habilidades, aparência, morte nem resultado da batalha. Etapas na ordem pedida, cada
+uma medida (FPS, quadro, sim, alvo, update visual, `_draw`, draw calls).
+
+**Feito** (um commit por etapa; detalhes e tabelas em `OPTIMIZATION_REPORT.md`):
+0. Base: referência congelada da CombatSim (`tests/support/`), paridade de 40 lutas, contadores baratos na
+   CombatSim, bench que envolve a simulação real.
+1. Mortos fora do targeting: listas de ativos por time. 40 vivos × 40 cadáveres: 384 mil → 0 candidatos/s.
+2. Cadáveres estáticos: o UnitView congela o cadáver assentado (sem update nem redraw).
+3. Redraw dos vivos: anel/barra só por mudança; `DrawCache` (geometria do motor portada, pixels idênticos):
+   draw calls 40×40 Guerreiros 10.977 → 6.327; `_draw` com render 63,8 → 14,6 ms.
+4. Targeting com cache de garantia (resultado idêntico): varreduras −81% a −98%.
+5. Paladino: pose 3D descartada deixa de ser montada; trilhas constantes calculadas uma vez. Update visual
+   −48%.
+6. `Battle.MAX_SIM_STEPS_PER_FRAME = 4`: nada de 6 passos num quadro lento (câmera lenta em vez de cascata).
+
+**Validado.** 15 suítes OK (novas: `corpse_freeze_test`, `redraw_test`, `sim_pacing_test`;
+`bench_parity_test` reescrito). Pixels: etapa 3 = 0 diferenças; etapa 5 = 1 pixel (1/255).
+
+**Resultado 40×40** (headless): Guerreiros 62 → 83 FPS, misto 49 → 74, Paladinos 19 → 32. Com render
+(sem a rasterização por software): Guerreiros 77,8 → 26,1 ms, misto 95 → 47 ms, Paladinos 157 → 135 ms.
+
+**Limitações / pendências.**
+- Cadáver congelado: param micro-animações (chapéu da Sentinela; névoa e fumaça das sombras).
+- Abaixo de 30 FPS o jogo anda mais devagar que antes (por projeto da etapa 6).
+- O desenho do Paladino segue caro (~1,4 ms e ~181 draw calls por unidade): próximo passo é desenhar as
+  peças rígidas no espaço local para o cache funcionar.
+- Sem GPU no ambiente: FPS com render é de software.
+
+### Profiling e stress test do combate (só medição) ✔ (aguardando validação)
+
+**Pedido.** Descobrir, com números, por que o FPS cai com muitas unidades dos dois lados — sem otimizar e sem
+mudar combate, IA, stats, targeting ou visual. Cenários 10×10 a 50×50 (incluindo 40×2, 2×40, 40×20, 20×40),
+perfis Guerreiros / Sentinelas / misto (+ Paladinos à parte), fases parado / movimento / alvo / combate,
+comparações visual × lógica, e relatório com evidência, hipótese e recomendação separadas.
+
+**Feito.**
+- `BenchCombatSim` (só benchmark) com contadores e cronômetros por seção; `tests/bench_parity_test.gd` garante
+  luta idêntica à `CombatSim`. Único gancho no jogo: `Battle.sim_script` (null = `CombatSim`).
+- `tools/bench/`: `stress_bench.gd` (cenário no fluxo real + driver de quadro + sondas de `_draw` + monitores do
+  Godot), `run_matrix.sh`, `make_report.py` e `godot_profiler.py` (Profiler do Godot via depuração remota, sem
+  editor).
+- Matriz executada: 108 execuções headless, 36 com render (llvmpipe), comparações visual × lógica, overhead,
+  tempo real, Paladinos, linha do tempo e profiler. Resultado em `PROFILING_REPORT.md`; tabelas e dados em
+  `docs/profiling/`.
+
+**Conclusões principais** (detalhes e números no relatório):
+1. maior gargalo: visual procedural redesenhado a cada quadro (~130 draw calls por Guerreiro, ~11 mil por quadro
+   em 40×40; ~60% do quadro sem render), inclusive cadáveres;
+2. segundo: busca de alvo O(N²) a 120 Hz por unidade, varrendo mortos e aliados, com o mesmo resultado em
+   98–100% das vezes (5,4 ms em 40×40; > 10 ms em 50×50);
+3. physics ≈ 0; nós não são excesso; draw calls são problema;
+4. Paladino é o visual mais caro (~260 µs de update por unidade);
+5. em tempo real, quadro lento → até 6 passos da simulação por quadro (cascata).
+
+**Limitações.** Sem GPU no ambiente (render por software): draw calls valem, ms de render não. Nada otimizado.
+
+### Paladino Vivo refeito pela referência direita/esquerda (`PaladinLiveVisual`) ✔ (aguardando validação)
+
+**Pedido.** Usar a imagem anexada (Paladino olhando para a direita e para a esquerda) como referência principal
+de silhueta e proporção, sem copiar barra de vida, texto ou fundo.
+- ~10–15% mais alto e ~15–20% mais largo que o Guerreiro; ombros, escudo, pernas e botas maiores. Não é chefe.
+- Mesmo estilo: 2D, cartunesco, contorno escuro, cores chapadas.
+- Elmo com visor, auréola dourada, ombreiras grandes, armadura marfim com ouro, tabardo, pernas blindadas, botas
+  pesadas, espada de uma mão, escudo grande.
+- Espada SEMPRE na mão direita, escudo SEMPRE no braço esquerdo; espada nunca para baixo no idle/caminhada.
+- Postura: pés afastados, joelhos levemente dobrados, tronco firme. Fake 2.5D leve. As 16 animações.
+
+**Feito** (só o visual; mecânica, stats, IA e Paladino Sombra intocados).
+- Porte: `BODY_SCALE` (1,06 × 1,12) no transform do corpo, `body_width` 1,12, `shield_scale` 1,18,
+  `sword_scale` 1,4. Topo do elmo ~1,12× o Guerreiro. `top_y` e `pick_rect` acompanham.
+- Pose neutra nova: espada erguida na diagonal, para fora (s_elev 52°, s_yaw 78°), cotovelo dobrado; escudo
+  preso ao braço esquerdo cobrindo o tronco; pés afastados e joelhos dobrados (para a frente e para fora).
+- Peças: ombreiras maiores com rebites, pernas mais grossas com faixa dourada na canela, botas pesadas,
+  joelheiras douradas, cinto dourado com fivela grande, manoplas marrons com punho dourado, tabardo mais longo,
+  auréola maior com três pontas, verso do escudo com alças e rebites.
+- Direções: RIGHT passou a 3/4 frontal (30°), como na referência. A vista da esquerda é o espelho do desenho da
+  direita (a referência mostra assim, com o verso do escudo), feito no transform do corpo — sem escala negativa;
+  nos dados a espada continua na mão direita.
+- No golpe o corpo gira em direção ao perfil (a lâmina não some atrás do escudo). Tempos iguais.
+- Correção: o yaw acumulava voltas (ex.: 390°) depois de várias viradas; agora é normalizado em −180°..180°.
+- Testes (`paladin_live_test`): altura até o elmo 1,08–1,2× o Guerreiro e com a auréola < 1,35×; ombros
+  > 10; leitura lateral (direita: espada ↖ e face do escudo; esquerda: espada ↗ e verso do escudo, no idle e
+  em 3 fases da caminhada); yaw normalizado.
+
+**Interpretação a validar.** O texto pede "espada para cima na diagonal direita" olhando para a direita; a
+imagem (referência principal) mostra a espada erguida para FORA do corpo (↖ na vista da direita, ↗ na da
+esquerda). Segui a imagem. Se a intenção for a lâmina inclinada para a frente (para o lado em que olha), é só
+trocar `s_yaw` na `neutral()`.
+
+**Validado.** 11 suítes OK. Capturas: referência × jogo, família de perto e na escala do jogo, os 16 estados,
+animações quadro a quadro (idle, caminhada direita/esquerda, golpe, provocação → escudo, morte) e o Sandbox em
+1600×896.
+
+### Paladino Vivo na linguagem do Guerreiro e da Sentinela (`PaladinLiveVisual`) ✔
+
+**Pedido.** Reconstruir o Paladino Vivo para ser da MESMA família visual do Guerreiro e da Sentinela.
+- Pequeno, simples, contorno escuro, poucas formas, cartunesco, 100% código.
+- Não é uma reprodução das concept arts.
+- Mais pesado que o Guerreiro, sem virar chefe.
+- Escudo dominante no braço esquerdo, espada na mão direita.
+- Direções com leitura, e animações lentas e pesadas.
+- Mecânica intacta.
+
+**Feito.**
+- `scripts/visuals/units/paladin_live_visual.gd` (`PaladinLiveVisual extends CodeDrawnUnitVisual`) e a cena
+  `scenes/units/paladin_live_visual.tscn`. Os mesmos utilitários, a mesma escala, o mesmo chão e o mesmo
+  contorno do `WarriorVisual`.
+- **Partes simples** com âncoras no espaço do corpo:
+  - um yaw por direção desloca as âncoras e ordena as partes (fake 2.5D leve);
+  - as direções da esquerda são o mesmo giro, sem espelho;
+  - de costas: traseira do elmo e verso do escudo.
+- **Estado e tempo** vêm do `PaladinAnimator` já testado: golpe sincronizado, provocação → guarda → escudo,
+  bloqueio, hit, push, morte. Ele passou a aceitar rodar sem o rig 3D.
+- **Poses 2D próprias.**
+  - Idle quase imóvel.
+  - Passos curtos, ciclo de 1,05 s.
+  - Três golpes:
+    - RIGHT: espada atrás da cabeça, depois horizontal no impacto;
+    - UP_RIGHT: de cima para baixo;
+    - DOWN_RIGHT: de baixo para cima.
+  - Taunt: firma os pés, recua e avança o escudo, abre o peito; a auréola clareia.
+  - Guarda fechada com o escudo à frente.
+  - Block: o escudo recua, o corpo absorve.
+  - Hit: curto, com clarão.
+  - Push: inclina, e o pé de trás busca apoio.
+  - Morte: joelhos cedem, a espada cai à frente, o escudo tomba ao lado dos pés, a queda é de costas e fica o cadáver.
+- **Efeitos simples fora do corpo:**
+  - anel real da provocação e onda curta no chão;
+  - contorno dourado sutil no escudo ativo;
+  - clarão quando o escudo sobe;
+  - faíscas no bloqueio.
+- **Debug e Sandbox:** F4 mostra direção, estado e progresso; a prévia do Sandbox funciona igual.
+- **`sac_paladin.tres`** aponta para o novo visual (`visual_scene` e `visual_script`). Stats iguais.
+- **Testes:**
+  - nova suíte `paladin_live_test`, com a mesma bateria do rig: gameplay idêntico com e sem visual, espada/escudo nas mãos certas em 8 direções × 11 estados, direções, estados da simulação, Sandbox sem vazamento e custo; mais as proporções da família (altura ~1,1× o Guerreiro, mesma escala e contorno);
+  - `paladin_rig_test` passou a testar o rig 2.5D como alternativa;
+  - `paladin_test` e `paladin_sprite_test` foram atualizados.
+
+**Validado.** 11 suítes OK. Capturas feitas:
+- família lado a lado (Guerreiro, Sentinela, Paladino, Paladino Sombra);
+- os 16 estados;
+- golpe e morte quadro a quadro;
+- combate real no Sandbox em 1600×896.
+
+**Limitações.**
+- O Paladino Sombra continua o visual antigo, mais volumoso. Vivo e Sombra ainda não têm a mesma silhueta:
+  uma etapa futura pode derivar o Sombra do `PaladinLiveVisual` (regra `ShadowStyle`), como o Guerreiro Sombra.
+- O rig 2.5D facetado e a versão por sprites continuam no projeto como alternativas fora de uso; dá para
+  apagar os dois se não forem mais úteis.
+- Não existe empurrão na simulação: o PUSH só aparece com deslocamento real inesperado ou na prévia.

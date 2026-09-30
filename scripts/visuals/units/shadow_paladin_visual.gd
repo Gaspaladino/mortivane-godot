@@ -45,39 +45,109 @@ func _pulse() -> float:
 	return ShadowFX.pulse(shadow_style, _time, _seed)
 
 
-# --- Pontos de extensão ---------------------------------------------------------------------
+# --- Peças e ossos da sombra (ver PaladinVisual: desenho leve) -----------------------------
+const B_MIST := B_EXTRA
+const B_AURA := B_EXTRA + 1
+const B_PUFF := B_EXTRA + 2
+## Fiapos: 3 fontes × 2 (capa/ombros) + 2 × 1 (pés) + 4 × 3 (dissolução na morte).
+const PUFFS := 20
 
-func _draw_shadow() -> void:
+
+func _extra_bones() -> int:
+	return 2 + PUFFS
+
+
+func _layout_back() -> Array:
+	return [[_part("mist", _mist_shape, false, false), B_MIST], [_part("aura", _aura_shape, false, false), B_AURA]]
+
+
+func _layout_front() -> Array:
+	var puff := _part("puff", _puff_shape, false, false)
+	var out := []
+	for j in PUFFS:
+		out.append([puff, B_PUFF + j])
+	return out
+
+
+## Névoa no chão (largura 11): poça roxa + núcleo escuro.
+func _mist_shape() -> void:
+	_bake.fill(LiteBuilder.ring(Vector2.ZERO, Vector2(11.0 * 1.35, 11.0 * 0.42), 24), Color(shadow_style.smoke, shadow_style.smoke.a * 0.35 * shadow_style.smoke_amount))
+	_bake.fill(LiteBuilder.ring(Vector2.ZERO, Vector2(11.0, 11.0 * 0.3), 24), Color(0.02, 0.0, 0.05, 0.42))
+
+
+## Aura atrás do corpo (raios 15 × 24).
+func _aura_shape() -> void:
+	var a := 0.09 * shadow_style.aura
+	for i in 4:
+		var s := 1.0 - i * 0.2
+		_bake.fill(LiteBuilder.ring(Vector2.ZERO, Vector2(15.0 * s, 24.0 * s), 24), Color(shadow_style.energy, a * (0.55 + i * 0.35)))
+
+
+func _puff_shape() -> void:
+	_bake.fill(PackedVector2Array([
+		Vector2(-1.0, 0.4), Vector2(-0.4, -1.2), Vector2(0.2, -2.4), Vector2(0.7, -0.9), Vector2(1.0, 0.5), Vector2(0.0, 1.0),
+	]), Color(shadow_style.smoke, shadow_style.smoke.a * shadow_style.smoke_amount * 0.8))
+
+
+func _pose_ground() -> void:
 	var lying := clampf(absf(p_rot) / 90.0, 0.0, 1.0)
 	var shift := -14.0 * lying * _k() * _facing
-	ShadowFX.ground_mist(self, Vector2(shift, FOOT_Y), (11.0 + 9.0 * lying) * _k(), shadow_style, _time + _seed)
+	var w := (11.0 + 9.0 * lying) * _k() / 11.0
+	var b := 0.95 + 0.05 * sin((_time + _seed) * 1.3)
+	_skin.set_bone(B_MIST, Transform2D(0.0, Vector2(w * b, w), 0.0, Vector2(shift, FOOT_Y)))
+	_skin.hide_bone(B_GROUND)
+	if _life() > 0.5:
+		var pulse := (1.0 + 0.03 * sin((_time + _seed) * 1.7 * shadow_style.pulse_speed)) * _k()
+		_skin.set_bone(B_AURA, Transform2D(0.0, Vector2(pulse, pulse), 0.0, Vector2(0, FOOT_Y - 19.0 * _k())))
+	else:
+		_skin.hide_bone(B_AURA)
+
+
+## Fumaça subindo dos ombros, da barra da capa e dos pés; na morte, o corpo se desfaz.
+func _pose_extra(root: Transform2D, torso: Transform2D) -> void:
 	var k := _life()
-	if k > 0.0:
-		ShadowFX.aura(self, Vector2(0, FOOT_Y - 19.0 * _k()), Vector2(15.0, 24.0) * _k(), shadow_style, _time + _seed, k)
+	var dissolve := 0.0
+	if _death_t >= 0.0:
+		dissolve = clampf(_death_t / 0.6, 0.0, 1.0) * (1.0 - clampf((_death_t - 1.4) / 1.2, 0.0, 1.0))
+	var sw := -p_cape * 0.14
+	var n := _smoke(B_PUFF, torso, PackedVector2Array([Vector2(-3.4, -15.0), Vector2(-11.6 + sw, 12.0), Vector2(-6.0 + sw * 0.6, 12.8)]),
+		_time, _seed, 10.0, 1.7, 2, minf(maxf(k, dissolve * 1.8), 1.0))
+	n = _smoke(n, root, PackedVector2Array([Vector2(-3.0, 0.0), Vector2(4.0, 0.0)]), _time * 0.8, _seed + 3.0, 6.0, 1.4, 1, k)
+	_smoke(n, root, PackedVector2Array([Vector2(0, -8), Vector2(0, -18), Vector2(3, -26), Vector2(-3, -32)]), _time * 1.3, _seed + 7.0, 15.0, 2.4, 3, dissolve)
 
 
-## Capa rasgada em pontas que tremulam.
+## Fiapos subindo de `sources` (mesma conta do ShadowFX.smoke); o esmaecer vira encolher.
+func _smoke(bone: int, space: Transform2D, sources: PackedVector2Array, time: float, seed: float,
+		rise: float, size: float, count: int, k: float) -> int:
+	for si in sources.size():
+		for j in count:
+			if k <= 0.0:
+				_skin.hide_bone(bone)
+			else:
+				var h := ShadowFX._hash(si * 7.0 + j, seed)
+				var u := fposmod(time * (0.32 + 0.18 * h) + h + float(j) / count, 1.0)
+				var p := sources[si] + Vector2(sin(u * 5.0 + h * 9.0) * 1.6 + u * 1.2, -rise * u)
+				var r := size * (1.0 - 0.55 * u) * (0.8 + 0.4 * h) * sin(u * PI) * k
+				_skin.set_bone(bone, space * Transform2D(0.0, Vector2(r, r), 0.0, p))
+			bone += 1
+	return bone
+
+
+## Capa rasgada em pontas.
 func _cape_shape(pts: PackedVector2Array) -> PackedVector2Array:
 	var a := pts[2]
 	var b := pts[3]
 	var c := pts[4]
-	var f := sin(_time * 2.6 + _seed) * 0.6
 	return PackedVector2Array([
 		pts[0], pts[1],
-		a + Vector2(-0.4, 0.6 + f), a.lerp(b, 0.3) + Vector2(0.2, -3.0), a.lerp(b, 0.55) + Vector2(0, 0.8 - f),
-		b + Vector2(0, -1.0), b.lerp(c, 0.45) + Vector2(0.3, -3.4), c.lerp(b, 0.15) + Vector2(0, 0.6 + f), c,
+		a + Vector2(-0.4, 0.6), a.lerp(b, 0.3) + Vector2(0.2, -3.0), a.lerp(b, 0.55) + Vector2(0, 0.8),
+		b + Vector2(0, -1.0), b.lerp(c, 0.45) + Vector2(0.3, -3.4), c.lerp(b, 0.15) + Vector2(0, 0.6), c,
 	])
 
 
-func _draw_cape(torso: Transform2D) -> void:
-	super(torso)
-	if _rim_pass:
-		return
-	var sw := -p_cape * 0.14
-	var hem := _cape_shape(PackedVector2Array([
-		Vector2(1.0, -15.0), Vector2(-6.4, -14.4), Vector2(-12.6 + sw, 12.0), Vector2(-7.4 + sw * 0.7, 13.4), Vector2(-2.4 + sw * 0.4, 11.2),
-	])).slice(2)
-	draw_polyline(hem, Color(shadow_style.energy, 0.45 * _life()), 0.8, true)
+## Barra da capa com um fio de energia.
+func _draw_cape_extra(shape: PackedVector2Array) -> void:
+	_pline(shape.slice(2), Color(shadow_style.energy, 0.45), 0.8)
 
 
 ## Tabardo com a barra rasgada.
@@ -89,76 +159,40 @@ func _tabard_front() -> PackedVector2Array:
 
 
 func _draw_torso_wear() -> void:
-	var k := _life()
-	var p := _pulse()
-	ShadowFX.crack(self, PackedVector2Array([Vector2(1.2, -14.6), Vector2(2.4, -11.8), Vector2(1.0, -9.6), Vector2(2.6, -6.8), Vector2(1.6, -4.0)]), shadow_style, p, k)
-	ShadowFX.crack(self, PackedVector2Array([Vector2(2.4, -11.8), Vector2(5.0, -10.8), Vector2(6.2, -9.0)]), shadow_style, p, k * 0.8)
+	LiteShadowParts.crack(self, PackedVector2Array([Vector2(1.2, -14.6), Vector2(2.4, -11.8), Vector2(1.0, -9.6), Vector2(2.6, -6.8), Vector2(1.6, -4.0)]), shadow_style)
+	LiteShadowParts.crack(self, PackedVector2Array([Vector2(2.4, -11.8), Vector2(5.0, -10.8), Vector2(6.2, -9.0)]), shadow_style, 0.8)
 
 
 ## Visor com dois olhos roxos (leitura imediata de "revivido").
 func _draw_visor() -> void:
 	super()
-	var k := _life() * (1.0 - p_flash)
-	var pulse := 0.75 + 0.25 * _pulse()
-	ShadowFX.eye(self, Vector2(3.0, -6.9), 0.75, shadow_style, pulse, k)
-	ShadowFX.eye(self, Vector2(5.4, -7.0), 0.7, shadow_style, pulse, k)
+	LiteShadowParts.eye(self, Vector2(3.0, -6.9), 0.75, shadow_style)
+	LiteShadowParts.eye(self, Vector2(5.4, -7.0), 0.7, shadow_style)
 
 
-## Sol do escudo e do tabardo: estrela roxa que pulsa, com halo.
+## Sol do escudo e do tabardo: estrela roxa com halo.
 func _draw_emblem(c: Vector2, size: float) -> void:
-	var k := _life()
-	if k > 0.0:
-		draw_circle(c, size * 1.3, Color(shadow_style.energy, 0.2 * k * (0.7 + 0.3 * _pulse())))
+	_disc(c, size * 1.3, Color(shadow_style.energy, 0.17))
 	super(c, size)
-	if k > 0.0:
-		_star(c, size * 0.4, Color(shadow_style.energy_core, 0.8 * k))
+	_star(c, size * 0.4, Color(shadow_style.energy_core, 0.8))
 
 
 func _draw_shield_wear() -> void:
-	var k := _life()
-	var p := _pulse()
-	ShadowFX.crack(self, PackedVector2Array([Vector2(-2.6, -7.6), Vector2(-1.4, -4.8), Vector2(-2.4, -2.4)]), shadow_style, p, k * 0.9)
-	ShadowFX.crack(self, PackedVector2Array([Vector2(1.6, 2.6), Vector2(2.4, 5.2), Vector2(1.2, 7.4)]), shadow_style, 1.0 - p, k * 0.9)
+	LiteShadowParts.crack(self, PackedVector2Array([Vector2(-2.6, -7.6), Vector2(-1.4, -4.8), Vector2(-2.4, -2.4)]), shadow_style, 0.9)
+	LiteShadowParts.crack(self, PackedVector2Array([Vector2(1.6, 2.6), Vector2(2.4, 5.2), Vector2(1.2, 7.4)]), shadow_style, 0.9)
 
 
-## Chama roxa correndo pelo fio da espada (mais forte no golpe).
+## Chama roxa no fio da espada.
 func _draw_blade_extra() -> void:
-	var k := _life()
-	if k <= 0.0:
-		return
-	var strike := 0.0
-	if _strike_t >= 0.0:
-		strike = 1.0 - clampf(_strike_t / RECOVER_END, 0.0, 1.0)
-	var boost := 0.7 + 0.6 * maxf(strike, p_wind)
 	for i in 6:
 		var u := (i + 0.5) / 6.0
 		var y := lerpf(-3.4, -16.4, u)
-		var lick := 1.2 + 1.3 * (0.5 + 0.5 * sin(_time * 9.0 + i * 1.9 + _seed)) * boost
+		var lick := 1.2 + 1.3 * 0.5 * 0.85
 		var side := -1.0 if i % 2 == 0 else 1.0
-		draw_colored_polygon(PackedVector2Array([
+		_fill(PackedVector2Array([
 			Vector2(side * 1.0, y - 1.0), Vector2(side * 1.1, y + 1.2), Vector2(side * (1.3 + lick), y - 1.6),
-		]), Color(shadow_style.energy, 0.55 * k))
-	ShadowFX.crack(self, PackedVector2Array([Vector2(0, -2.6), Vector2(0.1, -9.0), Vector2(-0.1, -15.6)]), shadow_style, maxf(_pulse() * 0.6, strike), k)
-
-
-func _draw_fx_front(root: Transform2D, torso: Transform2D) -> void:
-	if _rim_pass:
-		return
-	var k := _life()
-	var dissolve := 0.0
-	if _death_t >= 0.0:
-		dissolve = clampf(_death_t / 0.6, 0.0, 1.0) * (1.0 - clampf((_death_t - 1.4) / 1.2, 0.0, 1.0))
-	if k <= 0.0 and dissolve <= 0.0:
-		return
-	var sw := -p_cape * 0.14
-	_with(torso)
-	ShadowFX.smoke(self, PackedVector2Array([Vector2(-3.4, -15.0), Vector2(-11.6 + sw, 12.0), Vector2(-6.0 + sw * 0.6, 12.8)]),
-		shadow_style, _time, _seed, 10.0, 1.7, 2, maxf(k, dissolve * 1.8))
-	_with(root)
-	ShadowFX.smoke(self, PackedVector2Array([Vector2(-3.0, 0.0), Vector2(4.0, 0.0)]), shadow_style, _time * 0.8, _seed + 3.0, 6.0, 1.4, 1, k)
-	if dissolve > 0.0:
-		ShadowFX.smoke(self, PackedVector2Array([Vector2(0, -8), Vector2(0, -18), Vector2(3, -26), Vector2(-3, -32)]),
-			shadow_style, _time * 1.3, _seed + 7.0, 15.0, 2.4, 3, dissolve)
+		]), Color(shadow_style.energy, 0.55))
+	LiteShadowParts.crack(self, PackedVector2Array([Vector2(0, -2.6), Vector2(0.1, -9.0), Vector2(-0.1, -15.6)]), shadow_style, 1.0, 0.6)
 
 
 # --- Cores dos efeitos: roxo com resto do dourado --------------------------------------------

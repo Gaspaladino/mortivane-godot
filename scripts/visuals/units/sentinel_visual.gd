@@ -110,6 +110,8 @@ func setup(p_unit: CombatUnit, p_def: UnitDef) -> void:
 	_aim = [0.0 if _facing > 0.0 else PI, 0.0 if _facing > 0.0 else PI]
 	_last_pos = unit.position
 	_compute_pose(0.0)
+	_build_rig()
+	_pose_bones()
 
 
 # --- Interface do UnitVisual ------------------------------------------------------------
@@ -158,6 +160,16 @@ func pick_rect() -> Rect2:
 	return Rect2(-12, FOOT_Y - 40, 24, 42)
 
 
+func death_elapsed() -> float:
+	return _death_t
+
+
+## Queda em death_time, lâminas somem em 0,85 s, quique amortecido (exp(−8·b)) e escurecimento em
+## death_time + 0,3. A Sombra: fiapos assentam em ~1,96 s (death_time 1,1 → 2,2).
+func corpse_settle_time() -> float:
+	return death_time + 1.1
+
+
 func ground_point() -> Vector2:
 	return Vector2(0, FOOT_Y)
 
@@ -198,7 +210,7 @@ func update_visual(delta: float) -> void:
 		_death_t += delta
 
 	_compute_pose(delta)
-	queue_redraw()
+	_pose_bones()
 
 
 # --- Lâminas (estado visual) --------------------------------------------------------------
@@ -379,61 +391,309 @@ func _death_extra(_t: float) -> void:
 	pass
 
 
-# --- Desenho -----------------------------------------------------------------------------
+# --- Desenho leve: peças prontas + ossos -----------------------------------------------------
+## O corpo, as lâminas pairando e os efeitos são UMA malha estática por tipo (LiteSkin), com um
+## osso por peça; a pose do quadro só move os ossos (nada é redesenhado). Formas que antes mudavam
+## a cada quadro viraram transformações: a barra do manto balança por CISALHAMENTO, as abas abrem
+## GIRANDO no ombro, as botas DESLIZAM, os brilhos (joia, carga, anéis) CRESCEM/ENCOLHEM, e o
+## "esmaecer" das lâminas/fumaça virou crescer/encolher. A transparência etérea da Sombra e o
+## clarão/escurecimento vão pelo material (LiteFx).
+
+enum {
+	B_GROUND, B_AURA, B_CLOAK, B_BOOT_L, B_BOOT_R, B_ROBE, B_ARM_B, B_FLAP_B, B_FLAP_F, B_ARM_F,
+	B_CAPELET, B_GEM_GLOW, B_GEM, B_GEM_FLARE, B_HEAD, B_HAT, B_HAT_GLOW,
+	B_CHARGE, B_CRACKLE = B_CHARGE + 3, B_BLADES = B_CRACKLE + 3,
+}
+## Ossos de cada lâmina (a partir de B_BLADES + i × BLADE_BONES).
+enum { BL_LINK, BL_HALO, BL_BLADE, BL_GHOST, BL_RING, BL_LAUNCH_RING, BL_LAUNCH_DISC, BLADE_BONES }
+const B_DEATH := B_BLADES + 2 * BLADE_BONES
+const DEATH_BITS := 10                      # faíscas (viva) ou fragmentos (sombra): 5 por lâmina
+const B_DEATH_DISC := B_DEATH + DEATH_BITS
+const B_WISP := B_DEATH_DISC + 2
+## Sombra: línguas de fumaça atrás (7) e na frente (5), fiapos laterais (4), fiapos do capelete (2).
+const WISPS_BACK := 7
+const WISPS_SIDE := 4
+const WISPS_FRONT := 5
+const WISP_PUFFS := 2
+const B_COUNT := B_WISP + WISPS_BACK + WISPS_SIDE + WISPS_FRONT + WISP_PUFFS
+
+## Raios de referência das peças de brilho (a pose escala a partir deles).
+const RING_R := 8.0
+const LAUNCH_R := 10.0
+
+var _saved_bake := []
+## Ossos já escondidos (não repetir a chamada a cada quadro enquanto nada muda).
+var _charge_hidden := false
+var _death_hidden := false
+
+
+func _bake_begin() -> void:
+	_saved_bake = [p_hem, p_open, p_tip, p_step, p_gem, p_alpha, p_charge, p_hat_fall, _time]
+	p_hem = 0.0
+	p_open = 0.0
+	p_tip = 0.0
+	p_step = 0.0
+	p_gem = 0.0
+	p_alpha = 1.0
+	p_charge = 0.0
+	p_hat_fall = 0.0
+	_time = 0.0
+
+
+func _bake_end() -> void:
+	p_hem = _saved_bake[0]
+	p_open = _saved_bake[1]
+	p_tip = _saved_bake[2]
+	p_step = _saved_bake[3]
+	p_gem = _saved_bake[4]
+	p_alpha = _saved_bake[5]
+	p_charge = _saved_bake[6]
+	p_hat_fall = _saved_bake[7]
+	_time = _saved_bake[8]
+
+
+func _build_rig() -> void:
+	var style := projectile_style(null)
+	var body: Array = [
+		["cloak", _draw_back_cloak, B_CLOAK], ["boot_l", _draw_boot.bind(-1.0), B_BOOT_L], ["boot_r", _draw_boot.bind(1.0), B_BOOT_R],
+		["robe", _draw_robe, B_ROBE], ["arm", _draw_arm, B_ARM_B], ["flap_b", _draw_flap_back, B_FLAP_B],
+		["flap_f", _draw_flap_front, B_FLAP_F], ["arm", _draw_arm, B_ARM_F], ["capelet", _draw_capelet, B_CAPELET],
+	]
+	var layout: Array = _layout_back()
+	if shadow_style != null and shadow_style.rim_width > 0.0:
+		for e in body + [["head", _draw_head, B_HEAD], ["hat", _draw_hat, B_HAT]]:
+			layout.append([_part(e[0], e[1], true), e[2]])
+	for e in body:
+		layout.append([_part(e[0], e[1]), e[2]])
+	layout.append([_part("gem_glow", func(): _disc(Vector2.ZERO, 1.0, Color(glow, 0.22)), false, false), B_GEM_GLOW])
+	layout.append([_part("gem", _draw_gem), B_GEM])
+	layout.append([_part("gem_flare", func(): _disc(Vector2.ZERO, 1.4, Color(core, 0.75))), B_GEM_FLARE])
+	layout.append([_part("head", _draw_head), B_HEAD])
+	layout.append([_part("hat", _draw_hat), B_HAT])
+	layout.append([_part("hat_glow", func(): _disc(Vector2.ZERO, 2.6, Color(glow, 0.3)), false, false), B_HAT_GLOW])
+	layout.append([_part("hat_gem", _draw_hat_gem), B_HAT])
+	# carga na mão (três discos) e, na sombra, faíscas escuras girando
+	layout.append([_part("charge0", func(): _disc(Vector2.ZERO, 1.0, Color(glow, 0.2)), false, false), B_CHARGE])
+	layout.append([_part("charge1", func(): _disc(Vector2.ZERO, 1.0, Color(glow, 0.5)), false, false), B_CHARGE + 1])
+	layout.append([_part("charge2", func(): _disc(Vector2.ZERO, 1.0, Color(core, 0.95)), false, false), B_CHARGE + 2])
+	if shadow:
+		var crackle := _part("crackle", func(): _bake.line(Vector2.ZERO, Vector2(1, 0), Color(glow, 0.6), 0.8), false, false)
+		for k in 3:
+			layout.append([crackle, B_CRACKLE + k])
+	layout.append_array(_layout_front())
+	# lâminas pairando: elo de comando, halo da antecipação, lâmina, vulto (recarga), anéis
+	var link := _part("blade_link", func(): _bake.line(Vector2.ZERO, Vector2(1, 0), Color(glow, 0.3), 0.9), false, false)
+	var halo := _part("blade_halo", func():
+		var pts := PackedVector2Array()
+		for v in ArcaneBlade.SHAPE:
+			pts.append(v * SWORD_LENGTH)
+		_bake.outline(pts, Color(glow, 0.3), 5.6), false, false)
+	var blade := _part("blade", func(): ArcaneBlade.bake(_bake, SWORD_LENGTH, style, 0.92, 0.1), false, false)
+	var ghost := _part("blade_ghost", func(): ArcaneBlade.bake(_bake, SWORD_LENGTH, style, 0.16, 0.0), false, false)
+	var ring := _part("blade_ring", func(): _bake.arc(Vector2.ZERO, RING_R, 0.0, TAU, 24, Color(glow, 0.75), 1.2), false, false)
+	var lring := _part("blade_launch_ring", func(): _bake.arc(Vector2.ZERO, LAUNCH_R, 0.0, TAU, 24, Color(glow, 0.85), 1.4), false, false)
+	var ldisc := _part("blade_launch_disc", func(): _disc(Vector2.ZERO, 1.0, Color(core, 0.5)), false, false)
+	for i in 2:
+		var b := B_BLADES + i * BLADE_BONES
+		for e in [[link, BL_LINK], [halo, BL_HALO], [blade, BL_BLADE], [ghost, BL_GHOST], [ring, BL_RING], [lring, BL_LAUNCH_RING], [ldisc, BL_LAUNCH_DISC]]:
+			layout.append([e[0], b + e[1]])
+	# morte: faíscas (viva) ou fragmentos (sombra) e um sopro de fumaça por lâmina
+	var bit := _part("death_bit", _death_bit_shape, false, false)
+	for k in DEATH_BITS:
+		layout.append([bit, B_DEATH + k])
+	var puff := _part("death_disc", func(): _disc(Vector2.ZERO, 1.0, Color(wisp, wisp.a * 0.6)), false, false)
+	for k in 2:
+		layout.append([puff, B_DEATH_DISC + k])
+	_skin_setup(layout, B_COUNT)
+
+
+## Pontos de extensão da malha (a Sombra: névoa, aura e fumaça).
+func _layout_back() -> Array:
+	return [[_part("ground", func(): _disc(Vector2.ZERO, 12.0, Color(0, 0, 0, 0.3)), false, false), B_GROUND]]
+
+
+func _layout_front() -> Array:
+	return []
+
+
+## Faísca azul (viva) — a Sombra troca por um fragmento de lâmina.
+func _death_bit_shape() -> void:
+	_disc(Vector2.ZERO, 0.9, Color(glow, 0.9))
+
 
 func _draw() -> void:
+	_skin_draw()
+
+
+## Cisalhamento horizontal com pivô na altura `pivot_y`: pontos abaixo andam `k` por unidade de altura.
+static func _shear(k: float, pivot_y: float) -> Transform2D:
+	return Transform2D(Vector2(1, 0), Vector2(k, 1), Vector2(-k * pivot_y, 0))
+
+
+func _pose_bones() -> void:
+	if _skin == null:
+		return
+	var sk := _skin
 	var mirror := Transform2D(0.0, Vector2(_facing, 1.0), 0.0, Vector2(0, FOOT_Y))
 	var root := mirror * Transform2D(deg_to_rad(p_lean), p_scale, 0.0, p_offset)
 	var upright := mirror * Transform2D(deg_to_rad(p_lean), p_offset)
 	var neck := Vector2(NECK.x * p_scale.x, NECK.y * p_scale.y)
 	var head := upright * Transform2D(deg_to_rad(p_head), neck)
-	var hat_on := head * Transform2D(deg_to_rad(p_hat), Vector2(0.3, -5.9))
-	var hat := hat_on
+	var hat := head * Transform2D(deg_to_rad(p_hat), Vector2(0.3, -5.9))
 	if p_hat_fall > 0.0:
 		var hat_ground := mirror * Transform2D(deg_to_rad(-16.0), Vector2(-10.5, -1.2))
-		hat = hat_on.interpolate_with(hat_ground, p_hat_fall)
-
-	_draw_shadow()
-	_with(root)
-	_draw_wisps(false)
-	_draw_with_rim(_draw_body.bind(root, head, hat))   # na sombra: silhueta roxa por baixo
-	if p_charge > 0.0:
-		_with(root * Transform2D(deg_to_rad(p_arm), SHOULDER))
-		_draw_hand_charge()
-	_with(root)
-	_draw_wisps(true)
-	draw_set_transform_matrix(Transform2D.IDENTITY)
-	_draw_blades()
-	draw_set_transform_matrix(Transform2D.IDENTITY)
-
-
-func _draw_body(root: Transform2D, head: Transform2D, hat: Transform2D) -> void:
-	_with(root)
-	_draw_back_cloak()
-	_draw_boots()
-	_draw_robe()
+		hat = hat.interpolate_with(hat_ground, p_hat_fall)
+	hat = hat * Transform2D(deg_to_rad(-p_tip * 1.2), Vector2.ZERO)   # a ponta balança: o chapéu gira de leve
+	_pose_ground()
+	var h := p_hem
+	var o := p_open
+	sk.set_bone(B_CLOAK, root * _shear(h * 0.7 / 16.4, -16.4))
+	sk.set_bone(B_BOOT_L, root * Transform2D(0.0, Vector2(-p_step, 0)))
+	sk.set_bone(B_BOOT_R, root * Transform2D(0.0, Vector2(p_step, 0)))
+	sk.set_bone(B_ROBE, root * _shear(h * 0.45 / 17.6, -16.8))
 	var arm_xf := root * Transform2D(deg_to_rad(p_arm), SHOULDER)
 	var arm_out := p_charge > 0.0 or _cast_t >= 0.0   # conjurando: braço à frente do manto
-	if not arm_out:
-		_with(arm_xf)
-		_draw_arm()
-		_with(root)
-	_draw_flaps()
-	if arm_out:
-		_with(arm_xf)
-		_draw_arm()
-		_with(root)
-	_draw_capelet()
-	_with(head)
-	_draw_head()
-	_with(hat)
-	_draw_hat()
+	sk.set_bone(B_ARM_B, LiteSkin.HIDDEN if arm_out else arm_xf)
+	sk.set_bone(B_ARM_F, arm_xf if arm_out else LiteSkin.HIDDEN)
+	var pb := Vector2(-5.6, -16.8)
+	var pf := Vector2(5.6, -16.8)
+	sk.set_bone(B_FLAP_B, root * Transform2D(atan(1.8 * o / 17.0), pb) * _shear(h * 0.4 / 17.0, 0.0) * Transform2D(0.0, -pb))
+	sk.set_bone(B_FLAP_F, root * Transform2D(-atan(3.4 * o / 17.0), pf) * _shear(h * 0.35 / 17.0, 0.0) * Transform2D(0.0, -pf))
+	sk.set_bone(B_CAPELET, root)
+	sk.set_bone(B_GEM, root)
+	var gr := 3.0 + 2.4 * p_gem
+	sk.set_bone(B_GEM_GLOW, root * Transform2D(0.0, Vector2(gr, gr), 0.0, GEM))
+	var flare := clampf(p_gem - 0.3, 0.0, 0.6) / 0.6
+	sk.set_bone(B_GEM_FLARE, root * Transform2D(0.0, Vector2(flare, flare), 0.0, GEM) if flare > 0.0 else LiteSkin.HIDDEN)
+	sk.set_bone(B_HEAD, head)
+	sk.set_bone(B_HAT, hat)
+	var hg := (0.6 + 0.4 * p_gem) * (1.0 - p_hat_fall)
+	sk.set_bone(B_HAT_GLOW, hat * Transform2D(0.0, Vector2(hg, hg), 0.0, Vector2(1.8, -2.4)) if hg > 0.01 else LiteSkin.HIDDEN)
+	_pose_charge(root)
+	_pose_blades()
+	_pose_extra(root)
+	_apply_fx(p_alpha)
 
 
-func _draw_shadow() -> void:
+## Ponto de extensão: ossos da variante (a Sombra: névoa, aura, fumaça). Viva: nada.
+func _pose_extra(_root: Transform2D) -> void:
+	pass
+
+
+func _pose_ground() -> void:
 	var spread := 1.0 + 0.5 * p_hat_fall
-	draw_set_transform(Vector2(0, FOOT_Y), 0.0, Vector2(spread, 0.32))
-	draw_circle(Vector2.ZERO, 12.0, Color(0, 0, 0, 0.3))
+	_skin.set_bone(B_GROUND, Transform2D(0.0, Vector2(spread, 0.32), 0.0, Vector2(0, FOOT_Y)))
+
+
+## Energia juntando na mão (três discos que crescem com a carga) e, na sombra, faíscas girando.
+func _pose_charge(root: Transform2D) -> void:
+	var k := p_charge
+	if k <= 0.0:
+		if not _charge_hidden:
+			for i in 3:
+				_skin.hide_bone(B_CHARGE + i)
+				if shadow:
+					_skin.hide_bone(B_CRACKLE + i)
+			_charge_hidden = true
+		return
+	_charge_hidden = false
+	var hand_xf := root * Transform2D(deg_to_rad(p_arm), SHOULDER)
+	var hand := hand_xf * Vector2(0.0, ARM_LENGTH + 1.0)
+	var pulse := 0.5 + 0.5 * sin(_time * 24.0)
+	var ramp := sqrt(k)
+	var radii := [2.5 + 5.0 * k, 1.2 + 2.8 * k, 0.8 + 1.5 * k + pulse * 0.3]
+	for i in 3:
+		var r: float = radii[i] * ramp
+		_skin.set_bone(B_CHARGE + i, Transform2D(0.0, Vector2(r, r), 0.0, hand))
+	if shadow:
+		for i in 3:
+			var ang := _time * 8.0 + i * TAU / 3.0
+			var a := hand + Vector2.from_angle(ang) * 2.0
+			var b := hand + Vector2.from_angle(ang + 0.5) * (4.0 + 2.0 * k)
+			_skin.set_bone(B_CRACKLE + i, _seg_bone(a, b))
+
+
+func _pose_blades() -> void:
+	if _death_t >= 0.0:
+		for i in 2:
+			for j in BLADE_BONES:
+				_skin.hide_bone(B_BLADES + i * BLADE_BONES + j)
+		_death_hidden = false
+		_pose_dying_blades()
+		return
+	if not _death_hidden:
+		for k in DEATH_BITS:
+			_skin.hide_bone(B_DEATH + k)
+		for k in 2:
+			_skin.hide_bone(B_DEATH_DISC + k)
+		_death_hidden = true
+	for i in 2:
+		var b := B_BLADES + i * BLADE_BONES
+		var pos := _blade_anchor(i)
+		var ang := _aim[i] + sin(_time * 1.6 + i) * sword_wobble
+		var xf := Transform2D(ang, pos)
+		var ready := _blade_ready(i)
+		var wind := _blade_windup(i) if ready else 0.0
+		if ready:
+			var s := 1.0
+			if _reform_t[i] >= 0.0:
+				s = clampf(_reform_t[i] / (REFORM_TIME * 0.6), 0.05, 1.0)   # volta crescendo
+			_skin.set_bone(b + BL_BLADE, Transform2D(ang, Vector2(s, s), 0.0, pos))
+			_skin.hide_bone(b + BL_GHOST)
+		else:
+			_skin.hide_bone(b + BL_BLADE)
+			var cd := unit.swords.blades[i].cooldown
+			var progress := 1.0 - cd / SentinelSwords.COOLDOWN
+			var g := 0.7 + 0.3 * progress
+			_skin.set_bone(b + BL_GHOST, Transform2D(ang, Vector2(g, g), 0.0, pos))
+		var energy := maxf(wind, 0.25 * _sword_kick) if ready else 0.0
+		_skin.set_bone(b + BL_HALO, xf if energy > 0.2 else LiteSkin.HIDDEN)
+		_skin.set_bone(b + BL_LINK, _seg_bone(Vector2(0, GEM.y + FOOT_Y), pos) if wind > 0.0 else LiteSkin.HIDDEN)
+		if ready and _reform_t[i] >= 0.0:
+			var rk := _reform_t[i] / REFORM_TIME
+			var rs := (3.0 + 9.0 * rk) / RING_R
+			_skin.set_bone(b + BL_RING, Transform2D(0.0, Vector2(rs, rs), 0.0, pos))
+		else:
+			_skin.hide_bone(b + BL_RING)
+		if _launch_t[i] >= 0.0:
+			var lk := _launch_t[i] / LAUNCH_FX_TIME
+			var anchor := Vector2((-1.0 if i == 0 else 1.0) * SWORD_ANCHOR.x, SWORD_ANCHOR.y)
+			var ls := (4.0 + 11.0 * sqrt(lk)) / LAUNCH_R * (1.0 - 0.3 * lk)
+			_skin.set_bone(b + BL_LAUNCH_RING, Transform2D(0.0, Vector2(ls, ls), 0.0, anchor))
+			var ds := 5.0 * (1.0 - lk)
+			_skin.set_bone(b + BL_LAUNCH_DISC, Transform2D(0.0, Vector2(ds, ds), 0.0, anchor))
+		else:
+			_skin.hide_bone(b + BL_LAUNCH_RING)
+			_skin.hide_bone(b + BL_LAUNCH_DISC)
+
+
+## Morte (viva): as lâminas perdem o controle, caem girando e se desfazem em faíscas azuis.
+## (Usa os ossos de lâmina e de faísca; a Sombra troca a coreografia.)
+func _pose_dying_blades() -> void:
+	var t := _death_t
+	var bit := 0
+	for n in _death_blades.size():
+		var bd: Dictionary = _death_blades[n]
+		var fall_t := maxf(0.0, t - 0.08)
+		var pos: Vector2 = bd.pos + Vector2(0, 0.5 * 170.0 * fall_t * fall_t)
+		pos.y = minf(pos.y, FOOT_Y - 1.0)
+		var aim: float = bd.aim
+		var ang := lerp_angle(aim, PI / 2.0, clampf(fall_t * 2.5, 0.0, 1.0)) + fall_t * 3.0 * (1.0 if bd.i == 0 else -1.0)
+		var alpha := 1.0 - clampf((t - 0.4) / 0.45, 0.0, 1.0)
+		var b := B_BLADES + int(bd.i) * BLADE_BONES
+		_skin.set_bone(b + BL_BLADE, Transform2D(ang, Vector2(alpha, alpha), 0.0, pos) if alpha > 0.0 else LiteSkin.HIDDEN)
+		for k in 5:
+			if t > 0.35 and alpha > 0.0:
+				var rise := (t - 0.35) * (14.0 + k * 3.0)
+				var sp := pos + Vector2(sin(_seed + k * 2.1) * 6.0, -rise)
+				_skin.set_bone(B_DEATH + bit, Transform2D(0.0, Vector2(alpha, alpha), 0.0, sp))
+			else:
+				_skin.hide_bone(B_DEATH + bit)
+			bit += 1
+	for k in range(bit, DEATH_BITS):
+		_skin.hide_bone(B_DEATH + k)
+	for k in 2:
+		_skin.hide_bone(B_DEATH_DISC + k)
 
 
 func _draw_back_cloak() -> void:
@@ -444,10 +704,13 @@ func _draw_back_cloak() -> void:
 	]), _c(robe_dark))
 
 
-func _draw_boots() -> void:
+## Bota de um lado (−1 = de trás, +1 = da frente); o passo é um deslizamento no osso.
+func _draw_boot(side: float) -> void:
 	var boot := _c(robe_dark, 0.6)
-	_poly(PackedVector2Array([Vector2(-4.0 - p_step, -1.0), Vector2(-0.8 - p_step, -1.0), Vector2(-0.6 - p_step, 1.6), Vector2(-4.4 - p_step, 1.6)]), boot)
-	_poly(PackedVector2Array([Vector2(1.0 + p_step, -1.0), Vector2(4.2 + p_step, -1.0), Vector2(5.4 + p_step, 1.8), Vector2(1.0 + p_step, 1.8)]), boot)
+	if side < 0.0:
+		_poly(PackedVector2Array([Vector2(-4.0, -1.0), Vector2(-0.8, -1.0), Vector2(-0.6, 1.6), Vector2(-4.4, 1.6)]), boot)
+	else:
+		_poly(PackedVector2Array([Vector2(1.0, -1.0), Vector2(4.2, -1.0), Vector2(5.4, 1.8), Vector2(1.0, 1.8)]), boot)
 
 
 ## Barra do vestido (a Sombra rasga em pontas).
@@ -466,7 +729,7 @@ func _draw_robe() -> void:
 	if _rim_pass:
 		return
 	var hem := _hem_points(h)
-	draw_polyline(hem, _c(trim), 0.9, true)
+	_pline(hem, _c(trim), 0.9)
 	# painel frontal com o símbolo arcano
 	var panel := robe.lerp(robe_light, 0.4)
 	_poly(PackedVector2Array([
@@ -476,31 +739,37 @@ func _draw_robe() -> void:
 	_line(Vector2(2.4, -13.2), Vector2(4.0 + h * 0.2, 0.3), _c(trim), 0.9)
 	var sym := _c(symbol)
 	var c := Vector2(0.1, -5.6)
-	draw_arc(c, 2.1, 0.0, TAU, 20, sym, 0.85, true)
+	_arc_line(c, 2.1, 0.0, TAU, 20, sym, 0.85)
 	_line(Vector2(0.1, -10.4), Vector2(0.1, -0.9), sym, 0.85)
 	_line(Vector2(-3.0, -5.6), Vector2(3.2, -5.6), sym, 0.85)
-	draw_colored_polygon(PackedVector2Array([Vector2(0.1, -11.4), Vector2(0.8, -10.4), Vector2(0.1, -9.4), Vector2(-0.6, -10.4)]), sym)
+	_fill(PackedVector2Array([Vector2(0.1, -11.4), Vector2(0.8, -10.4), Vector2(0.1, -9.4), Vector2(-0.6, -10.4)]), sym)
 	# divisas na barra (angulosas, como na referência)
 	var dec := _c(symbol)
 	dec.a *= 0.55
-	draw_polyline(PackedVector2Array([Vector2(-8.6 + h * 0.6, -1.2), Vector2(-6.4 + h * 0.5, -3.4), Vector2(-5.2 + h * 0.4, -1.0)]), dec, 0.7, true)
-	draw_polyline(PackedVector2Array([Vector2(8.4 + h * 0.4, -1.2), Vector2(6.4 + h * 0.3, -3.4), Vector2(5.4 + h * 0.3, -1.0)]), dec, 0.7, true)
+	_pline(PackedVector2Array([Vector2(-8.6 + h * 0.6, -1.2), Vector2(-6.4 + h * 0.5, -3.4), Vector2(-5.2 + h * 0.4, -1.0)]), dec, 0.7)
+	_pline(PackedVector2Array([Vector2(8.4 + h * 0.4, -1.2), Vector2(6.4 + h * 0.3, -3.4), Vector2(5.4 + h * 0.3, -1.0)]), dec, 0.7)
+	_draw_robe_extra()
 
 
-func _draw_flaps() -> void:
-	var h := p_hem
-	var o := p_open
-	# aba de trás (−x) e aba da frente (+x): abrem no ataque, mostrando o painel
+## Ponto de extensão: detalhe no vestido (a Sombra: fissuras de energia).
+func _draw_robe_extra() -> void:
+	pass
+
+
+## Aba de trás do manto (−x); abre girando no ombro (osso).
+func _draw_flap_back() -> void:
 	_poly(PackedVector2Array([
-		Vector2(-5.6, -16.8), Vector2(-2.6 - o * 0.6, -14.2), Vector2(-4.6 - o * 1.8 + h * 0.2, 0.4),
-		Vector2(-9.4 + h * 0.6, 0.5), Vector2(-11.4 + h * 0.9, -0.5),
+		Vector2(-5.6, -16.8), Vector2(-2.6, -14.2), Vector2(-4.6, 0.4), Vector2(-9.4, 0.5), Vector2(-11.4, -0.5),
 	]), _c(robe, 0.9))
-	_line(Vector2(-2.6 - o * 0.6, -14.2), Vector2(-4.6 - o * 1.8 + h * 0.2, 0.4), _c(trim), 1.2)
+	_line(Vector2(-2.6, -14.2), Vector2(-4.6, 0.4), _c(trim), 1.2)
+
+
+## Aba da frente (+x): abre no ataque, mostrando o painel.
+func _draw_flap_front() -> void:
 	_poly(PackedVector2Array([
-		Vector2(5.6, -16.8), Vector2(2.8 + o * 1.2, -14.2), Vector2(4.8 + o * 3.4 + h * 0.2, 0.4),
-		Vector2(9.2 + o * 1.0 + h * 0.4, 0.6), Vector2(10.8 + o * 0.8 + h * 0.5, -0.4),
+		Vector2(5.6, -16.8), Vector2(2.8, -14.2), Vector2(4.8, 0.4), Vector2(9.2, 0.6), Vector2(10.8, -0.4),
 	]), _c(robe))
-	_line(Vector2(2.8 + o * 1.2, -14.2), Vector2(4.8 + o * 3.4 + h * 0.2, 0.4), _c(trim), 1.2)
+	_line(Vector2(2.8, -14.2), Vector2(4.8, 0.4), _c(trim), 1.2)
 
 
 func _draw_arm() -> void:
@@ -508,19 +777,6 @@ func _draw_arm() -> void:
 	_poly(PackedVector2Array([Vector2(-1.5, 0.0), Vector2(1.5, 0.0), Vector2(2.7, 6.8), Vector2(-2.5, 7.2)]), _c(robe, 0.95))
 	_line(Vector2(-2.5, 7.2), Vector2(2.7, 6.8), _c(trim), 1.0)
 	_poly(PackedVector2Array([Vector2(-1.0, 7.0), Vector2(1.2, 6.9), Vector2(1.0, 9.4), Vector2(0.0, 10.2), Vector2(-0.9, 9.3)]), _c(skin))
-
-
-func _draw_hand_charge() -> void:
-	var hand := Vector2(0.0, ARM_LENGTH + 1.0)
-	var k := p_charge
-	var pulse := 0.5 + 0.5 * sin(_time * 24.0)
-	draw_circle(hand, 2.5 + 5.0 * k, Color(glow, 0.2 * k))
-	draw_circle(hand, 1.2 + 2.8 * k, Color(glow, 0.5 * k))
-	draw_circle(hand, 0.8 + 1.5 * k + pulse * 0.3, Color(core, 0.95 * k))
-	if shadow:   # energia sombria crepitando em volta da mão
-		for i in 3:
-			var ang := _time * 8.0 + i * TAU / 3.0
-			draw_line(hand + Vector2.from_angle(ang) * 2.0, hand + Vector2.from_angle(ang + 0.5) * (4.0 + 2.0 * k), Color(glow, 0.6 * k), 0.8, true)
 
 
 ## Pontas do capelete (a Sombra alonga e rasga).
@@ -531,6 +787,7 @@ func _capelet_half(side: float) -> PackedVector2Array:
 	])
 
 
+## Capelete (as duas metades) e gola alta. A joia é outra peça (brilho no meio).
 func _draw_capelet() -> void:
 	for side in [-1.0, 1.0]:
 		var half := _capelet_half(side)
@@ -539,20 +796,18 @@ func _draw_capelet() -> void:
 			continue
 		var edge := half.slice(3)
 		edge.append(half[0])
-		draw_polyline(edge, _c(trim), 0.9, true)
-	# gola alta
+		_pline(edge, _c(trim), 0.9)
 	_poly(PackedVector2Array([
 		Vector2(-3.6, -18.8), Vector2(-4.2, -21.4), Vector2(-1.4, -20.0), Vector2(1.6, -20.0), Vector2(4.4, -21.4), Vector2(3.8, -18.8),
 	]), _c(robe_dark))
-	if _rim_pass:
-		return
-	# joia do peito: moldura prateada, pedra azul e brilho
+
+
+## Joia do peito: moldura prateada, pedra e reflexo.
+func _draw_gem() -> void:
 	var g := GEM
-	var glow_a := clampf(0.16 + 0.34 * p_gem, 0.0, 0.8) * p_alpha
-	draw_circle(g, 3.0 + 2.4 * p_gem, Color(glow, glow_a * 0.5))
 	_poly(PackedVector2Array([g + Vector2(0, -2.8), g + Vector2(2.3, 0), g + Vector2(0, 2.8), g + Vector2(-2.3, 0)]), _c(trim))
-	_poly(PackedVector2Array([g + Vector2(0, -1.9), g + Vector2(1.5, 0), g + Vector2(0, 1.9), g + Vector2(-1.5, 0)]), _c(gem_color).lerp(core, clampf(p_gem - 0.3, 0.0, 0.6)))
-	draw_colored_polygon(PackedVector2Array([g + Vector2(-0.3, -1.2), g + Vector2(0.4, -0.5), g + Vector2(-0.3, 0.1), g + Vector2(-0.8, -0.5)]), Color(core, 0.8 * p_alpha))
+	_poly(PackedVector2Array([g + Vector2(0, -1.9), g + Vector2(1.5, 0), g + Vector2(0, 1.9), g + Vector2(-1.5, 0)]), _c(gem_color))
+	_fill(PackedVector2Array([g + Vector2(-0.3, -1.2), g + Vector2(0.4, -0.5), g + Vector2(-0.3, 0.1), g + Vector2(-0.8, -0.5)]), Color(core, 0.8))
 
 
 func _draw_head() -> void:
@@ -577,93 +832,32 @@ func _draw_face_shade(_fc: Vector2) -> void:
 
 
 func _draw_eyes() -> void:
-	var lit := 1.0 - clampf(p_dim * 3.0, 0.0, 1.0)
-	var e := eye.lerp(robe_dark, 1.0 - lit)
 	for c in [Vector2(1.7, -2.9), Vector2(3.6, -2.95)]:
-		if lit > 0.0:
-			draw_circle(c, 1.4, Color(glow, 0.35 * lit * p_alpha))
-		draw_colored_polygon(PackedVector2Array([c + Vector2(-0.75, 0), c + Vector2(0, -0.5), c + Vector2(0.75, 0), c + Vector2(0, 0.42)]), Color(e, p_alpha))
+		_disc(c, 1.4, Color(glow, 0.35))
+		_fill(PackedVector2Array([c + Vector2(-0.75, 0), c + Vector2(0, -0.5), c + Vector2(0.75, 0), c + Vector2(0, 0.42)]), eye)
 
 
 func _draw_hat() -> void:
 	# origem no centro da aba; copa para cima com a ponta dobrada para trás
-	var tip := p_tip
 	_poly(PackedVector2Array([
 		Vector2(-13.6, 0.8), Vector2(-8.6, -1.2), Vector2(0.0, -1.8), Vector2(8.6, -1.3),
 		Vector2(13.9, 0.5), Vector2(9.0, 1.5), Vector2(0.0, 1.8), Vector2(-9.0, 1.6),
 	]), _c(robe))
 	_poly(PackedVector2Array([Vector2(-12.4, 1.0), Vector2(12.6, 0.8), Vector2(9.0, 1.5), Vector2(0.0, 1.8), Vector2(-9.0, 1.6)]), _c(robe_dark))
 	_poly(PackedVector2Array([
-		Vector2(-5.4, -1.2), Vector2(5.6, -1.4), Vector2(4.2, -5.8), Vector2(2.2, -9.8), Vector2(0.2 + tip * 0.3, -12.6),
-		Vector2(-2.8 + tip, -15.4), Vector2(-1.8 + tip * 0.6, -12.3), Vector2(-3.0 + tip * 0.2, -8.6), Vector2(-4.6, -4.8),
+		Vector2(-5.4, -1.2), Vector2(5.6, -1.4), Vector2(4.2, -5.8), Vector2(2.2, -9.8), Vector2(0.2, -12.6),
+		Vector2(-2.8, -15.4), Vector2(-1.8, -12.3), Vector2(-3.0, -8.6), Vector2(-4.6, -4.8),
 	]), _c(robe))
 	_poly(PackedVector2Array([Vector2(1.4, -2.2), Vector2(4.6, -2.4), Vector2(3.2, -6.2), Vector2(1.2, -9.2)]), _c(robe_light))
 	_poly(PackedVector2Array([Vector2(-5.3, -1.3), Vector2(5.5, -1.5), Vector2(5.1, -3.4), Vector2(-5.0, -3.2)]), _c(robe_dark))
 	_line(Vector2(-5.2, -3.2), Vector2(5.1, -3.4), _c(trim), 0.7)
-	if _rim_pass:
-		return
+
+
+## Joia do chapéu (o brilho é outra peça, por baixo).
+func _draw_hat_gem() -> void:
 	var g := Vector2(1.8, -2.4)
-	var glow_a := (0.2 + 0.3 * p_gem) * p_alpha * (1.0 - p_hat_fall)
-	draw_circle(g, 2.6, Color(glow, glow_a * 0.6))
 	_poly(PackedVector2Array([g + Vector2(0, -2.1), g + Vector2(1.7, 0), g + Vector2(0, 2.1), g + Vector2(-1.7, 0)]), _c(trim))
 	_poly(PackedVector2Array([g + Vector2(0, -1.4), g + Vector2(1.1, 0), g + Vector2(0, 1.4), g + Vector2(-1.1, 0)]), _c(gem_color))
-
-
-## Fumaça sombria nas bordas do manto (só a Sombra). `front` = camada da frente.
-func _draw_wisps(_front: bool) -> void:
-	pass
-
-
-func _draw_blades() -> void:
-	var style := projectile_style(null)
-	if _death_t >= 0.0:
-		_draw_dying_blades(style)
-		return
-	for i in 2:
-		var pos := _blade_anchor(i)
-		var ang := _aim[i] + sin(_time * 1.6 + i) * sword_wobble
-		if _blade_ready(i):
-			var wind := _blade_windup(i)
-			var alpha := 0.9 + 0.1 * wind
-			if _reform_t[i] >= 0.0:
-				alpha *= clampf(_reform_t[i] / (REFORM_TIME * 0.6), 0.0, 1.0)
-			if wind > 0.0:   # elo de energia: a Sentinela comanda a lâmina
-				draw_line(Vector2(0, GEM.y + FOOT_Y), pos, Color(glow, 0.35 * wind * (0.6 + 0.4 * sin(_time * 50.0))), 0.9, true)
-			ArcaneBlade.draw(self, Transform2D(ang, pos), SWORD_LENGTH, style, alpha, _time + i, maxf(wind, 0.25 * _sword_kick))
-			draw_set_transform_matrix(Transform2D.IDENTITY)
-			if _reform_t[i] >= 0.0:
-				var k := _reform_t[i] / REFORM_TIME
-				draw_arc(pos, 3.0 + 9.0 * k, 0.0, TAU, 20, Color(glow, 0.8 * (1.0 - k)), 1.2, true)
-		else:
-			# recarregando: vulto da lâmina que se recompõe aos poucos
-			var cd := unit.swords.blades[i].cooldown
-			var progress := 1.0 - cd / SentinelSwords.COOLDOWN
-			ArcaneBlade.draw(self, Transform2D(ang, pos), SWORD_LENGTH, style, 0.06 + 0.2 * progress, _time + i, 0.0)
-			draw_set_transform_matrix(Transform2D.IDENTITY)
-		if _launch_t[i] >= 0.0:   # clarão de partida (HTML: ring na âncora)
-			var k := _launch_t[i] / LAUNCH_FX_TIME
-			var anchor := Vector2((-1.0 if i == 0 else 1.0) * SWORD_ANCHOR.x, SWORD_ANCHOR.y)
-			draw_arc(anchor, 4.0 + 11.0 * sqrt(k), 0.0, TAU, 24, Color(glow, 0.9 * (1.0 - k)), 1.4, true)
-			draw_circle(anchor, 5.0 * (1.0 - k), Color(core, 0.5 * (1.0 - k)))
-
-
-## Morte (viva): as lâminas perdem o controle, caem girando e se desfazem em faíscas azuis.
-func _draw_dying_blades(style: Dictionary) -> void:
-	var t := _death_t
-	for b in _death_blades:
-		var fall_t := maxf(0.0, t - 0.08)
-		var pos: Vector2 = b.pos + Vector2(0, 0.5 * 170.0 * fall_t * fall_t)
-		pos.y = minf(pos.y, FOOT_Y - 1.0)
-		var aim: float = b.aim
-		var ang := lerp_angle(aim, PI / 2.0, clampf(fall_t * 2.5, 0.0, 1.0)) + fall_t * 3.0 * (1.0 if b.i == 0 else -1.0)
-		var alpha := 1.0 - clampf((t - 0.4) / 0.45, 0.0, 1.0)
-		ArcaneBlade.draw(self, Transform2D(ang, pos), SWORD_LENGTH, style, alpha, _time, 0.0)
-		draw_set_transform_matrix(Transform2D.IDENTITY)
-		if t > 0.35 and alpha > 0.0:
-			for k in 5:
-				var rise := (t - 0.35) * (14.0 + k * 3.0)
-				var sp := pos + Vector2(sin(_seed + k * 2.1) * 6.0, -rise)
-				draw_circle(sp, 0.9, Color(glow, alpha * 0.9))
 
 
 func _arm_dir(angle_deg: float) -> Vector2:

@@ -7,13 +7,23 @@ const DEATH_FADE_SECONDS := 0.5
 
 var _flash := 0.0
 var _alpha := 1.0
+var _dead_t := -1.0
 
 
 func update_visual(delta: float) -> void:
 	_flash = maxf(0.0, _flash - delta)
 	if not unit.is_alive():
 		_alpha = maxf(0.0, _alpha - delta / DEATH_FADE_SECONDS)
+		_dead_t = maxf(_dead_t, 0.0) + delta
 	queue_redraw()
+
+
+func death_elapsed() -> float:
+	return _dead_t
+
+
+func corpse_settle_time() -> float:
+	return DEATH_FADE_SECONDS + HIT_FLASH_SECONDS
 
 
 func on_hit() -> void:

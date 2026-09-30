@@ -1,7 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/visuals/units/paladin_sprite_visual.gd" id="1_visual"]
-[ext_resource type="SpriteFrames" path="res://assets/sprites/paladin_live/paladin_live_frames.tres" id="2_frames"]
+[ext_resource type="SpriteFrames" path="res://assets/units/paladin/paladin_frames.tres" id="2_frames"]
 
 [node name="PaladinSpriteVisual" type="Node2D"]
 script = ExtResource("1_visual")

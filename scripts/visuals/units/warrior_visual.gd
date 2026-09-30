@@ -16,6 +16,11 @@ extends CodeDrawnUnitVisual
 ##
 ## O Guerreiro Sombra (ShadowWarriorVisual) herda este rig: converte a paleta pelo
 ## ShadowStyle e acrescenta os efeitos necromânticos pelos pontos de extensão.
+##
+## Desenho LEVE: cada parte (perna, braço, tronco, elmo, espada…) é uma peça pronta, montada UMA vez
+## por tipo de unidade a partir das funções _draw_* abaixo, e todas formam a MALHA estática do tipo
+## (LiteSkin), com um osso por parte. A cada quadro a pose só move os ossos: nada é redesenhado nem
+## reenviado, e o corpo é 1 draw call (ver CodeDrawnUnitVisual: _part, _skin_setup).
 
 # --- Geometria do rig (unidades do rig; RIG_SCALE converte para o mundo) ----------------
 const RIG_SCALE := 0.9
@@ -81,6 +86,13 @@ var _hit_t := 0.0
 var _death_t := -1.0
 var _sword_follow := 0.0        # ângulo da espada com inércia
 
+# --- Peças e ossos (índices na ordem de desenho do corpo) ---------------------------------
+enum { P_CAPE, P_ARM_B, P_PAULDRON_B, P_LEG_B, P_LEG_F, P_WAIST, P_TORSO, P_HEAD, P_SWORD, P_ARM_F, P_PAULDRON_F, P_HAND, P_COUNT }
+## Osso da sombra no chão; ossos extras da variante começam em B_EXTRA.
+const B_GROUND := P_COUNT
+const B_EXTRA := P_COUNT + 1
+var _xf: Array[Transform2D] = []
+
 # --- Pose do quadro ---------------------------------------------------------------------
 var p_offset := Vector2.ZERO
 var p_rot := 0.0
@@ -104,6 +116,49 @@ func setup(p_unit: CombatUnit, p_def: UnitDef) -> void:
 	_last_pos = unit.position
 	_sword_follow = rest_sword
 	_compute_pose(0.0)
+	_bake_rig()
+	_pose_bones()
+
+
+## Monta (ou pega do cache do tipo) as peças do corpo e a malha; cria o esqueleto da unidade.
+func _bake_rig() -> void:
+	var bodies: Array[Callable] = [
+		_draw_cape_part, _draw_arm.bind(0.78), _draw_pauldron.bind(0.78), _draw_leg.bind(0.8), _draw_leg.bind(1.0),
+		_draw_waist, _draw_torso, _draw_head, _draw_sword, _draw_arm.bind(1.0), _draw_pauldron.bind(1.0), _draw_hand,
+	]
+	var keys := ["cape", "arm_b", "pauldron_b", "leg_b", "leg_f", "waist", "torso", "head", "sword", "arm_f", "pauldron_f", "hand"]
+	_xf.resize(P_COUNT)
+	var layout: Array = _layout_back()
+	if shadow_style != null and shadow_style.rim_width > 0.0:
+		for i in P_COUNT:   # silhueta roxa de todas as peças por baixo do corpo
+			layout.append([_part(keys[i], bodies[i], true), i])
+	for i in P_COUNT:
+		if i == P_HEAD:
+			layout.append_array(_layout_head_back())
+		layout.append([_part(keys[i], bodies[i]), i])
+	layout.append_array(_layout_front())
+	_skin_setup(layout, B_EXTRA + _extra_bones())
+
+
+## Pontos de extensão da malha (a Sombra: névoa/aura atrás, chama atrás do elmo, fumaça na frente).
+func _layout_back() -> Array:
+	return [[_part("ground", _ground_shape, false, false), B_GROUND]]
+
+
+func _layout_head_back() -> Array:
+	return []
+
+
+func _layout_front() -> Array:
+	return []
+
+
+func _extra_bones() -> int:
+	return 0
+
+
+func _ground_shape() -> void:
+	_disc(Vector2.ZERO, 9.0, Color(0, 0, 0, 0.32))
 
 
 # --- Interface do UnitVisual ------------------------------------------------------------
@@ -130,6 +185,16 @@ func pick_rect() -> Rect2:
 
 func ground_point() -> Vector2:
 	return Vector2(0, FOOT_Y)
+
+
+func death_elapsed() -> float:
+	return _death_t
+
+
+## Queda em death_time, quique amortecido (exp(−9·b): < 0,01° depois de 1 s) e escurecimento em
+## death_time + 0,3.
+func corpse_settle_time() -> float:
+	return death_time + 1.0
 
 
 func update_visual(delta: float) -> void:
@@ -162,7 +227,7 @@ func update_visual(delta: float) -> void:
 		_death_t += delta
 
 	_compute_pose(delta)
-	queue_redraw()
+	_pose_bones()
 
 
 # --- Pose --------------------------------------------------------------------------------
@@ -280,67 +345,67 @@ func _death_pose() -> void:
 # --- Desenho -----------------------------------------------------------------------------
 
 func _draw() -> void:
-	_draw_shadow()
-	_draw_with_rim(_draw_rig)   # na sombra: silhueta roxa por baixo do corpo
+	_skin_draw()
 
 
-func _draw_rig() -> void:
+## A pose do quadro nos ossos (mesma cadeia do rig: raiz → quadril → tronco → …).
+func _pose_bones() -> void:
+	if _skin == null:
+		return
 	var root := Transform2D(0.0, Vector2(_facing, 1.0) * RIG_SCALE, 0.0, Vector2(0, FOOT_Y)) \
 		* Transform2D(deg_to_rad(p_rot), p_scale, 0.0, p_offset)
 	var hip := root * Transform2D(0.0, HIP)
 	var torso := hip * Transform2D(deg_to_rad(p_lean), Vector2.ZERO)
 	var arm_f_local := _tf(SHOULDER_FRONT, p_arm_f)
 	var hand_f := arm_f_local * Vector2(0, ARM_LENGTH)
-
-	_draw_cape(torso)
-	_with(torso * _tf(SHOULDER_BACK, p_arm_b))
-	_draw_arm(0.78)
-	_with(torso * _tf(SHOULDER_BACK, 0.0))
-	_draw_pauldron(0.78)
-	_with(hip * _tf(Vector2(LEG_BACK_X, 0), p_leg_b))
-	_draw_leg(0.8)
-	_with(hip * _tf(Vector2(LEG_FRONT_X, 0), p_leg_f))
-	_draw_leg(1.0)
-	_with(hip)
-	_draw_waist()
-	_with(torso)
-	_draw_torso()
-	_with(torso * _tf(NECK + Vector2(0, p_head_drop), p_head))
-	_draw_head()
-	_with(torso * _tf(hand_f, p_sword))
-	_draw_sword()
-	_with(torso * arm_f_local)
-	_draw_arm(1.0)
-	_with(torso * _tf(SHOULDER_FRONT, 0.0))
-	_draw_pauldron(1.0)
-	_with(torso * _tf(hand_f, 0.0))
-	_draw_hand()
-	_draw_fx_front(root, torso)
-	draw_set_transform_matrix(Transform2D.IDENTITY)
+	# capa: peça pronta inclinada (cisalhamento a partir dos ombros) pelo balanço da barra
+	var k := -p_cape * 0.12 / 14.0
+	_xf[P_CAPE] = torso * Transform2D(Vector2(1, 0), Vector2(k, 1), Vector2(k * 12.2, 0))
+	_xf[P_ARM_B] = torso * _tf(SHOULDER_BACK, p_arm_b)
+	_xf[P_PAULDRON_B] = torso * _tf(SHOULDER_BACK, 0.0)
+	_xf[P_LEG_B] = hip * _tf(Vector2(LEG_BACK_X, 0), p_leg_b)
+	_xf[P_LEG_F] = hip * _tf(Vector2(LEG_FRONT_X, 0), p_leg_f)
+	_xf[P_WAIST] = hip
+	_xf[P_TORSO] = torso
+	_xf[P_HEAD] = torso * _tf(NECK + Vector2(0, p_head_drop), p_head)
+	_xf[P_SWORD] = torso * _tf(hand_f, p_sword)
+	_xf[P_ARM_F] = torso * arm_f_local
+	_xf[P_PAULDRON_F] = torso * _tf(SHOULDER_FRONT, 0.0)
+	_xf[P_HAND] = torso * _tf(hand_f, 0.0)
+	for i in P_COUNT:
+		_skin.set_bone(i, _xf[i])
+	_pose_ground()
+	_pose_extra(root, torso)
+	_apply_fx()
 
 
-## Ponto de extensão: efeitos por cima do corpo (a Sombra: fumaça subindo).
-func _draw_fx_front(_root: Transform2D, _torso: Transform2D) -> void:
+## Sombra no chão: estica e desliza para o lado da queda.
+func _pose_ground() -> void:
+	var lying := clampf(absf(p_rot) / 90.0, 0.0, 1.0)
+	var shift := -12.0 * lying * RIG_SCALE * _facing * (1.0 if p_rot < 0.0 else -1.0)
+	_skin.set_bone(B_GROUND, Transform2D(0.0, Vector2(1.0 + lying * 0.9, 0.32), 0.0, Vector2(shift, FOOT_Y)))
+
+
+## Ponto de extensão: ossos extras da variante (a Sombra: névoa, aura, chama, fumaça).
+func _pose_extra(_root: Transform2D, _torso: Transform2D) -> void:
 	pass
 
 
-func _draw_shadow() -> void:
-	var lying := clampf(absf(p_rot) / 90.0, 0.0, 1.0)
-	var shift := -12.0 * lying * RIG_SCALE * _facing * (1.0 if p_rot < 0.0 else -1.0)
-	draw_set_transform(Vector2(shift, FOOT_Y), 0.0, Vector2(1.0 + lying * 0.9, 0.32))
-	draw_circle(Vector2.ZERO, 9.0, Color(0, 0, 0, 0.32))
-
-
-## Capa: presa aos ombros, a barra balança para trás (p_cape).
-func _draw_cape(torso: Transform2D) -> void:
-	_with(torso)
-	var sw := -p_cape * 0.12
+## Capa (peça pronta, no espaço do tronco): presa aos ombros; o balanço da barra (p_cape) é uma
+## inclinação aplicada à peça no quadro (ver _pose_bones).
+func _draw_cape_part() -> void:
 	var pts := PackedVector2Array([
 		Vector2(0.4, -12.4), Vector2(-5.4, -12.0),
-		Vector2(-10.6 + sw, 1.6), Vector2(-6.4 + sw * 0.7, 3.0), Vector2(-2.0 + sw * 0.4, 0.6),
+		Vector2(-10.6, 1.6), Vector2(-6.4, 3.0), Vector2(-2.0, 0.6),
 	])
 	_poly(_cape_shape(pts), _c(cloth))
-	_line(Vector2(-3.6, -11.2), Vector2(-7.0 + sw * 0.7, 2.0), _c(cloth_dark), 1.0)
+	_line(Vector2(-3.6, -11.2), Vector2(-7.0, 2.0), _c(cloth_dark), 1.0)
+	_draw_cape_extra(_cape_shape(pts))
+
+
+## Ponto de extensão: detalhe na barra da capa (a Sombra: fio de energia).
+func _draw_cape_extra(_shape: PackedVector2Array) -> void:
+	pass
 
 
 ## Ponto de extensão: a Sombra rasga a barra.
@@ -407,14 +472,11 @@ func _draw_plume() -> void:
 
 func _draw_visor() -> void:
 	var slit := PackedVector2Array([Vector2(1.0, -6.9), Vector2(6.2, -7.2), Vector2(6.2, -5.7), Vector2(1.0, -5.6)])
-	draw_colored_polygon(slit, _c(visor))
+	_fill(slit, _c(visor))
 	if visor_glow.a > 0.0:
-		var pulse := 0.75 + 0.25 * sin(_time * 2.6 + _seed)
 		var glow := visor_glow
-		glow.a *= pulse * (1.0 - p_dim * 3.0)
-		if glow.a > 0.0:
-			draw_circle(Vector2(4.8, -6.3), 3.2, Color(glow, glow.a * 0.22))
-			draw_colored_polygon(PackedVector2Array([Vector2(3.0, -6.7), Vector2(6.0, -6.9), Vector2(6.0, -6.0), Vector2(3.0, -5.9)]), glow)
+		_disc(Vector2(4.8, -6.3), 3.2, Color(glow, glow.a * 0.22))
+		_fill(PackedVector2Array([Vector2(3.0, -6.7), Vector2(6.0, -6.9), Vector2(6.0, -6.0), Vector2(3.0, -5.9)]), glow)
 
 
 ## Ponto de extensão: fissura no elmo da Sombra.

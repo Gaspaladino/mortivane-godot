@@ -1,0 +1,1707 @@
+{
+ "frames": 481,
+ "messages": {
+  "set_pid": 1,
+  "output": 2,
+  "error": 37,
+  "window:title": 1,
+  "servers:function_signature": 317,
+  "servers:profile_frame": 541,
+  "performance:profile_frame": 35
+ },
+ "errors": [
+  [
+   0,
+   0,
+   0,
+   252,
+   "res://scripts/sandbox/sandbox_ui.gd",
+   "GDScript::reload",
+   105,
+   "UNUSED_PARAMETER",
+   "The parameter \"def\" is never used in the function \"show_unit()\". If this is intended, prefix it with an underscore: \"_def\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   257,
+   "res://scripts/sandbox/sandbox_controller.gd",
+   "GDScript::reload",
+   151,
+   "INTEGER_DIVISION",
+   "Integer division. Decimal part will be discarded.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   323,
+   "res://scripts/visuals/backdrop/nodes/backdrop_cloud.gd",
+   "GDScript::reload",
+   22,
+   "SHADOWED_GLOBAL_IDENTIFIER",
+   "The variable \"seed\" has the same name as a built-in function.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   343,
+   "res://scripts/visuals/backdrop/nodes/candle_glow.gd",
+   "GDScript::reload",
+   8,
+   "SHADOWED_GLOBAL_IDENTIFIER",
+   "The variable \"seed\" has the same name as a built-in function.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   540,
+   "res://scripts/visuals/units/sentinel_visual.gd",
+   "GDScript::reload",
+   220,
+   "SHADOWED_VARIABLE_BASE_CLASS",
+   "The local variable \"ready\" is shadowing an already-declared signal in the base class \"Node\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   612,
+   "res://scripts/visuals/units/paladin/paladin_mesh.gd",
+   "GDScript::reload",
+   223,
+   "SHADOWED_VARIABLE",
+   "The local function parameter \"mat\" is shadowing an already-declared variable at line 213 in the current class.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   645,
+   "res://scripts/visuals/units/paladin/paladin_rig.gd",
+   "GDScript::reload",
+   152,
+   "SHADOWED_VARIABLE_BASE_CLASS",
+   "The local function parameter \"name\" is shadowing an already-declared property in the base class \"Node\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   645,
+   "res://scripts/visuals/units/paladin/paladin_rig.gd",
+   "GDScript::reload",
+   170,
+   "SHADOWED_VARIABLE_BASE_CLASS",
+   "The local function parameter \"name\" is shadowing an already-declared property in the base class \"Node\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   651,
+   "res://scripts/visuals/units/paladin/paladin_animator.gd",
+   "GDScript::reload",
+   448,
+   "UNUSED_PARAMETER",
+   "The parameter \"pose\" is never used in the function \"_update_debug()\". If this is intended, prefix it with an underscore: \"_pose\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   660,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "GDScript::reload",
+   461,
+   "UNUSED_VARIABLE",
+   "The local variable \"cu\" is declared but never used in the block. If this is intended, prefix it with an underscore: \"_cu\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   660,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "GDScript::reload",
+   500,
+   "UNUSED_VARIABLE",
+   "The local variable \"torso_c\" is declared but never used in the block. If this is intended, prefix it with an underscore: \"_torso_c\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   660,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "GDScript::reload",
+   730,
+   "UNUSED_PARAMETER",
+   "The parameter \"side\" is never used in the function \"_draw_pauldron()\". If this is intended, prefix it with an underscore: \"_side\".",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   660,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "GDScript::reload",
+   756,
+   "SHADOWED_GLOBAL_IDENTIFIER",
+   "The variable \"len\" has the same name as a built-in function.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   694,
+   "res://scripts/visuals/units/shadow_fx.gd",
+   "GDScript::reload",
+   38,
+   "SHADOWED_GLOBAL_IDENTIFIER",
+   "The function parameter \"seed\" has the same name as a built-in function.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   694,
+   "res://scripts/visuals/units/shadow_fx.gd",
+   "GDScript::reload",
+   57,
+   "SHADOWED_VARIABLE",
+   "The local function parameter \"pulse\" is shadowing an already-declared function at line 75 in the current class.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   694,
+   "res://scripts/visuals/units/shadow_fx.gd",
+   "GDScript::reload",
+   66,
+   "SHADOWED_VARIABLE",
+   "The local function parameter \"pulse\" is shadowing an already-declared function at line 75 in the current class.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   694,
+   "res://scripts/visuals/units/shadow_fx.gd",
+   "GDScript::reload",
+   75,
+   "SHADOWED_GLOBAL_IDENTIFIER",
+   "The function parameter \"seed\" has the same name as a built-in function.",
+   true,
+   0
+  ],
+  [
+   0,
+   0,
+   24,
+   415,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   416,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   417,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   418,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   418,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   442,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   443,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   444,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   445,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   445,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   522,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   523,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   524,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   524,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   524,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   535,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   535,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   535,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   536,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ],
+  [
+   0,
+   0,
+   24,
+   536,
+   "servers/rendering/renderer_canvas_cull.cpp",
+   "canvas_item_add_polygon",
+   1770,
+   "Condition \"indices.is_empty()\" is true.",
+   "Invalid polygon data, triangulation failed.",
+   false,
+   9,
+   "res://scripts/visuals/units/code_drawn_unit_visual.gd",
+   "_poly",
+   89,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw_sword",
+   762,
+   "res://scripts/visuals/units/paladin_live_visual.gd",
+   "_draw",
+   443
+  ]
+ ],
+ "engine_ms_per_frame": {
+  "frame_time": 66.09983575883575,
+  "process_time": 66.04259459459462,
+  "physics_time": 0.052066528066527944,
+  "script_time": 48.840627858627876
+ },
+ "servers_ms_per_frame": {
+  "audio_thread::audio_server": 0.013596673596673582,
+  "physics_3d::flush_queries": 0.00441995841995843,
+  "physics_2d::flush_queries": 0.0016735966735966876,
+  "audio_thread::audio_driver": 0.001247401247401253,
+  "physics_3d::integrate_forces": 0.0,
+  "physics_3d::generate_islands": 0.0,
+  "physics_3d::setup_constraints": 0.0,
+  "physics_3d::solve_constraints": 0.0,
+  "physics_3d::integrate_velocities": 0.0,
+  "physics_2d::integrate_forces": 0.0,
+  "physics_2d::generate_islands": 0.0,
+  "physics_2d::setup_constraints": 0.0,
+  "physics_2d::solve_constraints": 0.0,
+  "physics_2d::integrate_velocities": 0.0
+ },
+ "functions": [
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::86::CodeDrawnUnitVisual._poly",
+   "calls_per_frame": 2084.5634095634096,
+   "self_ms_per_frame": 4.62772765072765,
+   "total_ms_per_frame": 5.463492723492726
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::140::BenchCombatSim._tick_paladins",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 3.7499937629937636,
+   "total_ms_per_frame": 3.795530145530141
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::453::PaladinLiveVisual._build_parts",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 3.4409272349272335,
+   "total_ms_per_frame": 6.02072557172557
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::108::BenchCombatSim.nearest_foe",
+   "calls_per_frame": 150.87318087318087,
+   "self_ms_per_frame": 2.805592515592517,
+   "total_ms_per_frame": 9.729074844074837
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::199::PaladinLiveVisual._update",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 2.2207193347193366,
+   "total_ms_per_frame": 22.29799584199585
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::732::PaladinLiveVisual._draw_pauldron",
+   "calls_per_frame": 160.0,
+   "self_ms_per_frame": 1.8718523908523925,
+   "total_ms_per_frame": 3.221898128898129
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::429::PaladinLiveVisual._draw",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 1.7560748440748437,
+   "total_ms_per_frame": 25.33992515592515
+  },
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::77::CodeDrawnUnitVisual._c",
+   "calls_per_frame": 9310.530145530145,
+   "self_ms_per_frame": 1.587266112266113,
+   "total_ms_per_frame": 1.587266112266113
+  },
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::96::CodeDrawnUnitVisual._circle",
+   "calls_per_frame": 400.02079002079,
+   "self_ms_per_frame": 1.430972972972973,
+   "total_ms_per_frame": 1.5863866943866929
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::179::PaladinAnimator.update",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 1.3960270270270252,
+   "total_ms_per_frame": 8.560735966735962
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::75::PaladinPoseLibrary.add",
+   "calls_per_frame": 462.8898128898129,
+   "self_ms_per_frame": 1.3950727650727652,
+   "total_ms_per_frame": 2.7646049896049907
+  },
+  {
+   "function": "res://scripts/combat/combat_unit.gd::83::CombatUnit.is_enemy_of",
+   "calls_per_frame": 13886.278586278586,
+   "self_ms_per_frame": 1.2433160083160073,
+   "total_ms_per_frame": 1.2433160083160073
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::63::PaladinPoseLibrary.mix",
+   "calls_per_frame": 98.33679833679834,
+   "self_ms_per_frame": 1.0895654885654893,
+   "total_ms_per_frame": 1.3676008316008326
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::180::PaladinLiveVisual.neutral",
+   "calls_per_frame": 416.85031185031187,
+   "self_ms_per_frame": 1.0415758835758833,
+   "total_ms_per_frame": 1.0415758835758833
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::703::PaladinLiveVisual._draw_halo",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 1.0244220374220383,
+   "total_ms_per_frame": 2.399729729729732
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::416::PaladinLiveVisual._proj",
+   "calls_per_frame": 3960.135135135135,
+   "self_ms_per_frame": 1.0092016632016632,
+   "total_ms_per_frame": 1.0092016632016632
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::620::PaladinLiveVisual._draw_torso",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.987636174636175,
+   "total_ms_per_frame": 2.2031559251559276
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::585::PaladinLiveVisual._draw_leg",
+   "calls_per_frame": 160.0,
+   "self_ms_per_frame": 0.8855696465696463,
+   "total_ms_per_frame": 3.971819126819129
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::666::PaladinLiveVisual._draw_head",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.8379958419958421,
+   "total_ms_per_frame": 1.5853139293139304
+  },
+  {
+   "function": "res://scripts/combat/combat_unit.gd::79::CombatUnit.is_valid_target",
+   "calls_per_frame": 8461.673596673596,
+   "self_ms_per_frame": 0.7978918918918914,
+   "total_ms_per_frame": 2.779754677754678
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::773::PaladinLiveVisual._draw_shield",
+   "calls_per_frame": 76.44490644490645,
+   "self_ms_per_frame": 0.7503617463617467,
+   "total_ms_per_frame": 2.0179999999999985
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::86::PaladinPoseLibrary.mix_delta",
+   "calls_per_frame": 217.62993762993764,
+   "self_ms_per_frame": 0.7278440748440743,
+   "total_ms_per_frame": 0.9694449064449072
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::191::PaladinLiveVisual._abs",
+   "calls_per_frame": 332.26611226611226,
+   "self_ms_per_frame": 0.669474012474012,
+   "total_ms_per_frame": 1.7613118503118523
+  },
+  {
+   "function": "res://scripts/combat/abilities/paladin_taunt.gd::79::PaladinTaunt.try_taunt",
+   "calls_per_frame": 160.0,
+   "self_ms_per_frame": 0.6541309771309786,
+   "total_ms_per_frame": 3.0823201663201623
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::603::PaladinLiveVisual._draw_tabard",
+   "calls_per_frame": 84.45945945945945,
+   "self_ms_per_frame": 0.5677650727650729,
+   "total_ms_per_frame": 1.7213014553014567
+  },
+  {
+   "function": "res://scripts/combat/combat_unit.gd::74::CombatUnit.is_alive",
+   "calls_per_frame": 9560.68607068607,
+   "self_ms_per_frame": 0.5622972972972975,
+   "total_ms_per_frame": 0.5622972972972975
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::719::PaladinLiveVisual._draw_arm",
+   "calls_per_frame": 160.0,
+   "self_ms_per_frame": 0.5215239085239078,
+   "total_ms_per_frame": 2.6253970893970924
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::223::BenchDriver._process",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.4744282744282745,
+   "total_ms_per_frame": 23.25138669438669
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::439::PaladinLiveVisual.<anonymous lambda>(lambda)",
+   "calls_per_frame": 3317.6694386694385,
+   "self_ms_per_frame": 0.4520810810810807,
+   "total_ms_per_frame": 0.4520810810810807
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::806::PaladinLiveVisual._xf_pts",
+   "calls_per_frame": 831.1434511434511,
+   "self_ms_per_frame": 0.4361975051975052,
+   "total_ms_per_frame": 0.4361975051975052
+  },
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::104::CodeDrawnUnitVisual._line",
+   "calls_per_frame": 1037.4116424116423,
+   "self_ms_per_frame": 0.42221205821205793,
+   "total_ms_per_frame": 0.42221205821205793
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::423::PaladinLiveVisual._v2",
+   "calls_per_frame": 5069.137214137214,
+   "self_ms_per_frame": 0.3628066528066529,
+   "total_ms_per_frame": 0.3628066528066529
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::580::PaladinLiveVisual._quad",
+   "calls_per_frame": 800.04158004158,
+   "self_ms_per_frame": 0.35179833679833683,
+   "total_ms_per_frame": 0.35179833679833683
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::147::BenchCombatSim._update_unit",
+   "calls_per_frame": 150.87318087318087,
+   "self_ms_per_frame": 0.3456715176715173,
+   "total_ms_per_frame": 10.377237006237007
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::230::PaladinPoseLibrary.attack",
+   "calls_per_frame": 27.453222453222452,
+   "self_ms_per_frame": 0.34068191268191256,
+   "total_ms_per_frame": 0.7888440748440747
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::204::PaladinPoseLibrary.walk",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.3145488565488566,
+   "total_ms_per_frame": 0.3145488565488566
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::311::PaladinLiveVisual._attack",
+   "calls_per_frame": 27.453222453222452,
+   "self_ms_per_frame": 0.2974844074844076,
+   "total_ms_per_frame": 2.003569646569647
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::864::PaladinLiveVisual._draw_effects_over",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.2859563409563409,
+   "total_ms_per_frame": 0.3527796257796258
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::77::Spring.step",
+   "calls_per_frame": 301.6632016632017,
+   "self_ms_per_frame": 0.2734469854469855,
+   "total_ms_per_frame": 0.2734469854469855
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::48::PaladinPoseLibrary.neutral",
+   "calls_per_frame": 89.16839916839916,
+   "self_ms_per_frame": 0.26830145530145516,
+   "total_ms_per_frame": 0.26830145530145516
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::97::PaladinPoseLibrary.track",
+   "calls_per_frame": 180.31185031185032,
+   "self_ms_per_frame": 0.22793762993762995,
+   "total_ms_per_frame": 0.9296320166320162
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_mesh.gd::195::PaladinMesh.star4",
+   "calls_per_frame": 441.7879417879418,
+   "self_ms_per_frame": 0.22775467775467775,
+   "total_ms_per_frame": 0.22775467775467775
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::206::BenchDriver._on_draw",
+   "calls_per_frame": 253.7255717255717,
+   "self_ms_per_frame": 0.1988565488565491,
+   "total_ms_per_frame": 0.3244511434511433
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::841::PaladinLiveVisual._draw_shadow",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.19297505197505177,
+   "total_ms_per_frame": 0.2439293139293139
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::189::PaladinPoseLibrary.idle",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.18250103950103955,
+   "total_ms_per_frame": 0.18250103950103955
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::755::PaladinLiveVisual._draw_sword",
+   "calls_per_frame": 80.02079002079002,
+   "self_ms_per_frame": 0.1761580041580042,
+   "total_ms_per_frame": 1.3943970893970878
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::181::CombatSim._tick_paladins",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.16925155925155935,
+   "total_ms_per_frame": 3.604948024948028
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::167::PaladinPoseLibrary.base_for",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.1607089397089396,
+   "total_ms_per_frame": 0.47673596673596635
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::142::PaladinPoseLibrary._dir_entry",
+   "calls_per_frame": 160.54054054054055,
+   "self_ms_per_frame": 0.13355717255717256,
+   "total_ms_per_frame": 0.13355717255717256
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::886::PaladinLiveVisual._draw_debug",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.1315717255717256,
+   "total_ms_per_frame": 0.1315717255717256
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_controller.gd::146::SandboxController.count_side",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.12262162162162175,
+   "total_ms_per_frame": 0.12262162162162175
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::109::PaladinPoseLibrary.ease_by",
+   "calls_per_frame": 205.75883575883577,
+   "self_ms_per_frame": 0.11828066528066536,
+   "total_ms_per_frame": 0.11828066528066536
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::128::BenchCombatSim.taunt_target",
+   "calls_per_frame": 310.8731808731809,
+   "self_ms_per_frame": 0.1135072765072766,
+   "total_ms_per_frame": 0.12671101871101875
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::118::CombatSim.alive_count",
+   "calls_per_frame": 5.496881496881497,
+   "self_ms_per_frame": 0.1119043659043659,
+   "total_ms_per_frame": 0.18812058212058222
+  },
+  {
+   "function": "res://scripts/combat/unit_view.gd::108::UnitView._draw_hp_bar",
+   "calls_per_frame": 75.41580041580042,
+   "self_ms_per_frame": 0.11082328482328471,
+   "total_ms_per_frame": 0.13624740124740117
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::280::PaladinLiveVisual._dir_yaw",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.09818918918918913,
+   "total_ms_per_frame": 0.09818918918918913
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::383::PaladinAnimator._time_to_impact",
+   "calls_per_frame": 75.41580041580042,
+   "self_ms_per_frame": 0.09780041580041578,
+   "total_ms_per_frame": 0.1313721413721415
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_mesh.gd::201::PaladinMesh.circle",
+   "calls_per_frame": 38.21205821205821,
+   "self_ms_per_frame": 0.08847401247401243,
+   "total_ms_per_frame": 0.08847401247401243
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/arena_backdrop.gd::54::ArenaBackdrop._apply",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.08598544698544693,
+   "total_ms_per_frame": 0.10517463617463611
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::168::PaladinLiveVisual.update_visual",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.08462993762993766,
+   "total_ms_per_frame": 22.5094261954262
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::814::PaladinLiveVisual._draw_drops",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.08363409563409568,
+   "total_ms_per_frame": 0.19896257796257788
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::855::PaladinLiveVisual._draw_effects_under",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.08087525987525992,
+   "total_ms_per_frame": 0.13206029106029082
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::130::PaladinPoseLibrary.dir_yaw",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.0784594594594594,
+   "total_ms_per_frame": 0.24008731808731798
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::83::BenchCombatSim._now",
+   "calls_per_frame": 616.4490644490644,
+   "self_ms_per_frame": 0.07303534303534315,
+   "total_ms_per_frame": 0.07303534303534315
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::449::PaladinAnimator._update_debug",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.06551767151767149,
+   "total_ms_per_frame": 0.06551767151767149
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::360::PaladinAnimator._approach_angle",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.06463201663201662,
+   "total_ms_per_frame": 0.06463201663201662
+  },
+  {
+   "function": "res://scripts/visuals/units/code_drawn_unit_visual.gd::68::CodeDrawnUnitVisual._with",
+   "calls_per_frame": 400.0,
+   "self_ms_per_frame": 0.0646049896049896,
+   "total_ms_per_frame": 0.0646049896049896
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_drift.gd::30::BackdropDrift._process",
+   "calls_per_frame": 3.0,
+   "self_ms_per_frame": 0.05721829521829521,
+   "total_ms_per_frame": 0.0762411642411642
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::368::PaladinAnimator._quantize",
+   "calls_per_frame": 75.41580041580042,
+   "self_ms_per_frame": 0.05305405405405404,
+   "total_ms_per_frame": 0.053409563409563404
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/candle_flame.gd::32::CandleFlame._draw",
+   "calls_per_frame": 12.0,
+   "self_ms_per_frame": 0.050442827442827416,
+   "total_ms_per_frame": 0.0765530145530145
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::367::PaladinLiveVisual._death",
+   "calls_per_frame": 4.584199584199585,
+   "self_ms_per_frame": 0.04936382536382536,
+   "total_ms_per_frame": 0.3696070686070687
+  },
+  {
+   "function": "res://scripts/combat/abilities/paladin_taunt.gd::59::PaladinTaunt.tick",
+   "calls_per_frame": 160.0,
+   "self_ms_per_frame": 0.04840540540540538,
+   "total_ms_per_frame": 0.09223700623700623
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_fx.gd::56::PaladinFx.taunt_ring",
+   "calls_per_frame": 8.794178794178794,
+   "self_ms_per_frame": 0.04321205821205819,
+   "total_ms_per_frame": 0.04321205821205819
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::339::PaladinPoseLibrary.guard_ready",
+   "calls_per_frame": 27.92099792099792,
+   "self_ms_per_frame": 0.04245738045738049,
+   "total_ms_per_frame": 0.04245738045738049
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::346::PaladinPoseLibrary.guard",
+   "calls_per_frame": 20.124740124740125,
+   "self_ms_per_frame": 0.04186902286902288,
+   "total_ms_per_frame": 0.04186902286902288
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::396::PaladinPoseLibrary.death",
+   "calls_per_frame": 4.584199584199585,
+   "self_ms_per_frame": 0.041103950103950106,
+   "total_ms_per_frame": 0.2901351351351352
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::394::PaladinLiveVisual._update_drops",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.041099792099792115,
+   "total_ms_per_frame": 0.04281496881496879
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_controller.gd::146::SandboxController.<anonymous lambda>(lambda)",
+   "calls_per_frame": 160.0,
+   "self_ms_per_frame": 0.04056548856548857,
+   "total_ms_per_frame": 0.04056548856548857
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::293::PaladinLiveVisual._guard",
+   "calls_per_frame": 20.124740124740125,
+   "self_ms_per_frame": 0.038224532224532266,
+   "total_ms_per_frame": 0.2684261954261954
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::87::BenchCombatSim.step",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.03508731808731806,
+   "total_ms_per_frame": 14.340810810810808
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::257::CombatSim._clamp_to_battlefield",
+   "calls_per_frame": 113.55509355509355,
+   "self_ms_per_frame": 0.03429521829521831,
+   "total_ms_per_frame": 0.03429521829521831
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::300::PaladinLiveVisual._taunt",
+   "calls_per_frame": 7.796257796257796,
+   "self_ms_per_frame": 0.03234511434511435,
+   "total_ms_per_frame": 0.34792515592515616
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_moon.gd::37::BackdropMoon._process",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.03209355509355507,
+   "total_ms_per_frame": 0.03563409563409565
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::324::PaladinPoseLibrary.taunt",
+   "calls_per_frame": 7.796257796257796,
+   "self_ms_per_frame": 0.03198960498960499,
+   "total_ms_per_frame": 0.14004365904365912
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_ui.gd::134::SandboxUI.show_preview_controls",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.03018918918918917,
+   "total_ms_per_frame": 0.03018918918918917
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::353::PaladinAnimator._advance",
+   "calls_per_frame": 240.0,
+   "self_ms_per_frame": 0.029426195426195397,
+   "total_ms_per_frame": 0.029426195426195397
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_controller.gd::218::SandboxController._status_text",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.026964656964656938,
+   "total_ms_per_frame": 0.2433139293139294
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::307::BenchDriver._finish",
+   "calls_per_frame": 0.002079002079002079,
+   "self_ms_per_frame": 0.025927234927234928,
+   "total_ms_per_frame": 0.03752390852390852
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_cloud.gd::98::BackdropCloud._draw",
+   "calls_per_frame": 0.014553014553014554,
+   "self_ms_per_frame": 0.025361746361746363,
+   "total_ms_per_frame": 0.025361746361746363
+  },
+  {
+   "function": "res://scripts/combat/abilities/paladin_taunt.gd::39::PaladinTaunt.is_shielded",
+   "calls_per_frame": 151.30977130977132,
+   "self_ms_per_frame": 0.022702702702702676,
+   "total_ms_per_frame": 0.022702702702702676
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_lights.gd::38::CastleLights.windows",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.021966735966735977,
+   "total_ms_per_frame": 0.034679833679833724
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_window.gd::25::CastleWindow._draw",
+   "calls_per_frame": 1.5405405405405406,
+   "self_ms_per_frame": 0.02063617463617463,
+   "total_ms_per_frame": 0.02063617463617463
+  },
+  {
+   "function": "res://scripts/combat/unit_view.gd::101::UnitView._draw_overlay",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.020170478170478155,
+   "total_ms_per_frame": 0.254097713097713
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::138::PaladinPoseLibrary._is_right",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.01948440748440748,
+   "total_ms_per_frame": 0.01948440748440748
+  },
+  {
+   "function": "res://scripts/combat/unit_view.gd::91::UnitView._draw",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.017702702702702716,
+   "total_ms_per_frame": 0.017702702702702716
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::576::PaladinLiveVisual._draw_poly",
+   "calls_per_frame": 80.0,
+   "self_ms_per_frame": 0.01642827442827442,
+   "total_ms_per_frame": 0.25181912681912705
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_lights.gd::46::CastleLights._update",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.015954261954261948,
+   "total_ms_per_frame": 0.09882328482328466
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_lights.gd::27::CastleLights.window_level",
+   "calls_per_frame": 24.0,
+   "self_ms_per_frame": 0.014569646569646552,
+   "total_ms_per_frame": 0.04065904365904361
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_lights.gd::52::CastleLights._hash",
+   "calls_per_frame": 75.0,
+   "self_ms_per_frame": 0.012729729729729737,
+   "total_ms_per_frame": 0.012729729729729737
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::420::PaladinPoseLibrary.corpse_pose",
+   "calls_per_frame": 4.584199584199585,
+   "self_ms_per_frame": 0.012498960498960496,
+   "total_ms_per_frame": 0.07689189189189193
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_fog.gd::30::BackdropFog._apply",
+   "calls_per_frame": 3.0,
+   "self_ms_per_frame": 0.011365904365904352,
+   "total_ms_per_frame": 0.011365904365904352
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_animated.gd::10::BackdropAnimated.running",
+   "calls_per_frame": 36.0,
+   "self_ms_per_frame": 0.010673596673596655,
+   "total_ms_per_frame": 0.010673596673596655
+  },
+  {
+   "function": "res://scripts/combat/abilities/paladin_taunt.gd::35::PaladinTaunt.is_preparing",
+   "calls_per_frame": 75.41580041580042,
+   "self_ms_per_frame": 0.009644490644490642,
+   "total_ms_per_frame": 0.009644490644490642
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::350::BenchDriver.<anonymous lambda>(lambda)",
+   "calls_per_frame": 35.17671517671518,
+   "self_ms_per_frame": 0.009542619542619543,
+   "total_ms_per_frame": 0.018155925155925155
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/candle_flame.gd::45::CandleFlame._tongue",
+   "calls_per_frame": 24.0,
+   "self_ms_per_frame": 0.00930561330561329,
+   "total_ms_per_frame": 0.00930561330561329
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::373::PaladinPoseLibrary.push",
+   "calls_per_frame": 3.367983367983368,
+   "self_ms_per_frame": 0.009203742203742205,
+   "total_ms_per_frame": 0.014629937629937632
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::352::PaladinLiveVisual._push",
+   "calls_per_frame": 3.367983367983368,
+   "self_ms_per_frame": 0.0076528066528066515,
+   "total_ms_per_frame": 0.01266320166320166
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/candle_flame.gd::26::CandleFlame._process",
+   "calls_per_frame": 12.0,
+   "self_ms_per_frame": 0.007234927234927231,
+   "total_ms_per_frame": 0.01373804573804573
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::142::PaladinLiveVisual.top_y",
+   "calls_per_frame": 75.41580041580042,
+   "self_ms_per_frame": 0.007193347193347183,
+   "total_ms_per_frame": 0.007193347193347183
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_cloud.gd::45::BackdropCloud.@moon_light_setter",
+   "calls_per_frame": 17.0,
+   "self_ms_per_frame": 0.006885654885654876,
+   "total_ms_per_frame": 0.006885654885654876
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_window.gd::19::CastleWindow.@level_setter",
+   "calls_per_frame": 24.0,
+   "self_ms_per_frame": 0.006087318087318078,
+   "total_ms_per_frame": 0.006087318087318078
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::207::BenchCombatSim._apply_damage",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 0.005661122661122661,
+   "total_ms_per_frame": 0.005914760914760916
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::363::PaladinPoseLibrary.hit",
+   "calls_per_frame": 3.492723492723493,
+   "self_ms_per_frame": 0.005480249480249477,
+   "total_ms_per_frame": 0.012800415800415799
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/candle_glow.gd::26::CandleGlow._apply",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.005153846153846153,
+   "total_ms_per_frame": 0.005153846153846153
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_ui.gd::101::SandboxUI.set_status",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.004970893970893966,
+   "total_ms_per_frame": 0.004970893970893966
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::219::BenchDriver._sim_counters",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.004945945945945944,
+   "total_ms_per_frame": 0.01106860706860704
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/banner_sway.gd::34::BannerSway._apply",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.004810810810810815,
+   "total_ms_per_frame": 0.004810810810810815
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::69::BenchCombatSim.counters",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.004765072765072774,
+   "total_ms_per_frame": 0.004765072765072774
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_drift.gd::47::BackdropDrift._local_dist",
+   "calls_per_frame": 17.0,
+   "self_ms_per_frame": 0.003931392931392939,
+   "total_ms_per_frame": 0.003931392931392939
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::429::PaladinPoseLibrary._pulse",
+   "calls_per_frame": 7.733887733887734,
+   "self_ms_per_frame": 0.0037089397089397082,
+   "total_ms_per_frame": 0.011305613305613303
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::385::PaladinLiveVisual._pulse",
+   "calls_per_frame": 7.733887733887734,
+   "self_ms_per_frame": 0.0034261954261954274,
+   "total_ms_per_frame": 0.009860706860706859
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::123::Battle._process",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.003035343035343035,
+   "total_ms_per_frame": 14.39197505197504
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::398::PaladinAnimator._update_drops",
+   "calls_per_frame": 4.584199584199585,
+   "self_ms_per_frame": 0.002669438669438668,
+   "total_ms_per_frame": 0.002669438669438668
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_controller.gd::191::SandboxController._refresh_preview_controls",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.0024906444906444987,
+   "total_ms_per_frame": 0.035519750519750495
+  },
+  {
+   "function": "res://scripts/debug/bench/bench_combat_sim.gd::215::BenchCombatSim._update_projectiles",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.0024241164241164265,
+   "total_ms_per_frame": 0.0024241164241164265
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::355::BenchDriver._mean",
+   "calls_per_frame": 0.05405405405405406,
+   "self_ms_per_frame": 0.0020582120582120582,
+   "total_ms_per_frame": 0.008457380457380457
+  },
+  {
+   "function": "res://scripts/sandbox/sandbox_controller.gd::170::SandboxController._process",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.001900207900207911,
+   "total_ms_per_frame": 0.2902245322245321
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/backdrop_fog.gd::24::BackdropFog._process",
+   "calls_per_frame": 3.0,
+   "self_ms_per_frame": 0.001600831600831609,
+   "total_ms_per_frame": 0.016114345114345115
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::355::PaladinPoseLibrary.block",
+   "calls_per_frame": 0.8731808731808732,
+   "self_ms_per_frame": 0.0011829521829521833,
+   "total_ms_per_frame": 0.0033035343035343044
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::214::BenchDriver._end_draw_mark",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.0011517671517671572,
+   "total_ms_per_frame": 0.0014511434511434635
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::159::BenchDriver.<anonymous lambda>(lambda)",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.0010706860706860778,
+   "total_ms_per_frame": 0.0010706860706860778
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/candle_glow.gd::20::CandleGlow._process",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.0010374220374220421,
+   "total_ms_per_frame": 0.008172557172557179
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/banner_sway.gd::28::BannerSway._process",
+   "calls_per_frame": 2.0,
+   "self_ms_per_frame": 0.0010103950103950141,
+   "total_ms_per_frame": 0.007482328482328472
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/arena_backdrop.gd::39::ArenaBackdrop._process",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.0009646569646569706,
+   "total_ms_per_frame": 0.10795841995841989
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::165::CombatSim._apply_damage",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 0.0007920997920997921,
+   "total_ms_per_frame": 0.005330561330561332
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::91::Battle.view_of",
+   "calls_per_frame": 1.3305613305613306,
+   "self_ms_per_frame": 0.0007817047817047817,
+   "total_ms_per_frame": 0.0017027027027027028
+  },
+  {
+   "function": "res://scripts/visuals/backdrop/nodes/castle_lights.gd::21::CastleLights._process",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.000740124740124743,
+   "total_ms_per_frame": 0.10145530145530154
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::89::finish",
+   "calls_per_frame": 0.002079002079002079,
+   "self_ms_per_frame": 0.0006839916839916839,
+   "total_ms_per_frame": 0.0006923076923076924
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::127::CombatSim.is_finished",
+   "calls_per_frame": 1.0,
+   "self_ms_per_frame": 0.0006465696465696475,
+   "total_ms_per_frame": 0.04338877338877338
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::293::BenchDriver.<anonymous lambda>(lambda)",
+   "calls_per_frame": 3.1226611226611225,
+   "self_ms_per_frame": 0.0005821205821205832,
+   "total_ms_per_frame": 0.0005821205821205832
+  },
+  {
+   "function": "res://scripts/combat/combat_sim.gd::156::CombatSim._attack",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 0.0004074844074844075,
+   "total_ms_per_frame": 0.010018711018711017
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::112::PaladinLiveVisual.on_ability_event",
+   "calls_per_frame": 0.37422037422037424,
+   "self_ms_per_frame": 0.00032432432432432436,
+   "total_ms_per_frame": 0.0007110187110187111
+  },
+  {
+   "function": "res://tools/bench/stress_bench.gd::311::BenchDriver.<anonymous lambda>(lambda)",
+   "calls_per_frame": 0.7484407484407485,
+   "self_ms_per_frame": 0.0003118503118503118,
+   "total_ms_per_frame": 0.0003118503118503118
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::158::PaladinPoseLibrary.dir_from_vector",
+   "calls_per_frame": 0.12474012474012475,
+   "self_ms_per_frame": 0.00028066528066528066,
+   "total_ms_per_frame": 0.00028066528066528066
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::108::PaladinAnimator.notify_attack",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 0.0002702702702702702,
+   "total_ms_per_frame": 0.0002702702702702702
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::345::PaladinAnimator._start_attack",
+   "calls_per_frame": 0.5405405405405406,
+   "self_ms_per_frame": 0.00022661122661122668,
+   "total_ms_per_frame": 0.0009812889812889814
+  },
+  {
+   "function": "res://scripts/combat/abilities/paladin_taunt.gd::106::PaladinTaunt._lock_facing",
+   "calls_per_frame": 0.16632016632016633,
+   "self_ms_per_frame": 0.0002058212058212058,
+   "total_ms_per_frame": 0.00037422037422037423
+  },
+  {
+   "function": "res://scripts/combat/combat_unit.gd::88::CombatUnit.take_damage",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 0.00019542619542619544,
+   "total_ms_per_frame": 0.000392931392931393
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::118::PaladinAnimator.notify_hit",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 0.00017879417879417879,
+   "total_ms_per_frame": 0.00017879417879417879
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::106::PaladinLiveVisual.on_hit",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 0.00017047817047817048,
+   "total_ms_per_frame": 0.0010395010395010396
+  },
+  {
+   "function": "res://scripts/combat/unit_view.gd::67::UnitView.on_attack_performed",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 0.00014345114345114344,
+   "total_ms_per_frame": 0.00137006237006237
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_pose_library.gd::153::PaladinPoseLibrary.attack_variant",
+   "calls_per_frame": 0.5405405405405406,
+   "self_ms_per_frame": 0.0001413721413721414,
+   "total_ms_per_frame": 0.0005654885654885655
+  },
+  {
+   "function": "res://scripts/combat/abilities/paladin_taunt.gd::98::PaladinTaunt.shield_damage",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 0.00014137214137214138,
+   "total_ms_per_frame": 0.0004656964656964658
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin_live_visual.gd::102::PaladinLiveVisual.on_attack_performed",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 0.0001392931392931393,
+   "total_ms_per_frame": 0.0008898128898128898
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::150::Battle._on_attack_performed",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 0.00012474012474012475,
+   "total_ms_per_frame": 0.0027006237006237006
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::140::PaladinAnimator.notify_push",
+   "calls_per_frame": 0.12474012474012475,
+   "self_ms_per_frame": 0.00010810810810810812,
+   "total_ms_per_frame": 0.00010810810810810812
+  },
+  {
+   "function": "res://scripts/combat/unit_view.gd::75::UnitView.on_ability_event",
+   "calls_per_frame": 0.37422037422037424,
+   "self_ms_per_frame": 0.00010602910602910602,
+   "total_ms_per_frame": 0.001083160083160083
+  },
+  {
+   "function": "res://scripts/combat/unit_view.gd::63::UnitView.on_hit",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 0.00010395010395010396,
+   "total_ms_per_frame": 0.001390852390852391
+  },
+  {
+   "function": "res://scripts/combat/combat_unit.gd::70::CombatUnit.is_ranged",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 8.93970893970894e-05,
+   "total_ms_per_frame": 8.93970893970894e-05
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::164::Battle._ability_event",
+   "calls_per_frame": 0.37422037422037424,
+   "self_ms_per_frame": 8.731808731808732e-05,
+   "total_ms_per_frame": 0.001993762993762994
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::157::Battle._on_unit_attacked",
+   "calls_per_frame": 0.4781704781704782,
+   "self_ms_per_frame": 8.316008316008313e-05,
+   "total_ms_per_frame": 0.002162162162162162
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::130::PaladinAnimator.notify_taunt",
+   "calls_per_frame": 0.14553014553014554,
+   "self_ms_per_frame": 3.3264033264033264e-05,
+   "total_ms_per_frame": 3.3264033264033264e-05
+  },
+  {
+   "function": "res://scripts/visuals/units/paladin/paladin_animator.gd::124::PaladinAnimator.notify_block",
+   "calls_per_frame": 0.062370062370062374,
+   "self_ms_per_frame": 2.4948024948024948e-05,
+   "total_ms_per_frame": 2.4948024948024948e-05
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::61::Battle.<anonymous lambda>(lambda)",
+   "calls_per_frame": 0.16632016632016633,
+   "self_ms_per_frame": 1.8711018711018714e-05,
+   "total_ms_per_frame": 0.0008336798336798336
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::60::Battle.<anonymous lambda>(lambda)",
+   "calls_per_frame": 0.14553014553014554,
+   "self_ms_per_frame": 1.6632016632016632e-05,
+   "total_ms_per_frame": 0.0009459459459459458
+  },
+  {
+   "function": "res://scripts/combat/battle.gd::62::Battle.<anonymous lambda>(lambda)",
+   "calls_per_frame": 0.062370062370062374,
+   "self_ms_per_frame": 1.0395010395010393e-05,
+   "total_ms_per_frame": 0.0004116424116424116
+  },
+  {
+   "function": "res://scripts/combat/combat_unit.gd::98::CombatUnit.die",
+   "calls_per_frame": 0.031185031185031187,
+   "self_ms_per_frame": 8.316008316008316e-06,
+   "total_ms_per_frame": 2.702702702702703e-05
+  },
+  {
+   "function": "res://scripts/combat/abilities/paladin_taunt.gd::49::PaladinTaunt.reset",
+   "calls_per_frame": 0.031185031185031187,
+   "self_ms_per_frame": 6.237006237006237e-06,
+   "total_ms_per_frame": 6.237006237006237e-06
+  }
+ ]
+}

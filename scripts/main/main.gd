@@ -9,6 +9,8 @@ extends Node
 ##   debug_toggle        F3  — liga/desliga a camada de debug da arena
 ##   combat_debug_toggle F4  — liga/desliga o debug de combate (alvo, alcance, HP, estado)
 ##   combat_restart      F9  — atalho secundário de "Reiniciar combate" no Sandbox
+##   perf_overlay_toggle F6  — painel de desempenho do Sandbox (FPS, quadro, vivos, draw calls, tempos)
+##   render_compare_cycle F7 — comparação de render no Sandbox: normal → congelado → quadrados → lote simulado
 ##   fullscreen_toggle   F11 — alterna janela ↔ tela cheia
 ## O estado de F3/F4 é lembrado aqui e reaplicado a cada Arena nova.
 ##
@@ -25,6 +27,7 @@ const NOTICE_SECONDS := 4.0
 var current_screen: Node
 var _arena_debug := true      # a Arena nasce com o debug ligado (Etapa 1)
 var _combat_debug := false
+var _perf_overlay := false    # painel de desempenho do Sandbox (F6); começa desligado
 var _notice_tween: Tween
 
 
@@ -49,6 +52,7 @@ func show_sandbox() -> void:
 	var arena := sandbox.get_arena()
 	arena.set_debug_visible(_arena_debug)
 	arena.battle.set_debug_visible(_combat_debug)
+	sandbox.perf_overlay.set_shown(_perf_overlay)
 
 
 func _switch_to(scene: PackedScene) -> Node:
@@ -83,6 +87,17 @@ func _input(event: InputEvent) -> void:
 		var arena := _current_arena()
 		if arena:
 			arena.battle.set_debug_visible(_combat_debug)
+	elif event.is_action_pressed("perf_overlay_toggle", false, true):
+		get_viewport().set_input_as_handled()
+		_perf_overlay = not _perf_overlay
+		if current_screen is SandboxController:
+			current_screen.perf_overlay.set_shown(_perf_overlay)
+	elif event.is_action_pressed("render_compare_cycle", false, true):
+		get_viewport().set_input_as_handled()
+		if current_screen is SandboxController:
+			var rc: RenderCompare = current_screen.render_compare
+			rc.cycle()
+			show_notice("Visual das unidades (F7, diagnóstico): %s" % rc.mode_name())
 	elif event.is_action_pressed("combat_restart", false, true):
 		get_viewport().set_input_as_handled()
 		if current_screen is SandboxController:

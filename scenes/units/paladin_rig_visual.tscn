@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/visuals/units/paladin/paladin_rig_visual.gd" id="1_visual"]
+[ext_resource type="Resource" path="res://data/visuals/paladin_rig_look.tres" id="2_look"]
+[ext_resource type="Script" path="res://scripts/visuals/units/paladin/paladin_rig.gd" id="3_rig"]
+[ext_resource type="Script" path="res://scripts/visuals/units/paladin/paladin_effects.gd" id="4_fx"]
+
+[node name="PaladinRigVisual" type="Node2D"]
+script = ExtResource("1_visual")
+look = ExtResource("2_look")
+
+[node name="Shadow" type="Node2D" parent="."]
+
+[node name="Rig" type="Node2D" parent="."]
+script = ExtResource("3_rig")
+
+[node name="Effects" type="Node2D" parent="."]
+script = ExtResource("4_fx")

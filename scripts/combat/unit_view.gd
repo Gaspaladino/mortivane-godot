@@ -26,7 +26,10 @@ var visual: UnitVisual
 var debug_visible := false:
 	set(value):
 		debug_visible = value
+		_frozen = false   # o debug de um morto também é redesenhado; volta a congelar depois
 		queue_redraw()
+		if _overlay:
+			_overlay.queue_redraw()
 ## Destaque de seleção (Sandbox).
 var selected := false:
 	set(value):
@@ -35,6 +38,18 @@ var selected := false:
 
 var _overlay: Node2D
 var _font: Font
+## Cadáver assentado: não atualiza nem redesenha mais (a última pose desenhada fica no RenderingServer).
+## Só sai daqui se a unidade voltar a viver (Necromancia) ou se o debug for ligado.
+var _frozen := false
+## Painel de desempenho (F6): enquanto ligado, soma o tempo de _process de todos os UnitView (µs);
+## o painel lê e zera. Desligado, não mede nada.
+static var profiling := false
+static var stat_usec := 0
+## Etapa 3: o anel de seleção e a barra de HP só são redesenhados quando o que mostram muda
+## (antes: os dois, todo quadro, para todas as unidades). Com o debug ligado, todo quadro.
+var _hp_drawn := -1.0
+var _alive_drawn := true
+var _top_drawn := 0.0
 
 
 func _init(p_unit: CombatUnit, def: UnitDef) -> void:
@@ -81,10 +96,41 @@ func contains_point(world_point: Vector2) -> bool:
 
 
 func _process(delta: float) -> void:
+	if profiling:
+		var t0 := Time.get_ticks_usec()
+		_update(delta)
+		stat_usec += Time.get_ticks_usec() - t0
+	else:
+		_update(delta)
+
+
+func _update(delta: float) -> void:
+	if _frozen:
+		if not unit.is_alive():
+			if position != unit.position:
+				position = unit.position   # só a transformação do nó; o desenho não muda
+			return
+		_frozen = false   # voltou a viver: anima de novo
 	position = unit.position
 	visual.update_visual(delta)
-	queue_redraw()
-	_overlay.queue_redraw()
+	if debug_visible:
+		queue_redraw()   # alcance e linha até o alvo mudam todo quadro
+		_overlay.queue_redraw()
+	else:
+		var alive := unit.is_alive()
+		var top := visual.top_y()
+		if unit.hp != _hp_drawn or alive != _alive_drawn or top != _top_drawn:
+			_hp_drawn = unit.hp
+			_alive_drawn = alive
+			_top_drawn = top
+			_overlay.queue_redraw()
+	if not unit.is_alive() and not debug_visible and visual.is_settled_corpse():
+		_frozen = true   # este quadro já pediu o último redesenho da pose final
+
+
+## Cadáver congelado (sem atualização nem redesenho por quadro)?
+func is_frozen() -> bool:
+	return _frozen
 
 
 func _draw() -> void:
