@@ -127,6 +127,8 @@ func setup(p_unit: CombatUnit, p_def: UnitDef) -> void:
 	_sword_follow = rest_sword
 	_shield_follow = rest_shield_arm
 	_compute_pose(0.0)
+	_bake_rig()
+	_pose_bones()
 
 
 func _apply_look(l: PaladinLook) -> void:
@@ -243,7 +245,7 @@ func update_visual(delta: float) -> void:
 		_death_t += delta
 
 	_compute_pose(delta)
-	queue_redraw()
+	_pose_bones()
 
 
 # --- Pose -----------------------------------------------------------------------------------
@@ -405,12 +407,84 @@ func _death_pose() -> void:
 	p_dim = 0.25 * clampf(t / (DEATH_TIME + 0.3), 0.0, 1.0)
 
 
-# --- Desenho --------------------------------------------------------------------------------
+# --- Desenho leve: peças prontas + ossos -----------------------------------------------------
+## Corpo, escudo, espada e efeitos da habilidade são UMA malha estática por tipo (LiteSkin), um osso
+## por peça; a pose do quadro só move os ossos. Espada e manopla existem em duas camadas (atrás e na
+## frente do escudo) e a que não está em uso fica escondida. Efeitos com transparência animada
+## (rastro, barreira, anéis) aparecem/somem por escala. Ver CodeDrawnUnitVisual (_part, _skin_setup).
+
+enum {
+	P_CAPE, P_ARM_S, P_PAULDRON_B, P_THIGH_B, P_SHIN_B, P_THIGH_F, P_SHIN_F, P_TABARD, P_TORSO,
+	P_HALO_SHINE, P_HEAD, P_SWORD_B, P_GAUNTLET_B, P_ARM_H, P_SHIELD, P_SHIELD_FLASH, P_PAULDRON_F,
+	P_SWORD_F, P_GAUNTLET_F, B_GROUND, B_TRAIL,
+}
+const TRAIL_SEGS := 10
+const B_BARRIER := B_TRAIL + TRAIL_SEGS
+const B_TAUNT_RING := B_BARRIER + 1
+const B_SHIELD_RING := B_BARRIER + 2
+const B_EXTRA := B_BARRIER + 3
+## Raio de montagem do anel do escudo (≈ o raio típico: a escala fica perto de 1 e a linha, fina).
+const SHIELD_RING_R := 25.0
+
+
+func _bake_rig() -> void:
+	var rim := shadow_style != null and shadow_style.rim_width > 0.0
+	var body: Array = [
+		["cape", _draw_cape_part, P_CAPE], ["arm_s", _draw_arm.bind(0.8), P_ARM_S], ["pauldron_b", _draw_pauldron.bind(0.8), P_PAULDRON_B],
+		["thigh_b", _draw_thigh.bind(0.8), P_THIGH_B], ["shin_b", _draw_shin.bind(0.8), P_SHIN_B], ["knee_b", _draw_knee.bind(0.8), P_THIGH_B],
+		["thigh_f", _draw_thigh.bind(1.0), P_THIGH_F], ["shin_f", _draw_shin.bind(1.0), P_SHIN_F], ["knee_f", _draw_knee.bind(1.0), P_THIGH_F],
+		["tabard", _draw_tabard, P_TABARD], ["torso", _draw_torso, P_TORSO],
+	]
+	var layout: Array = _layout_back()
+	if rim:
+		for e in body + [["head", _draw_head, P_HEAD], ["sword", _draw_sword, P_SWORD_B], ["gauntlet", _draw_gauntlet.bind(0.9), P_GAUNTLET_B],
+				["arm_h", _draw_arm.bind(1.0), P_ARM_H], ["shield", _draw_shield, P_SHIELD], ["pauldron_f", _draw_pauldron.bind(1.0), P_PAULDRON_F],
+				["sword", _draw_sword, P_SWORD_F], ["gauntlet", _draw_gauntlet.bind(0.9), P_GAUNTLET_F]]:
+			layout.append([_part(e[0], e[1], true), e[2]])
+	for e in body:
+		layout.append([_part(e[0], e[1]), e[2]])
+	layout.append([_part("halo_shine", _draw_halo_shine, false, false), P_HALO_SHINE])
+	layout.append([_part("head", _draw_head), P_HEAD])
+	layout.append([_part("sword", _draw_sword), P_SWORD_B])
+	layout.append([_part("gauntlet", _draw_gauntlet.bind(0.9)), P_GAUNTLET_B])
+	layout.append([_part("arm_h", _draw_arm.bind(1.0)), P_ARM_H])
+	layout.append([_part("shield", _draw_shield), P_SHIELD])
+	layout.append([_part("shield_flash", func(): _fill(_shield_points(), Color(holy, 0.4 * (look.glow if look else 1.0)))), P_SHIELD_FLASH])
+	layout.append([_part("pauldron_f", _draw_pauldron.bind(1.0)), P_PAULDRON_F])
+	layout.append([_part("sword", _draw_sword), P_SWORD_F])
+	layout.append([_part("gauntlet", _draw_gauntlet.bind(0.9)), P_GAUNTLET_F])
+	layout.append_array(_layout_front())
+	# efeitos da habilidade (espaço do UnitView)
+	var glow := look.glow if look else 1.0
+	var trail := _part("trail", func():
+		_bake.line(Vector2.ZERO, Vector2(1, 0), Color(_trail_color(), 0.22 * glow), 5.0)
+		_bake.line(Vector2.ZERO, Vector2(1, 0), Color(_trail_color(), 0.7 * glow), 1.6)
+		_bake.line(Vector2.ZERO, Vector2(1, 0), Color(_trail_core(), 0.85 * glow), 0.6), false, false)
+	for i in TRAIL_SEGS:
+		layout.append([trail, B_TRAIL + i])
+	layout.append([_part("barrier", _draw_barrier_shape, false, false), B_BARRIER])
+	layout.append([_part("taunt_ring", func():
+		_bake.arc(Vector2.ZERO, PaladinTaunt.TAUNT_RADIUS, 0.0, TAU, 64, Color(_ring_color(), 0.4 * glow), 1.6), false, false), B_TAUNT_RING])
+	layout.append([_part("shield_ring", func():
+		_bake.arc(Vector2.ZERO, SHIELD_RING_R, 0.0, TAU, 40, Color(_ring_color(), 0.7 * glow), 1.4), false, false), B_SHIELD_RING])
+	_skin_setup(layout, B_EXTRA + _extra_bones())
+
+
+## Pontos de extensão da malha (a Sombra: névoa, aura, fumaça).
+func _layout_back() -> Array:
+	return [[_part("ground", func(): _disc(Vector2.ZERO, 12.0, Color(0, 0, 0, 0.34)), false, false), B_GROUND]]
+
+
+func _layout_front() -> Array:
+	return []
+
+
+func _extra_bones() -> int:
+	return 0
+
 
 func _draw() -> void:
-	_draw_shadow()
-	_draw_with_rim(_draw_rig)   # na Sombra: silhueta roxa por baixo do corpo
-	_draw_effects()
+	_skin_draw()
 
 
 func _root_xf() -> Transform2D:
@@ -419,7 +493,10 @@ func _root_xf() -> Transform2D:
 		* Transform2D(deg_to_rad(p_rot), p_scale, 0.0, p_offset + Vector2(0, p_crouch))
 
 
-func _draw_rig() -> void:
+func _pose_bones() -> void:
+	if _skin == null:
+		return
+	var sk := _skin
 	var ground := Transform2D(0.0, Vector2(_facing, 1.0) * _k(), 0.0, Vector2(0, FOOT_Y))
 	var root := _root_xf()
 	var hip := root * Transform2D(0.0, HIP)
@@ -428,83 +505,144 @@ func _draw_rig() -> void:
 	var hand_s := arm_s_local * Vector2(0, ARM_LENGTH)
 	var arm_h_local := _tf(SHOULDER_FRONT + Vector2(p_shield_push * 0.4, 0), p_arm_h)
 	var hand_h := arm_h_local * Vector2(0, ARM_LENGTH)
-
-	_draw_cape(torso)
-	# braço da espada (lado de trás) + ombreira de trás
-	_with(torso * arm_s_local)
-	_draw_arm(0.8)
-	_with(torso * _tf(SHOULDER_BACK, 0.0))
-	_draw_pauldron(0.8)
-	# pernas (joelhos dobram com p_crouch)
+	# capa: peça pronta inclinada pelo balanço da barra
+	var ck := -p_cape * 0.14 / 27.0
+	sk.set_bone(P_CAPE, torso * Transform2D(Vector2(1, 0), Vector2(ck, 1), Vector2(ck * 15.0, 0)))
+	sk.set_bone(P_ARM_S, torso * arm_s_local)
+	sk.set_bone(P_PAULDRON_B, torso * _tf(SHOULDER_BACK, 0.0))
 	var bend := p_crouch * 4.0
-	_with(hip * _tf(Vector2(LEG_BACK_X, 0), p_leg_b + bend))
-	_draw_leg(0.8, -bend)
-	_with(hip * _tf(Vector2(LEG_FRONT_X, 0), p_leg_f - bend * 0.6))
-	_draw_leg(1.0, bend * 0.6)
-	# tabardo, cinto e peitoral
-	_with(hip * Transform2D(deg_to_rad(p_lean * 0.4), Vector2.ZERO))
-	_draw_tabard()
-	_with(torso)
-	_draw_torso()
-	_with(torso * _tf(NECK, p_head))
-	_draw_head()
+	var leg_b := hip * _tf(Vector2(LEG_BACK_X, 0), p_leg_b + bend)
+	var leg_f := hip * _tf(Vector2(LEG_FRONT_X, 0), p_leg_f - bend * 0.6)
+	sk.set_bone(P_THIGH_B, leg_b)
+	sk.set_bone(P_SHIN_B, leg_b * Transform2D(deg_to_rad(-bend), Vector2(0, 6.0)))
+	sk.set_bone(P_THIGH_F, leg_f)
+	sk.set_bone(P_SHIN_F, leg_f * Transform2D(deg_to_rad(bend * 0.6), Vector2(0, 6.0)))
+	sk.set_bone(P_TABARD, hip * Transform2D(deg_to_rad(p_lean * 0.4), Vector2.ZERO))
+	sk.set_bone(P_TORSO, torso)
+	var head := torso * _tf(NECK, p_head)
+	sk.set_bone(P_HEAD, head)
+	var glow := look.glow if look else 1.0
+	var shine := clampf(0.12 + 0.3 * p_halo + 0.08 * sin(_time * 1.3 * (look.secondary_speed if look else 1.0)), 0.0, 1.0) * glow * (1.0 - p_dim * 3.0)
+	sk.set_bone(P_HALO_SHINE, head if shine > 0.15 else LiteSkin.HIDDEN)
 	# no golpe a espada passa NA FRENTE do escudo (a lâmina fica legível)
 	var sword_front := _strike_t >= 0.0 and _strike_t < RECOVER_START + 0.08
-	if not sword_front:
-		_draw_sword_part(torso, ground, hand_s)
-	# braço do escudo, ombreira da frente e escudo (o mais à frente)
-	_with(torso * arm_h_local)
-	_draw_arm(1.0)
-	var shield_on := torso * Transform2D(deg_to_rad(p_shield_tilt), hand_h + Vector2(2.2, -1.0) + look.shield_offset)
-	if p_shield_drop > 0.0:
-		# cai ao lado do corpo (atrás, em profundidade), sem cobri-lo
-		var shield_ground := ground * Transform2D(deg_to_rad(-80.0), Vector2(0.7, 1.0), 0.0, Vector2(-20.0, -9.0))
-		_with(shield_on.interpolate_with(shield_ground, p_shield_drop))
-	else:
-		_with(shield_on)
-	_draw_shield()
-	_with(torso * _tf(SHOULDER_FRONT, 0.0))
-	_draw_pauldron(1.0)
-	if sword_front:
-		_draw_sword_part(torso, ground, hand_s)
-	_draw_fx_front(root, torso)
-	draw_set_transform_matrix(Transform2D.IDENTITY)
-
-
-## Espada presa à mão (com a manopla), ou escapando dela e caindo solta ao lado do corpo.
-func _draw_sword_part(torso: Transform2D, ground: Transform2D, hand_s: Vector2) -> void:
 	var sword_on := torso * _tf(hand_s + look.sword_offset, p_sword)
 	if p_sword_drop > 0.0:
 		var sword_ground := ground * Transform2D(deg_to_rad(84.0), Vector2(-9.0, 1.6))
-		var drop := sword_on.interpolate_with(sword_ground, p_sword_drop)
-		drop.origin.y -= sin(p_sword_drop * PI) * 4.0 * _k()   # sai da mão num pequeno arco
-		_with(drop)
-	else:
-		_with(sword_on)
-	_draw_sword()
-	if p_sword_drop <= 0.0:
-		_with(torso * _tf(hand_s, 0.0))
-		_draw_gauntlet(0.9)
+		sword_on = sword_on.interpolate_with(sword_ground, p_sword_drop)
+		sword_on.origin.y -= sin(p_sword_drop * PI) * 4.0 * _k()   # sai da mão num pequeno arco
+	var gauntlet := torso * _tf(hand_s, 0.0) if p_sword_drop <= 0.0 else LiteSkin.HIDDEN
+	sk.set_bone(P_SWORD_B, LiteSkin.HIDDEN if sword_front else sword_on)
+	sk.set_bone(P_GAUNTLET_B, LiteSkin.HIDDEN if sword_front else gauntlet)
+	sk.set_bone(P_SWORD_F, sword_on if sword_front else LiteSkin.HIDDEN)
+	sk.set_bone(P_GAUNTLET_F, gauntlet if sword_front else LiteSkin.HIDDEN)
+	sk.set_bone(P_ARM_H, torso * arm_h_local)
+	var shield_on := torso * Transform2D(deg_to_rad(p_shield_tilt), hand_h + Vector2(2.2, -1.0) + look.shield_offset)
+	if p_shield_drop > 0.0:
+		var shield_ground := ground * Transform2D(deg_to_rad(-80.0), Vector2(0.7, 1.0), 0.0, Vector2(-20.0, -9.0))
+		shield_on = shield_on.interpolate_with(shield_ground, p_shield_drop)
+	sk.set_bone(P_SHIELD, shield_on)
+	sk.set_bone(P_SHIELD_FLASH, shield_on if p_shield_flash > 0.15 else LiteSkin.HIDDEN)
+	sk.set_bone(P_PAULDRON_F, torso * _tf(SHOULDER_FRONT, 0.0))
+	_pose_ground()
+	_pose_effects()
+	_pose_extra(root, torso)
+	_apply_fx()
 
 
-func _draw_shadow() -> void:
+func _pose_ground() -> void:
 	var lying := clampf(absf(p_rot) / 90.0, 0.0, 1.0)
 	var shift := -14.0 * lying * _k() * _facing
-	draw_set_transform(Vector2(shift, FOOT_Y), 0.0, Vector2(1.0 + lying * 1.1, 0.32))
-	draw_circle(Vector2.ZERO, 12.0 * _k(), Color(0, 0, 0, 0.34))
-	draw_set_transform(Vector2.ZERO)
+	_skin.set_bone(B_GROUND, Transform2D(0.0, Vector2((1.0 + lying * 1.1) * _k(), 0.32 * _k()), 0.0, Vector2(shift, FOOT_Y)))
 
 
-## Capa pesada presa aos ombros; a barra reage com atraso (p_cape).
-func _draw_cape(torso: Transform2D) -> void:
-	_with(torso)
-	var sw := -p_cape * 0.14
+## Ponto de extensão: ossos extras da variante (a Sombra: névoa, aura, fumaça).
+func _pose_extra(_root: Transform2D, _torso: Transform2D) -> void:
+	pass
+
+
+## Efeitos (espaço do UnitView, sem espelhar): rastro do golpe, barreira, anéis.
+func _pose_effects() -> void:
+	# rastro do golpe: arco da ponta da espada, do alto até a posição atual
+	if _strike_t >= 0.0 and _strike_t < 0.26 and unit.is_alive():
+		var d := _ease_out(clampf(_strike_t / STRIKE_DOWN, 0.0, 1.0))
+		var fade := 1.0 - clampf((_strike_t - STRIKE_DOWN) / 0.14, 0.0, 1.0)
+		var prev := _sword_tip(windup_arm, windup_sword)
+		for i in TRAIL_SEGS:
+			var u := d * float(i + 1) / TRAIL_SEGS
+			var p := _sword_tip(lerpf(windup_arm, strike_arm, u), lerpf(windup_sword, strike_sword, u))
+			_skin.set_bone(B_TRAIL + i, _seg_bone(prev, p, fade) if fade > 0.05 else LiteSkin.HIDDEN)
+			prev = p
+	else:
+		for i in TRAIL_SEGS:
+			_skin.hide_bone(B_TRAIL + i)
+	# barreira sagrada à frente, na direção travada
+	var pal := unit.paladin
+	if pal and unit.is_alive() and pal.is_shielded():
+		var f := pal.facing if pal.facing != Vector2.ZERO else Vector2(_facing, 0)
+		var r := unit.radius
+		var pos := Vector2(f.x * r * PaladinFx.BARRIER_FORWARD, r * PaladinFx.BARRIER_VERTICAL + f.y * r * PaladinFx.BARRIER_FORWARD)
+		var ez := 1.0 - pow(1.0 - clampf(_barrier_age / PaladinFx.BARRIER_ENTER, 0.0, 1.0), 3.0)
+		var fade := clampf(pal.shield_t / PaladinFx.BARRIER_EXIT, 0.0, 1.0)
+		var s := (0.7 + 0.3 * ez) * (0.5 + 0.5 * fade) * r / 14.0
+		_skin.set_bone(B_BARRIER, Transform2D(0.0, Vector2(s, s), 0.0, pos) if ez * fade > 0.05 else LiteSkin.HIDDEN)
+	else:
+		_skin.hide_bone(B_BARRIER)
+	# anel no raio real da provocação (abre e some) e anel curto do escudo
+	if (look == null or look.show_taunt_ring) and _taunt_t >= 0.0 and _taunt_t <= TAUNT_RING_TIME:
+		var k := clampf(_taunt_t / TAUNT_RING_TIME, 0.0, 1.0)
+		var tr := lerpf(0.35, 1.0, 1.0 - (1.0 - k) * (1.0 - k)) * (1.0 if k < 0.9 else 0.0)
+		_skin.set_bone(B_TAUNT_RING, Transform2D(0.0, Vector2(tr, tr), 0.0, Vector2.ZERO))
+	else:
+		_skin.hide_bone(B_TAUNT_RING)
+	if _shield_ring_t >= 0.0 and _shield_ring_t <= SHIELD_RING_TIME:
+		var k := clampf(_shield_ring_t / SHIELD_RING_TIME, 0.0, 1.0)
+		var sr := unit.radius * 1.8 * lerpf(0.6, 1.0, k) / SHIELD_RING_R * (1.0 if k < 0.9 else 0.0)
+		_skin.set_bone(B_SHIELD_RING, Transform2D(0.0, Vector2(sr, sr), 0.0, Vector2(0, -6)))
+	else:
+		_skin.hide_bone(B_SHIELD_RING)
+
+
+## Escudo Sagrado (HTML: holyShieldPath) no raio de referência 14, na opacidade máxima.
+func _draw_barrier_shape() -> void:
+	var glow := look.glow if look else 1.0
+	var w := 14.0 * PaladinFx.BARRIER_WIDTH
+	var h := 14.0 * PaladinFx.BARRIER_HEIGHT
+	var path := PackedVector2Array()
+	for i in 9:
+		var u := i / 8.0
+		path.append(Vector2(lerpf(0.0, w * 0.5, u), lerpf(-h * 0.5, -h * 0.38, u * u)))
+	for i in 7:
+		var u := i / 6.0
+		path.append(Vector2(lerpf(w * 0.47, 0.0, u * u), lerpf(h * 0.0, h * 0.5, u)))
+	var n := path.size()
+	for i in range(n - 2, 0, -1):
+		path.append(Vector2(-path[i].x, path[i].y))
+	var a := 0.88 * glow
+	_bake.fill(path, Color(_barrier_fill(), 0.13 * a))
+	_bake.outline(path, Color(holy_edge, 0.9 * a), 1.8)
+	var pts := PackedVector2Array()
+	for i in 8:
+		var ang := i * TAU / 8.0 - PI / 2.0
+		var rr := h * 0.16 if i % 2 == 0 else h * 0.16 * 0.3
+		pts.append(Vector2(0, -h * 0.05) + Vector2(cos(ang), sin(ang)) * rr)
+	_bake.fill(pts, Color(holy_edge, 0.55 * a))
+
+
+## Capa pesada presa aos ombros (peça pronta no espaço do tronco; a barra balança por inclinação).
+func _draw_cape_part() -> void:
 	var pts := PackedVector2Array([
 		Vector2(1.0, -15.0), Vector2(-6.4, -14.4),
-		Vector2(-12.6 + sw, 12.0), Vector2(-7.4 + sw * 0.7, 13.4), Vector2(-2.4 + sw * 0.4, 11.2),
+		Vector2(-12.6, 12.0), Vector2(-7.4, 13.4), Vector2(-2.4, 11.2),
 	])
 	_poly(_cape_shape(pts), _c(cape_color))
-	_line(Vector2(-4.2, -13.2), Vector2(-8.4 + sw * 0.7, 12.4), _c(cape_color.darkened(0.25)), 1.0)
+	_line(Vector2(-4.2, -13.2), Vector2(-8.4, 12.4), _c(cape_color.darkened(0.25)), 1.0)
+	_draw_cape_extra(_cape_shape(pts))
+
+
+## Ponto de extensão: detalhe na barra da capa (a Sombra: fio de energia).
+func _draw_cape_extra(_shape: PackedVector2Array) -> void:
+	pass
 
 
 ## Ponto de extensão: a Sombra rasga a barra.
@@ -512,36 +650,31 @@ func _cape_shape(pts: PackedVector2Array) -> PackedVector2Array:
 	return pts
 
 
-func _draw_leg(shade: float, knee_bend: float) -> void:
-	# coxote escuro + grevas marfim, joelheira com filete dourado, sapatão
+## Coxa (coxote escuro), no espaço da perna; a canela é outra peça (o joelho dobra).
+func _draw_thigh(shade: float) -> void:
 	_poly(PackedVector2Array([Vector2(-2.8, -0.5), Vector2(2.8, -0.5), Vector2(2.5, 11.2), Vector2(-2.5, 11.2)]), _c(under_armor, shade))
-	_with_local(Transform2D(deg_to_rad(knee_bend), Vector2(0, 6.0)))
+
+
+## Canela e sapatão (grevas marfim, filete dourado), no espaço do joelho.
+func _draw_shin(shade: float) -> void:
 	_poly(PackedVector2Array([Vector2(-2.3, -1.0), Vector2(2.9, -1.6), Vector2(2.7, 5.0), Vector2(-2.2, 5.0)]), _c(ivory, shade))
 	_line(Vector2(1.6, -1.2), Vector2(1.7, 4.6), _c(steel_shade, shade), 0.7)
 	_poly(PackedVector2Array([Vector2(-2.9, 4.6), Vector2(2.9, 4.6), Vector2(5.8, 6.1), Vector2(5.8, 7.0), Vector2(-3.0, 7.0)]), _c(ivory, shade))
 	_line(Vector2(-2.8, 4.9), Vector2(5.6, 5.9), _c(gold, shade), 0.6)
-	_pop_local()
+
+
+## Joelheira (no espaço da perna, por cima da canela).
+func _draw_knee(shade: float) -> void:
 	_circle(Vector2(0.7, 5.6), 2.3, _c(ivory_light, shade))
-	if not _rim_pass:
-		draw_arc(Vector2(0.7, 5.6), 1.4, 0.0, TAU, 12, _c(gold, shade), 0.6, true)
+	_arc_line(Vector2(0.7, 5.6), 1.4, 0.0, TAU, 12, _c(gold, shade), 0.6)
 
 
-var _local_stack: Array[Transform2D] = []
 var _current_xf := Transform2D.IDENTITY
 
 
 func _with(xf: Transform2D) -> void:
 	_current_xf = xf
-	draw_set_transform_matrix(xf)
-
-
-func _with_local(xf: Transform2D) -> void:
-	_local_stack.append(_current_xf)
-	_with(_current_xf * xf)
-
-
-func _pop_local() -> void:
-	_with(_local_stack.pop_back())
+	super(xf)
 
 
 func _draw_tabard() -> void:
@@ -555,7 +688,7 @@ func _draw_tabard() -> void:
 		return
 	var trim := front.duplicate()
 	trim.append(front[0])
-	draw_polyline(trim, _c(gold), 0.7, true)
+	_pline(trim, _c(gold), 0.7)
 	_draw_emblem(Vector2(2.6, 5.2), 2.2)
 
 
@@ -573,10 +706,10 @@ func _draw_torso() -> void:
 	_poly(plate, _c(ivory))
 	if _rim_pass:
 		return
-	draw_colored_polygon(PackedVector2Array([Vector2(-6.6, -2.4), Vector2(-1.0, -2.4), Vector2(-1.6, -15.6), Vector2(-4.8, -15.6), Vector2(-7.2, -13.0), Vector2(-7.4, -7.0)]), _c(steel_shade, 0.95))
-	draw_polyline(PackedVector2Array([Vector2(-6.6, -2.4), Vector2(6.0, -2.4), Vector2(7.6, -7.8)]), _c(gold), 0.9, true)
+	_fill(PackedVector2Array([Vector2(-6.6, -2.4), Vector2(-1.0, -2.4), Vector2(-1.6, -15.6), Vector2(-4.8, -15.6), Vector2(-7.2, -13.0), Vector2(-7.4, -7.0)]), _c(steel_shade, 0.95))
+	_pline(PackedVector2Array([Vector2(-6.6, -2.4), Vector2(6.0, -2.4), Vector2(7.6, -7.8)]), _c(gold), 0.9)
 	_line(Vector2(3.2, -15.0), Vector2(4.4, -3.0), _c(steel_shade), 0.8)
-	draw_colored_polygon(PackedVector2Array([Vector2(4.6, -13.2), Vector2(6.4, -12.4), Vector2(6.6, -9.0), Vector2(5.0, -9.6)]), _c(ivory_light))
+	_fill(PackedVector2Array([Vector2(4.6, -13.2), Vector2(6.4, -12.4), Vector2(6.6, -9.0), Vector2(5.0, -9.6)]), _c(ivory_light))
 	# gola / gorjal
 	_poly(PackedVector2Array([Vector2(-3.4, -15.2), Vector2(4.2, -15.2), Vector2(4.8, -17.0), Vector2(-3.6, -17.0)]), _c(under_armor))
 	_line(Vector2(-3.6, -15.3), Vector2(4.6, -15.3), _c(gold), 0.8)
@@ -601,31 +734,31 @@ func _draw_head() -> void:
 	_poly(helm, _c(ivory))
 	if _rim_pass:
 		return
-	draw_colored_polygon(PackedVector2Array([Vector2(-5.4, -0.6), Vector2(-1.2, -0.6), Vector2(-1.6, -12.9), Vector2(-4.0, -12.4), Vector2(-6.0, -9.2), Vector2(-6.2, -4.2)]), _c(steel_shade, 0.95))
+	_fill(PackedVector2Array([Vector2(-5.4, -0.6), Vector2(-1.2, -0.6), Vector2(-1.6, -12.9), Vector2(-4.0, -12.4), Vector2(-6.0, -9.2), Vector2(-6.2, -4.2)]), _c(steel_shade, 0.95))
 	_poly(PackedVector2Array([Vector2(-5.4, -0.6), Vector2(6.0, -0.6), Vector2(6.2, -2.4), Vector2(-5.6, -2.4)]), _c(gold))
 	# filete dourado no meio da face (a "cruz" do elmo)
-	draw_colored_polygon(PackedVector2Array([Vector2(3.0, -12.6), Vector2(4.2, -12.2), Vector2(4.6, -7.8), Vector2(3.4, -7.8)]), _c(gold))
-	draw_colored_polygon(PackedVector2Array([Vector2(1.4, -12.0), Vector2(2.4, -12.6), Vector2(2.2, -9.0), Vector2(1.4, -9.4)]), _c(ivory_light))
+	_fill(PackedVector2Array([Vector2(3.0, -12.6), Vector2(4.2, -12.2), Vector2(4.6, -7.8), Vector2(3.4, -7.8)]), _c(gold))
+	_fill(PackedVector2Array([Vector2(1.4, -12.0), Vector2(2.4, -12.6), Vector2(2.2, -9.0), Vector2(1.4, -9.4)]), _c(ivory_light))
 	_draw_visor()
 
 
 ## Visor estreito em T (a Sombra acende os olhos).
 func _draw_visor() -> void:
-	draw_colored_polygon(PackedVector2Array([Vector2(1.4, -7.4), Vector2(6.6, -7.7), Vector2(6.6, -6.4), Vector2(1.4, -6.2)]), _c(visor))
-	draw_colored_polygon(PackedVector2Array([Vector2(3.6, -6.4), Vector2(4.6, -6.4), Vector2(4.8, -3.0), Vector2(3.8, -3.0)]), _c(visor))
+	_fill(PackedVector2Array([Vector2(1.4, -7.4), Vector2(6.6, -7.7), Vector2(6.6, -6.4), Vector2(1.4, -6.2)]), _c(visor))
+	_fill(PackedVector2Array([Vector2(3.6, -6.4), Vector2(4.6, -6.4), Vector2(4.8, -3.0), Vector2(3.8, -3.0)]), _c(visor))
+
+
+## Brilho da auréola (peça à parte: aparece quando a auréola brilha).
+func _draw_halo_shine() -> void:
+	_arc_line(Vector2(-0.4, -7.6), 8.4, PI * 0.84, PI * 2.16, 24, Color(holy, 0.35 * 0.35 * (look.glow if look else 1.0)), 3.2)
 
 
 ## Auréola dourada atrás do elmo, com estrelas (leitura sagrada de longe).
 func _draw_halo() -> void:
-	var glow := (look.glow if look else 1.0)
 	var c := Vector2(-0.4, -7.6)
 	var col := _c(gold)
-	var lift := 0.08 * sin(_time * 1.3 * (look.secondary_speed if look else 1.0))
-	var shine := clampf(0.12 + 0.3 * p_halo + lift, 0.0, 1.0) * glow * (1.0 - p_dim * 3.0)
-	if shine > 0.0:
-		draw_arc(c, 8.4, PI * 0.84, PI * 2.16, 24, Color(holy, 0.35 * shine), 3.2, true)
-	draw_arc(c, 8.0, PI * 0.84, PI * 2.16, 24, _c(outline), 2.1, true)
-	draw_arc(c, 8.0, PI * 0.84, PI * 2.16, 24, col, 1.25, true)
+	_arc_line(c, 8.0, PI * 0.84, PI * 2.16, 24, _c(outline), 2.1)
+	_arc_line(c, 8.0, PI * 0.84, PI * 2.16, 24, col, 1.25)
 	_star(c + Vector2(0, -8.0), 2.6, _c(gold_light))
 	_star(c + Vector2(-8.0 * 0.95, -1.6), 1.5, col)
 	_star(c + Vector2(8.0 * 0.95, -1.6), 1.5, col)
@@ -649,8 +782,8 @@ func _draw_pauldron(shade: float) -> void:
 	for i in 11:
 		var a := lerpf(PI * 1.08, PI * 1.92, i / 10.0)
 		rim.append(Vector2(cos(a) * 4.1, sin(a) * 2.9 + 1.4))
-	draw_polyline(rim, _c(gold, shade), 0.9, true)
-	draw_circle(Vector2(0.4, -1.2), 0.8, _c(gold_light, shade))
+	_pline(rim, _c(gold, shade), 0.9)
+	_disc(Vector2(0.4, -1.2), 0.8, _c(gold_light, shade))
 
 
 func _draw_arm(shade: float) -> void:
@@ -692,14 +825,12 @@ func _draw_shield() -> void:
 	if _rim_pass:
 		return
 	# metade sombreada, borda dourada, sol
-	draw_colored_polygon(PackedVector2Array([Vector2(0, -10.4), Vector2(-5.2, -9.1), Vector2(-5.1, 1.4), Vector2(-3.5, 7.2), Vector2(0, 11.6)]), _c(steel_shade, 1.02))
+	_fill(PackedVector2Array([Vector2(0, -10.4), Vector2(-5.2, -9.1), Vector2(-5.1, 1.4), Vector2(-3.5, 7.2), Vector2(0, 11.6)]), _c(steel_shade, 1.02))
 	var rim := pts.duplicate()
 	rim.append(pts[0])
-	draw_polyline(rim, _c(gold), 1.3, true)
+	_pline(rim, _c(gold), 1.3)
 	_draw_emblem(Vector2(0.2, -0.8), 4.4)
 	_draw_shield_wear()
-	if p_shield_flash > 0.0:
-		draw_colored_polygon(pts, Color(holy, 0.55 * p_shield_flash * (look.glow if look else 1.0)))
 
 
 func _shield_points() -> PackedVector2Array:
@@ -720,7 +851,7 @@ func _draw_emblem(c: Vector2, size: float) -> void:
 	var col := _c(emblem)
 	_star(c, size, col)
 	_star(c, size * 0.62, col, PI / 4.0)
-	draw_arc(c, size * 0.42, 0.0, TAU, 14, col, 0.7, true)
+	_arc_line(c, size * 0.42, 0.0, TAU, 14, col, 0.7)
 
 
 func _star(c: Vector2, s: float, col: Color, rot := 0.0) -> void:
@@ -729,39 +860,7 @@ func _star(c: Vector2, s: float, col: Color, rot := 0.0) -> void:
 		var a := rot + i * TAU / 8.0 - PI / 2.0
 		var r := s if i % 2 == 0 else s * 0.3
 		pts.append(c + Vector2(cos(a), sin(a)) * r)
-	draw_colored_polygon(pts, col)
-
-
-## Ponto de extensão: efeitos por cima do corpo (Sombra: fumaça).
-func _draw_fx_front(_root: Transform2D, _torso: Transform2D) -> void:
-	pass
-
-
-# --- Efeitos (espaço do UnitView, sem espelhar) ---------------------------------------------
-
-func _draw_effects() -> void:
-	draw_set_transform_matrix(Transform2D.IDENTITY)
-	var glow := look.glow if look else 1.0
-	# rastro do golpe: arco da ponta da espada, do alto até a posição atual
-	if _strike_t >= 0.0 and _strike_t < 0.26 and unit.is_alive():
-		var d := _ease_out(clampf(_strike_t / STRIKE_DOWN, 0.0, 1.0))
-		var fade := 1.0 - clampf((_strike_t - STRIKE_DOWN) / 0.14, 0.0, 1.0)
-		var pts := PackedVector2Array()
-		var n := 10
-		for i in n + 1:
-			var u := d * float(i) / n
-			pts.append(_sword_tip(lerpf(windup_arm, strike_arm, u), lerpf(windup_sword, strike_sword, u)))
-		var trail := _trail_color()
-		draw_polyline(pts, Color(trail, 0.22 * fade * glow), 5.0, true)
-		draw_polyline(pts, Color(trail, 0.7 * fade * glow), 1.6, true)
-		draw_polyline(pts, Color(_trail_core(), 0.85 * fade * glow), 0.6, true)
-	var pal := unit.paladin
-	# barreira sagrada, anel da provocação (raio real de 115) e anel do escudo: PaladinFx
-	if pal and unit.is_alive() and pal.is_shielded():
-		PaladinFx.barrier(self, pal, unit.radius, _barrier_age, glow, _barrier_fill(), holy_edge, Vector2(_facing, 0))
-	if look == null or look.show_taunt_ring:
-		PaladinFx.taunt_ring(self, _taunt_t, glow, _ring_color())
-	PaladinFx.shield_ring(self, _shield_ring_t, unit.radius, glow, _ring_color())
+	_fill(pts, col)
 
 
 ## Ponta da espada (espaço do UnitView) para um ângulo de braço e de espada.

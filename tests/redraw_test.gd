@@ -1,7 +1,7 @@
 extends SceneTree
 ## Etapa 3 da otimização: redesenho dos vivos.
 ##   - anel de seleção e barra de HP só são redesenhados quando o que mostram muda (ou com debug);
-##   - o corpo continua sendo redesenhado todo quadro (animação);
+##   - o corpo é uma malha com ossos (desenho leve): anima todo quadro pelos OSSOS, sem redesenho;
 ##   - DrawCache: forma vista 1× segue o caminho direto; na 2ª vira malha; formas diferentes não
 ##     colidem; o contorno aberto e o polígono degenerado ficam no caminho direto.
 ## (A igualdade de pixels do DrawCache é validada com render real por tools/bench/draw_cache_pixels.gd.)
@@ -44,11 +44,18 @@ func _test_overlays() -> void:
 	n.view = 0
 	n.body = 0
 	n.overlay = 0
+	var changed := 0
+	var sig := _pose_sig(view.visual)
 	for i in 60:
 		u.position += Vector2(0.5, 0)   # andando: o corpo anima
 		view._process(DT)
 		await process_frame
-	_check(n.body >= 60, "corpo redesenhado todo quadro (%d)" % n.body)
+		var s := _pose_sig(view.visual)
+		if s != sig:
+			changed += 1
+		sig = s
+	_check(changed >= 55, "corpo animado pelos ossos todo quadro (%d/60)" % changed)
+	_check(n.body == 0, "corpo sem redesenho: a pose vai pelos ossos (%d)" % n.body)
 	_check(n.view == 0 and n.overlay == 0, "anel e barra sem mudança: nenhum redesenho (%d, %d)" % [n.view, n.overlay])
 	u.take_damage(5.0)
 	view._process(DT)
@@ -66,6 +73,12 @@ func _test_overlays() -> void:
 	_check(n.view >= 10 and n.overlay >= 10, "debug ligado: anel/debug e texto todo quadro")
 	view.queue_free()
 	await process_frame
+
+
+## Assinatura da pose: nº de atualizações de osso enviadas ao esqueleto (o servidor de render
+## headless não guarda as transformações; a contagem mostra se a pose foi enviada).
+static func _pose_sig(v: CodeDrawnUnitVisual) -> int:
+	return v._skin.updates
 
 
 func _test_cache() -> void:

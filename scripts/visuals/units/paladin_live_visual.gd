@@ -95,6 +95,7 @@ func setup(p_unit: CombatUnit, p_def: UnitDef) -> void:
 	animator.compose_pose = false   # este visual só lê o estado do animador (ver PaladinAnimator)
 	animator.setup(look, unit)
 	_yaw = _dir_yaw(animator.dir, animator.lateral)
+	_init_parts()
 	_update(0.0)
 
 
@@ -178,7 +179,9 @@ func corpse_settle_time() -> float:
 
 func update_visual(delta: float) -> void:
 	_update(delta)
-	queue_redraw()
+	var view := get_parent() as UnitView
+	if view and view.debug_visible:
+		queue_redraw()   # só o texto do F4 precisa redesenhar; o corpo vai pelos ossos
 
 
 # --- Pose -------------------------------------------------------------------------------
@@ -315,6 +318,7 @@ func _update(delta: float) -> void:
 			set(key, v if v < 0.9 else -1.0)
 	_parts = _build_parts(p)
 	_update_drops(delta)
+	_apply_frame()
 
 
 func _dir_yaw(dir: int, lateral: float) -> float:
@@ -487,30 +491,209 @@ static func _v2(v: Vector3) -> Vector2:
 	return Vector2(v.x, v.y)
 
 
-# --- Desenho -----------------------------------------------------------------------------
+# --- Desenho leve: peças prontas + ossos -----------------------------------------------------
+## Cada parte do Paladino é uma PEÇA PRONTA num espaço canônico, montada uma vez por tipo, e a pose
+## do quadro vira transformações de ossos (LiteSkin):
+##   - peças planas do corpo (túnica, tabardo) seguem a projeção fake 2.5D EXATA (é afim para um
+##     plano: o osso sai de três pontos projetados);
+##   - membros, espada e ombreiras são peças esticadas entre as articulações (montadas no comprimento
+##     real, então a borda não engrossa);
+##   - peito, elmo, auréola e escudo: largura pelo giro (escala horizontal), como antes;
+##   - variantes que dependem do giro (frente/costas do peito, visor/crista, face/verso do escudo,
+##     tabardo da frente/de trás) entram na malha só quando visíveis.
+## A ordem por profundidade continua por quadro: a malha é escolhida pela ORDEM das partes (uma por
+## ordem, em cache por tipo); a ordem só muda quando o Paladino gira ou numa pose grande.
+
+enum {
+	B_GROUND, B_TAUNT_RING, B_GROUND_ARC,
+	B_LEG_R_THIGH, B_LEG_R_SHIN, B_LEG_R_BOOT, B_LEG_R_KNEE,
+	B_LEG_L_THIGH, B_LEG_L_SHIN, B_LEG_L_BOOT, B_LEG_L_KNEE,
+	B_ROBE, B_TAB_FRONT, B_TAB_BACK,
+	B_TORSO, B_TORSO_FRONT, B_TORSO_BACK, B_BUCKLE,
+	B_HEAD, B_VISOR, B_CREST, B_HALO, B_HALO_GLOW,
+	B_ARM_R_UPPER, B_ARM_R_FORE, B_ARM_R_ELBOW, B_ARM_R_HAND, B_PAULDRON_R,
+	B_ARM_L_UPPER, B_ARM_L_FORE, B_ARM_L_ELBOW, B_ARM_L_HAND, B_PAULDRON_L,
+	B_SWORD, B_SHIELD_EDGE, B_SHIELD, B_SWORD_DROP, B_SHIELD_DROP,
+	B_HOLY_ARC, B_SHIELD_UP, B_SPARK, B_COUNT = B_SPARK + 5,
+}
+## Tamanhos canônicos das peças (unidades do rig).
+const THIGH_L := 6.9
+const SHIN_L := 6.0
+const UPPER_L := 5.4
+const FORE_L := 5.2
+const TORSO_W := 9.0
+const TAB_H := 11.4
+const GROUND_ARC_R := 20.0
+const SHIELD_UP_R := 11.0
+
+## Grupos (partes do desenho original) do quadro, em ordem de profundidade: ids inteiros (ver G_*).
+## Cada id tem a lista de [peça, osso] já resolvida (_group_parts); a ordem decide a malha.
+enum { G_LEG_R, G_LEG_L, G_ROBE, G_TAB_F, G_TAB_B, G_HALO, G_ARM_R, G_ARM_L, G_PAUL_R, G_PAUL_L, G_SWORD,
+	G_SHIELD_F, G_SHIELD_B, G_TORSO = 100, G_HEAD = 200 }
+var _groups := PackedInt32Array()
+var _order := PackedInt32Array()
+var _depths := PackedFloat64Array()
+var _sort_keys := PackedInt64Array()
+var _layout_ids := PackedInt32Array([-1])
+var _group_parts := {}
+var _bones: Array[Transform2D] = []
+var _part_bodies := {}
+
+
+func _bake_salt() -> String:
+	return "%.2f|%.2f|%.2f|%.2f" % [body_width, shield_scale, sword_scale, head_scale]
+
+
+## Peça pronta pelo nome (as funções de montagem ficam em _part_bodies).
+func _piece(key: String) -> LitePart:
+	return _part(key, _part_bodies[key], false, not key.begins_with("fx_"))
+
+
+func _init_parts() -> void:
+	var hs := head_scale
+	var bw := body_width
+	_part_bodies = {
+		"ground": func(): _disc(Vector2.ZERO, 12.5, Color(0, 0, 0, 0.32)),
+		"fx_taunt_ring": func(): _bake.arc(Vector2.ZERO, PaladinTaunt.TAUNT_RADIUS, 0.0, TAU, 64, Color(Color("f0c674"), 0.4), 1.6),
+		"fx_ground_arc": func(): _bake.arc(Vector2.ZERO, GROUND_ARC_R, 0.0, TAU, 40, Color(gold_light, 0.35), 1.6),
+		"thigh_r": _bake_limb.bind(THIGH_L, 3.3, 2.9, ivory, 1.0), "thigh_l": _bake_limb.bind(THIGH_L, 3.3, 2.9, ivory, 0.85),
+		"shin_r": _bake_shin.bind(1.0), "shin_l": _bake_shin.bind(0.85),
+		"boot_r": _bake_boot.bind(1.0), "boot_l": _bake_boot.bind(0.85),
+		"knee_r": _bake_knee.bind(1.0), "knee_l": _bake_knee.bind(0.85),
+		"robe": func():
+			var pts := PackedVector2Array()
+			for c in [[-3.0, 15.0], [3.0, 15.0], [3.6, 6.0], [-3.6, 6.0]]:
+				pts.append(Vector2(c[0] * bw, -c[1]))
+			_poly(pts, _c(dark)),
+		"tab_front": _bake_tabard.bind(true), "tab_back": _bake_tabard.bind(false),
+		"torso": _bake_torso, "torso_side": _bake_torso_side, "torso_hi": _bake_torso_hi,
+		"torso_front": _bake_torso_front, "torso_back": _bake_torso_back, "torso_belt": _bake_torso_belt,
+		"buckle": func():
+			_poly(PackedVector2Array([Vector2(-1.8, -1.6), Vector2(1.8, -1.6), Vector2(1.8, 1.6), Vector2(-1.8, 1.6)]), _c(gold_light))
+			_disc(Vector2.ZERO, 0.7, _c(gold_dark)),
+		"torso_frald": func():
+			var w := TORSO_W
+			_fill(PackedVector2Array([Vector2(-w * 0.8, 6.0), Vector2(w * 0.8, 6.0), Vector2(w * 0.86, 8.4), Vector2(-w * 0.86, 8.4)]), _c(ivory_shade)),
+		"helm": _bake_helm, "helm_shade_l": _bake_helm_shade.bind(-1.0), "helm_shade_r": _bake_helm_shade.bind(1.0),
+		"helm_top": _bake_helm_top, "visor": _bake_visor, "crest": func():
+			_line(Vector2(0, -11.4 * hs * 0.97), Vector2(0, -11.4 * hs * 0.1), _c(gold), 1.2),
+		"halo": _bake_halo, "fx_halo_glow": func(): _disc(Vector2.ZERO, 1.0, Color(holy, 0.18)),
+		"upper_r": _bake_limb.bind(UPPER_L, 2.4, 2.2, ivory_shade, 1.0), "upper_l": _bake_limb.bind(UPPER_L, 2.4, 2.2, ivory_shade, 0.82),
+		"fore_r": _bake_fore.bind(1.0), "fore_l": _bake_fore.bind(0.82),
+		"elbow_r": _bake_elbow.bind(1.0), "elbow_l": _bake_elbow.bind(0.82),
+		"hand_r": func(): _circle(Vector2.ZERO, 2.1, _c(leather, 1.0)),
+		"hand_l": func(): _circle(Vector2.ZERO, 2.1, _c(leather, 0.82)),
+		"pauldron_r": _bake_pauldron.bind(1.0), "pauldron_l": _bake_pauldron.bind(0.82),
+		"sword": _bake_sword, "shield_edge": func(): _poly(_shield_outer(), _c(gold_dark)),
+		"shield_front": _bake_shield.bind(true), "shield_back": _bake_shield.bind(false), "shield_drop": _bake_shield_drop,
+		"fx_holy_arc": func(): _bake.arc(Vector2.ZERO, 11.0 * RIG_SCALE * shield_scale, 0.0, TAU, 32, Color(holy, 0.3), 1.4),
+		"fx_shield_up": func(): _bake.arc(Vector2.ZERO, SHIELD_UP_R, 0.0, TAU, 32, Color(gold_light, 0.7), 1.4),
+		"fx_spark": func(): _bake.line(Vector2.ZERO, Vector2(1, 0), Color(gold_light, 0.9), 1.2),
+	}
+	_bones.resize(B_COUNT)
+	for i in B_COUNT:
+		_bones[i] = LiteSkin.HIDDEN
+	_skin = LiteSkin.new(B_COUNT)
+	_skin.attach(self)
+	set_notify_transform(true)
+
+
+## Os ossos do quadro vão para o esqueleto; se a ordem/visibilidade das partes mudou, troca a malha.
+func _apply_frame() -> void:
+	if _skin == null:
+		return
+	if _groups != _layout_ids:
+		_layout_ids = _groups.duplicate()
+		var layout := [[_piece("fx_taunt_ring"), B_TAUNT_RING], [_piece("fx_ground_arc"), B_GROUND_ARC], [_piece("ground"), B_GROUND]]
+		for g in _groups:
+			layout.append_array(_parts_of(g))
+		layout.append([_piece("shield_drop"), B_SHIELD_DROP])
+		layout.append([_piece("sword"), B_SWORD_DROP])
+		layout.append([_piece("fx_holy_arc"), B_HOLY_ARC])
+		layout.append([_piece("fx_shield_up"), B_SHIELD_UP])
+		var spark := _piece("fx_spark")
+		for i in 5:
+			layout.append([spark, B_SPARK + i])
+		var key := PackedStringArray()
+		for g in _groups:
+			key.append(str(g))
+		_mesh = LiteSkin.mesh(_bake_prefix + "mesh|" + ",".join(key), layout)
+		queue_redraw()
+	for i in B_COUNT:
+		_skin.set_bone(i, _bones[i])
+	_apply_fx()
+
+
+## [peça, osso] do grupo `g` (resolvido uma vez).
+func _parts_of(g: int) -> Array:
+	var out: Array = _group_parts.get(g, [])
+	if not out.is_empty():
+		return out
+	match g:
+		G_LEG_R, G_LEG_L:
+			var k := "r" if g == G_LEG_R else "l"
+			var b0 := B_LEG_R_THIGH if g == G_LEG_R else B_LEG_L_THIGH
+			out = [[_piece("thigh_" + k), b0], [_piece("shin_" + k), b0 + 1], [_piece("boot_" + k), b0 + 2], [_piece("knee_" + k), b0 + 3]]
+		G_ROBE:
+			out = [[_piece("robe"), B_ROBE]]
+		G_TAB_F:
+			out = [[_piece("tab_front"), B_TAB_FRONT]]
+		G_TAB_B:
+			out = [[_piece("tab_back"), B_TAB_BACK]]
+		G_HALO:
+			out = [[_piece("fx_halo_glow"), B_HALO_GLOW], [_piece("halo"), B_HALO]]
+		G_ARM_R, G_ARM_L:
+			var k := "r" if g == G_ARM_R else "l"
+			var b0 := B_ARM_R_UPPER if g == G_ARM_R else B_ARM_L_UPPER
+			out = [[_piece("upper_" + k), b0], [_piece("fore_" + k), b0 + 1], [_piece("elbow_" + k), b0 + 2], [_piece("hand_" + k), b0 + 3]]
+		G_PAUL_R:
+			out = [[_piece("pauldron_r"), B_PAULDRON_R]]
+		G_PAUL_L:
+			out = [[_piece("pauldron_l"), B_PAULDRON_L]]
+		G_SWORD:
+			out = [[_piece("sword"), B_SWORD]]
+		G_SHIELD_F, G_SHIELD_B:
+			out = [[_piece("shield_edge"), B_SHIELD_EDGE], [_piece("shield_front" if g == G_SHIELD_F else "shield_back"), B_SHIELD]]
+		_:
+			if g >= G_HEAD:   # bits: 1 = sombra do lado direito, 2 = visor (senão crista)
+				var f := g - G_HEAD
+				out = [[_piece("helm"), B_HEAD], [_piece("helm_shade_r" if f & 1 else "helm_shade_l"), B_HEAD], [_piece("helm_top"), B_HEAD]]
+				out.append([_piece("visor"), B_VISOR] if f & 2 else [_piece("crest"), B_CREST])
+			else:             # tronco — bits: 1 = lado, 2 = frente (senão costas), 4 = fivela
+				var f := g - G_TORSO
+				out = [[_piece("torso"), B_TORSO]]
+				if f & 1:
+					out.append([_piece("torso_side"), B_TORSO])
+				out.append([_piece("torso_hi"), B_TORSO])
+				out.append([_piece("torso_front"), B_TORSO_FRONT] if f & 2 else [_piece("torso_back"), B_TORSO_BACK])
+				out.append([_piece("torso_belt"), B_TORSO])
+				if f & 4:
+					out.append([_piece("buckle"), B_BUCKLE])
+				out.append([_piece("torso_frald"), B_TORSO])
+	_group_parts[g] = out
+	return out
+
 
 func _draw() -> void:
-	if _pose.is_empty():
-		return
-	_draw_effects_under()
-	_draw_shadow()
-	var p := _pose
-	var fs := 1.0 if _yaw >= 0.0 else -1.0
-	var root := Transform2D(0.0, BODY_SCALE * RIG_SCALE, 0.0, Vector2(0, FOOT_Y))
-	# vista da esquerda = espelho do desenho (a pose e as âncoras são as da direita)
-	var body_xf := root * Transform2D(0.0, Vector2(fs, 1.0), 0.0, Vector2.ZERO) * Transform2D(deg_to_rad(-float(p.tilt)), Vector2(float(p.rootx), float(p.rooty)))
-	var parts := _parts.duplicate()
-	parts.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
-	_body_xf = body_xf
-	_with(body_xf)
-	for it in parts:
-		(it[1] as Callable).call()
-	# arma e escudo soltos (no espaço da raiz, não caem junto com o corpo)
-	_with(root)
-	_draw_drops()
-	draw_set_transform_matrix(Transform2D.IDENTITY)
-	_draw_effects_over(body_xf)
+	_skin_draw()
 	_draw_debug()
+
+
+## Osso de uma peça montada ao longo de +x com `length` unidades, esticada de `a` até `b`.
+static func _limb(a: Vector2, b: Vector2, length: float) -> Transform2D:
+	var d := b - a
+	var n := d.orthogonal().normalized() if d.length() > 0.001 else Vector2(0, -1)
+	return Transform2D(d / length, n, a)
+
+
+## Osso de uma peça PLANA do corpo. A peça é montada em (u, v) e o ponto 3D (L, F, Y) do corpo é
+## afim em (u, v): L = u; F = f0 + fv·v; Y = y0 + yv·v. A projeção (_proj) também é afim, então o osso
+## sai exato de três pontos: origem, u = 1 e v = 1.
+static func _plane_bone(f0: float, fv: float, y0: float, yv: float, yaw: float) -> Transform2D:
+	var o := _proj(0.0, f0, y0, yaw)
+	var pu := _proj(1.0, f0, y0, yaw)
+	var pv := _proj(0.0, f0 + fv, y0 + yv, yaw)
+	return Transform2D(Vector2(pu.x - o.x, pu.y - o.y), Vector2(pv.x - o.x, pv.y - o.y), Vector2(o.x, o.y))
 
 
 func _build_parts(p: Dictionary) -> Array:
@@ -522,56 +705,101 @@ func _build_parts(p: Dictionary) -> Array:
 	var au := a + float(p.twist)
 	var ah := au + float(p.head_turn)
 	var ca := cos(deg_to_rad(a))
-	var cu := cos(deg_to_rad(au))
 	var bw := body_width
 	var crouch: float = p.crouch
 	var lean_x := float(p.lean) * 0.09          # inclinação: o tronco avança na direção da frente
 	var up_f := lean_x                           # frente do tronco (unidades F) por causa da inclinação
-	var parts: Array = []
+	var fs := 1.0 if _yaw >= 0.0 else -1.0
+	var root := Transform2D(0.0, BODY_SCALE * RIG_SCALE, 0.0, Vector2(0, FOOT_Y))
+	var body := root * Transform2D(0.0, Vector2(fs, 1.0), 0.0, Vector2.ZERO) * Transform2D(deg_to_rad(-float(p.tilt)), Vector2(float(p.rootx), float(p.rooty)))
+	_body_xf = body
+	_groups.resize(0)
+	_depths.resize(0)
 	var A := {}
+	var bn := _bones
 
 	# --- pernas (yaw do quadril) ---
 	for side in [RIGHT, LEFT]:
 		var key := "r" if side < 0 else "l"
 		var hip := Vector3(side * 4.0 * bw, 13.4 - crouch, 0.0)
-		# base firme: pés afastados (mais que o quadril), joelhos levemente dobrados
 		var foot := Vector3(side * (7.0 + float(p.stance)) * bw, float(p[key + "l"]), float(p[key + "f"]))
 		var dist := Vector2(hip.x - foot.x, hip.y - foot.y).length()
 		var knee_push := sqrt(maxf(0.0, 6.9 * 6.9 - dist * dist / 4.0))
-		# joelhos dobrados para a frente e um pouco para fora (postura pesada)
 		var knee := (hip + foot) / 2.0 + Vector3(side * knee_push * 0.25, 0, knee_push * 0.85)
 		var ph := _proj(hip.x, hip.z, hip.y, a)
 		var pk := _proj(knee.x, knee.z, knee.y, a)
 		var pf := _proj(foot.x, foot.z, foot.y, a)
-		var boot: Array = []
-		for c in [[-2.3, -2.2, 0.0], [2.3, -2.2, 0.0], [2.2, 3.9, 0.0], [0.0, 5.2, 0.4], [-2.2, 3.9, 0.0], [-2.2, -0.6, 3.6], [2.2, -0.6, 3.6]]:
-			boot.append(_proj(foot.x + c[0], foot.z + c[1], foot.y + c[2], a))
-		var near := ph.z
-		parts.append([near - 0.5, _draw_leg.bind(_v2(ph), _v2(pk), _v2(pf), boot, 1.0 if near >= -0.5 else 0.85)])
-	# túnica escura entre as pernas (atrás do tabardo)
-	var robe: Array = []
-	for c in [[-3.0, 15.0], [3.0, 15.0], [3.6, 6.0], [-3.6, 6.0]]:
-		robe.append(_v2(_proj(c[0] * bw, -0.6, c[1] - crouch, a)))
-	parts.append([-1.5, _draw_poly.bind(PackedVector2Array(robe), dark, 1.0)])
-	# tabardo: frente (com a estrela) e verso
+		var b0 := B_LEG_R_THIGH if side < 0 else B_LEG_L_THIGH
+		bn[b0] = body * _limb(_v2(ph), _v2(pk), THIGH_L)
+		bn[b0 + 1] = body * _limb(_v2(pk), _v2(pf) + Vector2(0, -1.4), SHIN_L)
+		bn[b0 + 2] = body * Transform2D(0.0, _v2(pf))
+		bn[b0 + 3] = body * Transform2D(0.0, _v2(pk))
+		_group(G_LEG_R if side < 0 else G_LEG_L, ph.z - 0.5)
+	# túnica escura entre as pernas (atrás do tabardo): plano F = −0,6
+	bn[B_ROBE] = body * _plane_bone(-0.6, 0.0, -crouch, -1.0, a)
+	_group(G_ROBE, -1.5)
+	# tabardo: frente (com a estrela) e verso; a barra balança para a frente/trás (plano inclinado)
 	var tab: float = p.tab
-	if ca > -0.35:
-		parts.append([4.8 * ca + 0.8, _draw_tabard.bind(a, 5.0, tab, true, crouch)])
-	if ca < 0.35:
-		parts.append([-4.2 * ca - 0.8, _draw_tabard.bind(a, -4.2, -tab, false, crouch)])
+	var top := 15.0 - crouch
+	var bot := 3.6 - crouch * 0.5
+	var ky := (top - bot) / TAB_H
+	for front in [true, false]:
+		if (front and ca > -0.35) or (not front and ca < 0.35):
+			var f := 5.0 if front else -4.2
+			var sw := (tab if front else -tab) * 0.06
+			var bone := B_TAB_FRONT if front else B_TAB_BACK
+			bn[bone] = body * _plane_bone(f, sw / TAB_H, top, -ky, a)
+			_group(G_TAB_F if front else G_TAB_B, (4.8 * ca + 0.8) if front else (-4.2 * ca - 0.8))
 
 	# --- tronco (yaw do tronco) ---
-	var torso_c := _proj(up_f, 0.0, 21.5 - crouch, au)
-	parts.append([0.0, _draw_torso.bind(au, crouch, up_f)])
+	var c := cos(deg_to_rad(au))
+	var s := sin(deg_to_rad(au))
+	var tw := 8.6 * bw * (0.84 + 0.16 * absf(c))
+	var cx := _proj(up_f, 1.0, 21.0 - crouch, au)
+	var o := Vector2(cx.x, cx.y)
+	var tsx := Vector2(tw / TORSO_W, 0.0)
+	bn[B_TORSO] = body * Transform2D(tsx, Vector2(0, 1), o)
+	var tf := 0
+	if absf(s) > 0.3:
+		tf |= 1
+	if c > 0.12:
+		bn[B_TORSO_FRONT] = body * Transform2D(tsx, Vector2(0, 1), o + Vector2(s * tw * 0.35, 0))
+		tf |= 2
+	else:
+		bn[B_TORSO_BACK] = body * Transform2D(tsx, Vector2(0, 1), o + Vector2(s * tw * 0.3, 0))
+	if c > 0.1:
+		bn[B_BUCKLE] = body * Transform2D(0.0, o + Vector2(s * tw * 0.4, 4.9))
+		tf |= 4
+	_group(G_TORSO + tf, 0.0)
 	# --- cabeça e auréola ---
 	var neck := _proj(up_f * 1.4, 0.3, 28.4 - crouch, au)
 	A[&"head"] = _v2(neck) + Vector2(0, -6.0)
 	A[&"helmet_top"] = _v2(neck) + Vector2(0, -11.4 * head_scale)
-	parts.append([1.6, _draw_head.bind(_v2(neck), ah, float(p.head_tilt))])
+	var hc_ := cos(deg_to_rad(ah))
+	var hs_ := sin(deg_to_rad(ah))
+	var head_xf := body * Transform2D(deg_to_rad(float(p.head_tilt) * signf(hs_ + 0.0001)), _v2(neck))
+	var hw := 5.8 * head_scale * (0.9 + 0.1 * absf(hc_))
+	var hw0 := 5.8 * head_scale * 0.95
+	bn[B_HEAD] = head_xf * Transform2D(Vector2(hw / hw0, 0), Vector2(0, 1), Vector2.ZERO)
+	var back := -signf(hs_) if absf(hs_) > 0.25 else 1.0
+	var vx := hs_ * hw * 0.62
+	var hf := 0 if back < 0.0 else 1
+	if hc_ > -0.25:
+		var vk := clampf(hc_ * 0.75 + 0.45, 0.35, 1.0)
+		bn[B_VISOR] = head_xf * Transform2D(Vector2(vk, 0), Vector2(0, 1), Vector2(vx, 0))
+		hf |= 2
+	else:
+		bn[B_CREST] = head_xf * Transform2D(0.0, Vector2(-vx * 0.4, 0))
+	_group(G_HEAD + hf, 1.6)
 	var hc := _proj(up_f * 1.4, -3.2, 37.0 - crouch, ah)
-	var halo_depth := -3.2 * cos(deg_to_rad(ah)) + (1.6 if cos(deg_to_rad(ah)) < 0.0 else 0.0)
+	var halo_depth := -3.2 * hc_ + (1.6 if hc_ < 0.0 else 0.0)
 	A[&"halo"] = _v2(hc)
-	parts.append([halo_depth, _draw_halo.bind(_v2(hc), ah, float(p.glow))])
+	var hk := 0.78 + 0.22 * absf(hc_)
+	bn[B_HALO] = body * Transform2D(Vector2(hk, 0), Vector2(0, 1), _v2(hc))
+	var glow := float(p.glow)
+	var gr := (7.0 * head_scale + 2.5)
+	bn[B_HALO_GLOW] = body * Transform2D(0.0, Vector2(gr, gr), 0.0, _v2(hc)) if glow > 0.05 else LiteSkin.HIDDEN
+	_group(G_HALO, halo_depth)
 
 	# --- braços, ombreiras, espada (direito) e escudo (esquerdo) ---
 	for side in [RIGHT, LEFT]:
@@ -588,10 +816,16 @@ func _build_parts(p: Dictionary) -> Array:
 		var ps := _proj(sh3.x, sh3.z, sh3.y, au)
 		var pe := _proj(elbow.x, elbow.z, elbow.y, au)
 		var ph := _proj(hand.x, hand.z, hand.y, au)
-		var shade := 1.0 if ps.z >= -0.5 else 0.82
-		parts.append([(ps.z + ph.z) * 0.5 + 0.2, _draw_arm.bind(_v2(ps), _v2(pe), _v2(ph), shade)])
+		var b0 := B_ARM_R_UPPER if side < 0 else B_ARM_L_UPPER
+		bn[b0] = body * _limb(_v2(ps), _v2(pe), UPPER_L)
+		bn[b0 + 1] = body * _limb(_v2(pe), _v2(ph), FORE_L)
+		bn[b0 + 2] = body * Transform2D(0.0, _v2(pe))
+		bn[b0 + 3] = body * Transform2D(0.0, _v2(ph))
+		_group(G_ARM_R if side < 0 else G_ARM_L, (ps.z + ph.z) * 0.5 + 0.2)
 		var pd := _proj(sh3.x * 1.05, sh3.z, sh3.y + 1.2, au)
-		parts.append([ps.z + 0.6 + (0.0 if ps.z >= 0.0 else -0.4), _draw_pauldron.bind(_v2(pd), au, side, shade)])
+		var pk := 0.85 + 0.15 * absf(cos(deg_to_rad(au)))
+		bn[b0 + 4] = body * Transform2D(Vector2(pk / 0.92, 0), Vector2(0, 1), _v2(pd))
+		_group(G_PAUL_R if side < 0 else G_PAUL_L, ps.z + 0.6 + (0.0 if ps.z >= 0.0 else -0.4))
 		A[StringName(key + "_hand")] = _v2(ph)
 		A[StringName(key + "_hand3")] = hand
 		A[StringName(key + "_shoulder")] = _v2(ps)
@@ -609,17 +843,15 @@ func _build_parts(p: Dictionary) -> Array:
 			A[&"sword_tip"] = _v2(pt)
 			A[&"sword_ang"] = (_v2(pt) - _v2(pg)).angle()
 			if _sword_drop.is_empty():
-				parts.append([pg.z + 0.9, _draw_sword.bind(_v2(pg), _v2(pt))])
+				bn[B_SWORD] = body * _limb(_v2(pg), _v2(pt), 15.5 * sword_scale)
+				_group(G_SWORD, pg.z + 0.9)
 		else:
 			# escudo: preso ao braço esquerdo, à frente da mão
 			var c3 := hand + Vector3(-1.6, -1.0, 2.6 + float(p.sh_fwd))
 			var pc := _proj(c3.x, c3.z, c3.y, au)
-			# a face do escudo fica quase sempre voltada para a câmera (leitura), girando só um pouco com
-			# o corpo; de costas aparece o verso
 			var front_view := cos(deg_to_rad(au)) >= 0.0
 			var view_ang := (au if front_view else signf(au) * (180.0 - absf(au))) * 0.4 + (float(p.sh_yaw) - 18.0) * 0.8
 			var face := cos(deg_to_rad(view_ang)) * (1.0 if front_view else -1.0)
-			# vista da esquerda (referência): aparece o verso do escudo, com o punho segurando a alça
 			if mirrored and front_view:
 				face = -absf(face)
 			var fwd_x := sin(deg_to_rad(au))
@@ -630,270 +862,50 @@ func _build_parts(p: Dictionary) -> Array:
 				var arm_z := (ps.z + ph.z) * 0.5 + 0.2
 				var sz := pc.z + 1.4 + (1.0 if face > 0.0 else -1.2)
 				if mirrored and front_view:
-					sz = minf(arm_z - 0.3, -0.3)   # verso atrás do braço (o punho aparece) e do tronco
-				parts.append([sz, _draw_shield.bind(_v2(pc), face, fwd_x, float(p.lean) * 0.4, 1.0)])
+					sz = minf(arm_z - 0.3, -0.3)
+				var k := shield_scale
+				var sxf := Transform2D(deg_to_rad(float(p.lean) * 0.4 * signf(fwd_x + 0.0001)), Vector2(maxf(absf(face), 0.22) * k, k), 0.0, _v2(pc))
+				var edge := 1.6 * (1.0 - absf(face)) * signf(-fwd_x if face >= 0.0 else fwd_x)
+				bn[B_SHIELD_EDGE] = body * Transform2D(0.0, Vector2(edge, 0.0)) * sxf
+				bn[B_SHIELD] = body * sxf
+				_group(G_SHIELD_F if face >= 0.0 else G_SHIELD_B, sz)
 	anchors = A
-	return parts
+	# ordem por profundidade (estável: empate mantém a ordem de montagem); ordenação nativa por chave
+	var n := _depths.size()
+	_sort_keys.resize(n)
+	for i in n:
+		_sort_keys[i] = int((_depths[i] + 1000.0) * 4096.0) * 64 + i
+	_sort_keys.sort()
+	_order.resize(n)
+	for i in n:
+		_order[i] = _groups[_sort_keys[i] & 63]
+	var tmp := _groups
+	_groups = _order
+	_order = tmp
+	_pose_extras(root)
+	return Array(_groups)
 
 
-func _draw_poly(pts: PackedVector2Array, col: Color, shade: float) -> void:
-	_poly(pts, _c(col, shade))
+func _group(id: int, depth: float) -> void:
+	_groups.append(id)
+	_depths.append(depth)
 
 
-func _quad(a: Vector2, b: Vector2, wa: float, wb: float) -> PackedVector2Array:
-	var n := (b - a).orthogonal().normalized() if (b - a).length() > 0.01 else Vector2.RIGHT
-	return PackedVector2Array([a + n * wa, b + n * wb, b - n * wb, a - n * wa])
-
-
-func _draw_leg(hip: Vector2, knee: Vector2, foot: Vector2, boot: Array, shade: float) -> void:
-	_poly(_quad(hip, knee, 3.3, 2.9), _c(ivory, shade))
-	_poly(_quad(knee, foot + Vector2(0, -1.4), 2.9, 2.6), _c(ivory_shade, shade))
-	# faixa dourada na canela
-	var gd := knee.lerp(foot, 0.62)
-	var gn := (foot - knee).orthogonal().normalized()
-	_line(gd + gn * 2.6, gd - gn * 2.6, _c(gold, shade), 1.2)
-	# bota: sola + bico pontudo + faixa dourada
-	var b := PackedVector2Array()
-	for i in [0, 4, 3, 2, 1]:
-		b.append(_v2(boot[i]))
-	_poly(Geometry2D.convex_hull(b + PackedVector2Array([_v2(boot[5]), _v2(boot[6])])), _c(ivory, shade))
-	_line(_v2(boot[5]), _v2(boot[6]), _c(gold, shade), 1.6)
-	# joelheira: disco marfim com aro dourado
-	_circle(knee + Vector2(0, -0.3), 2.2, _c(gold, shade))
-	draw_circle(knee + Vector2(-0.4, -0.7), 0.8, _c(gold_light, shade))
-
-
-func _draw_tabard(yaw: float, f: float, swing: float, front: bool, crouch: float) -> void:
-	var pts := PackedVector2Array()
-	var sw := swing * 0.06
-	var top := 15.0 - crouch
-	var bot := 3.6 - crouch * 0.5
-	for c in [[-3.6, top, 0.0], [3.6, top, 0.0], [4.1, bot, sw], [0.7, bot + 1.8, sw], [0.0, bot + 1.1, sw], [-0.7, bot + 1.8, sw], [-4.1, bot, sw]]:
-		pts.append(_v2(_proj(c[0], f + c[2], c[1], yaw)))
-	var col := ivory_light if front else ivory
-	_poly(pts, _c(col))
-	if front:
-		# estrela dourada simples
-		var sc := _v2(_proj(0.0, f + sw * 0.5, 9.6 - crouch * 0.7, yaw))
-		var k := clampf(absf(cos(deg_to_rad(yaw))) * 0.8 + 0.2, 0.2, 1.0)
-		draw_colored_polygon(_xf_pts(PaladinMesh.star4(Vector2.ZERO, 1.5 * k, 2.2, 2.4, 0.55), Transform2D(0.0, sc)), _c(gold))
-	_line(_v2(_proj(-3.6, f, top, yaw)), _v2(_proj(3.6, f, top, yaw)), _c(gold_dark), 0.8)
-
-
-func _draw_torso(yaw: float, crouch: float, up_f: float) -> void:
-	var c := cos(deg_to_rad(yaw))
-	var s := sin(deg_to_rad(yaw))
-	var bw := body_width
-	var w := 8.6 * bw * (0.84 + 0.16 * absf(c))
-	var cx := _proj(up_f, 1.0, 21.0 - crouch, yaw)
-	var o := Vector2(cx.x, cx.y)
-	var fs := signf(s)
-	# peitoral: uma placa grande, larga em cima (ombros) e estreitando na cintura
-	var plate := PackedVector2Array([
-		o + Vector2(-w * 0.92, -6.4), o + Vector2(w * 0.92, -6.4), o + Vector2(w, -2.4), o + Vector2(w * 0.78, 4.6),
-		o + Vector2(-w * 0.78, 4.6), o + Vector2(-w, -2.4)])
-	_poly(plate, _c(ivory))
-	# sombra inferior e lado de trás (volume por luz simples)
-	draw_colored_polygon(PackedVector2Array([o + Vector2(-w * 0.86, 1.8), o + Vector2(w * 0.86, 1.8), o + Vector2(w * 0.78, 4.6), o + Vector2(-w * 0.78, 4.6)]), _c(ivory_shade))
-	if absf(s) > 0.3:
-		var bx := -fs * w
-		draw_colored_polygon(PackedVector2Array([o + Vector2(bx, -2.4), o + Vector2(bx * 0.92, -6.4), o + Vector2(bx * 0.55, -6.4), o + Vector2(bx * 0.6, 4.6), o + Vector2(bx * 0.78, 4.6)]), _c(ivory_shade))
-	# brilho no alto do peito (luz de cima/esquerda)
-	draw_colored_polygon(PackedVector2Array([o + Vector2(-w * 0.62, -5.6), o + Vector2(-w * 0.08, -5.6), o + Vector2(-w * 0.2, -3.2), o + Vector2(-w * 0.6, -3.4)]), _c(ivory_light))
-	if c > 0.12:
-		# gola dourada em V e símbolo solar (só de frente)
-		var ex := s * w * 0.35
-		draw_colored_polygon(PackedVector2Array([o + Vector2(-w * 0.62 + ex, -6.4), o + Vector2(w * 0.62 + ex, -6.4), o + Vector2(ex, -3.0)]), _c(gold))
-		draw_colored_polygon(PackedVector2Array([o + Vector2(-w * 0.4 + ex, -6.4), o + Vector2(w * 0.4 + ex, -6.4), o + Vector2(ex, -4.2)]), _c(dark))
-		var sun := o + Vector2(ex, -0.6)
-		var k := clampf(c, 0.3, 1.0)
-		draw_colored_polygon(_xf_pts(PaladinMesh.star4(Vector2.ZERO, 2.1 * k, 2.1, 2.1, 0.7), Transform2D(0.0, sun)), _c(gold))
-		draw_circle(sun, 0.9, _c(gold_light))
-	else:
-		# costas: placa com a costura central e gola dourada
-		var ex := s * w * 0.3
-		_line(o + Vector2(ex, -5.8), o + Vector2(ex, 3.6), _c(ivory_shade), 1.0)
-		_line(o + Vector2(-w * 0.6 - ex * 0.2, -6.2), o + Vector2(w * 0.6 - ex * 0.2, -6.2), _c(gold), 1.3)
-	# cinto dourado + fivela grande
-	var belt := PackedVector2Array([o + Vector2(-w * 0.8, 3.7), o + Vector2(w * 0.8, 3.7), o + Vector2(w * 0.82, 6.1), o + Vector2(-w * 0.82, 6.1)])
-	_poly(belt, _c(gold))
-	_line(o + Vector2(-w * 0.8, 5.5), o + Vector2(w * 0.8, 5.5), _c(gold_dark), 0.7)
-	if c > 0.1:
-		var bx := o + Vector2(s * w * 0.4, 4.9)
-		_poly(PackedVector2Array([bx + Vector2(-1.8, -1.6), bx + Vector2(1.8, -1.6), bx + Vector2(1.8, 1.6), bx + Vector2(-1.8, 1.6)]), _c(gold_light))
-		draw_circle(bx, 0.7, _c(gold_dark))
-	# fraldão (placa curta abaixo do cinto)
-	draw_colored_polygon(PackedVector2Array([o + Vector2(-w * 0.8, 6.0), o + Vector2(w * 0.8, 6.0), o + Vector2(w * 0.86, 8.4), o + Vector2(-w * 0.86, 8.4)]), _c(ivory_shade))
-
-
-func _draw_head(neck: Vector2, yaw: float, tilt: float) -> void:
-	_with(_body_xf * Transform2D(deg_to_rad(tilt * signf(sin(deg_to_rad(yaw)) + 0.0001)), neck))
-	var c := cos(deg_to_rad(yaw))
-	var s := sin(deg_to_rad(yaw))
-	var hs := head_scale
-	var w := 5.8 * hs * (0.9 + 0.1 * absf(c))
-	var h := 11.4 * hs
-	# elmo fechado arredondado (bucket): base reta, topo em cúpula
-	var helm := PackedVector2Array()
-	for i in 13:
-		helm.append(Vector2(_HELM_COS[i] * w, -h * 0.55 + _HELM_SIN[i] * h * 0.45))
-	helm.append(Vector2(w * 0.98, 0.0))
-	helm.append(Vector2(-w * 0.98, 0.0))
-	_poly(helm, _c(ivory))
-	# sombra do lado de trás e brilho no topo
-	var back := -signf(s) if absf(s) > 0.25 else 1.0
-	draw_colored_polygon(PackedVector2Array([Vector2(back * w * 0.94, -0.3), Vector2(back * w * 0.96, -h * 0.55), Vector2(back * w * 0.62, -h * 0.88), Vector2(back * w * 0.55, -0.3)]), _c(ivory_shade))
-	draw_colored_polygon(PackedVector2Array([Vector2(-w * 0.6, -h * 0.82), Vector2(-w * 0.1, -h * 0.95), Vector2(-w * 0.15, -h * 0.72), Vector2(-w * 0.55, -h * 0.62)]), _c(ivory_light))
-	_line(Vector2(-w * 0.98, -0.9), Vector2(w * 0.98, -0.9), _c(gold), 1.1)
-	var vx := s * w * 0.62
-	if c > -0.25:
-		# visor em T estreito com borda dourada e linha dourada no alto
-		var k := clampf(c * 0.75 + 0.45, 0.35, 1.0)
-		_line(Vector2(vx, -h * 0.97), Vector2(vx, -h * 0.62), _c(gold), 1.2)
-		var t_gold := PackedVector2Array([Vector2(vx - 3.6 * k, -h * 0.62), Vector2(vx + 3.6 * k, -h * 0.62), Vector2(vx + 3.6 * k, -h * 0.47),
-			Vector2(vx + 1.2 * k, -h * 0.47), Vector2(vx + 1.2 * k, -h * 0.16), Vector2(vx - 1.2 * k, -h * 0.16), Vector2(vx - 1.2 * k, -h * 0.47), Vector2(vx - 3.6 * k, -h * 0.47)])
-		draw_colored_polygon(t_gold, _c(gold))
-		var t_slit := PackedVector2Array([Vector2(vx - 2.8 * k, -h * 0.585), Vector2(vx + 2.8 * k, -h * 0.585), Vector2(vx + 2.8 * k, -h * 0.505),
-			Vector2(vx + 0.45 * k, -h * 0.505), Vector2(vx + 0.45 * k, -h * 0.22), Vector2(vx - 0.45 * k, -h * 0.22), Vector2(vx - 0.45 * k, -h * 0.505), Vector2(vx - 2.8 * k, -h * 0.505)])
-		draw_colored_polygon(t_slit, _c(visor))
-	else:
-		# traseira do elmo: crista dourada no centro de trás
-		_line(Vector2(-vx * 0.4, -h * 0.97), Vector2(-vx * 0.4, -h * 0.1), _c(gold), 1.2)
-	_with(_body_xf)
-
-
-func _draw_halo(c: Vector2, yaw: float, glow: float) -> void:
-	var k := 0.78 + 0.22 * absf(cos(deg_to_rad(yaw)))
-	var r := 7.0 * head_scale
-	var col := gold.lerp(holy, glow * 0.5)
-	if glow > 0.01:
-		draw_circle(c, r + 2.5, Color(holy, 0.18 * glow))
-	draw_set_transform_matrix(_body_xf * Transform2D(0.0, Vector2(k, 1.0), 0.0, c))
-	# o anel é sempre a mesma forma (raio fixo, no espaço da auréola): malha cacheada (DrawCache,
-	# mesma geometria do draw_arc suavizado); o resto do Paladino é projetado e fica no caminho direto
-	for ring in [[2.3, _c(outline)], [1.3, _c(col)]]:
-		var m := DrawCache.arc_mesh(Vector2.ZERO, r, 0.0, TAU, 28, ring[0])
-		if m:
-			draw_mesh(m, null, Transform2D.IDENTITY, ring[1])
-		else:
-			draw_arc(Vector2.ZERO, r, 0.0, TAU, 28, ring[1], ring[0], true)
-	_with(_body_xf)
-	# três pontas pequenas (topo maior)
-	for spec in [[Vector2(0, -r - 1.2), 3.4, 1.0], [Vector2(-r * k - 0.4, 0), 2.0, 0.8], [Vector2(r * k + 0.4, 0), 2.0, 0.8]]:
-		var sp := _xf_pts(PaladinMesh.star4(Vector2.ZERO, spec[1] * 0.55, spec[1], spec[1] * 0.75, 0.3 * spec[1]), Transform2D(0.0, c + spec[0]))
-		_poly(sp, _c(col))
-
-
-func _draw_arm(sh: Vector2, el: Vector2, hand: Vector2, shade: float) -> void:
-	_poly(_quad(sh, el, 2.4, 2.2), _c(ivory_shade, shade))
-	_poly(_quad(el, hand, 2.3, 2.1), _c(ivory, shade))
-	# punho dourado + manopla marrom
-	var n := (hand - el).orthogonal().normalized()
-	var cuff := hand.lerp(el, 0.3)
-	_line(cuff + n * 2.3, cuff - n * 2.3, _c(gold, shade), 1.4)
-	draw_circle(el, 1.7, _c(gold, shade))
-	draw_circle(el, 1.0, _c(ivory_light, shade))
-	_circle(hand, 2.1, _c(leather, shade))
-
-
-func _draw_pauldron(c: Vector2, yaw: float, side: float, shade: float) -> void:
-	# ombreira grande e arredondada: aumenta bastante a largura da silhueta
-	var s := sin(deg_to_rad(yaw))
-	var k := 0.85 + 0.15 * absf(cos(deg_to_rad(yaw)))
-	var rx := 6.0 * k * body_width
-	var ry := 5.2
-	var pts := PackedVector2Array()
-	for i in 13:
-		pts.append(c + Vector2(_PAULDRON_COS[i] * rx, _PAULDRON_SIN[i] * ry + 1.2))
-	pts.append(c + Vector2(rx * 0.95, 2.6))
-	pts.append(c + Vector2(-rx * 0.95, 2.6))
-	_poly(pts, _c(ivory, shade))
-	# borda dourada embaixo
-	draw_colored_polygon(PackedVector2Array([c + Vector2(-rx * 0.97, 0.9), c + Vector2(rx * 0.97, 0.9), c + Vector2(rx * 0.95, 2.6), c + Vector2(-rx * 0.95, 2.6)]), _c(gold, shade))
-	# brilho e rebite dourado (na frente da ombreira)
-	draw_colored_polygon(PackedVector2Array([c + Vector2(-rx * 0.55, -2.3), c + Vector2(-rx * 0.05, -2.8), c + Vector2(-rx * 0.1, -1.4), c + Vector2(-rx * 0.5, -1.0)]), _c(ivory_light, shade))
-	draw_circle(c + Vector2(s * rx * 0.35, -0.3), 1.4, _c(gold_light, shade))
-	draw_circle(c + Vector2(s * rx * 0.35, -0.3), 0.6, _c(gold_dark, shade))
-	# rebites na borda dourada
-	for i in 3:
-		draw_circle(c + Vector2((i - 1) * rx * 0.55, 1.75), 0.45, _c(gold_dark, shade))
-
-
-func _draw_sword(grip: Vector2, tip: Vector2) -> void:
-	var d := tip - grip
-	var len := d.length()
-	var u := d / maxf(len, 0.01)
-	var n := u.orthogonal()
-	var bw := 1.45 * sword_scale
-	var base := grip + u * 1.9
-	# lâmina larga (curta/média) com fio escuro no meio
-	_poly(PackedVector2Array([base + n * bw, grip + u * (len - 2.2) + n * bw * 0.9, tip, grip + u * (len - 2.2) - n * bw * 0.9, base - n * bw]), _c(blade))
-	_line(base + u * 0.5, grip + u * (len - 2.6), _c(blade_dark), 0.55)
-	# guarda dourada, punho e pomo
-	_poly(_quad(grip + u * 1.5 - n * 3.2, grip + u * 1.5 + n * 3.2, 0.75, 0.75), _c(gold))
-	_poly(_quad(grip - u * 2.2, grip + u * 1.0, 0.65, 0.65), _c(leather))
-	_circle(grip - u * 2.7, 1.0, _c(gold))
-
-
-## Escudo grande (elemento principal): marfim, borda dourada, sol dourado simples.
-## `face` > 0 = frente para a câmera (1 = de frente); < 0 = verso. `fwd_x` = para onde aponta.
-func _draw_shield(c: Vector2, face: float, fwd_x: float, tilt_deg: float, shade: float) -> void:
-	var k := shield_scale
-	var sx := maxf(absf(face), 0.22) * k
-	var xf := Transform2D(deg_to_rad(tilt_deg * signf(fwd_x + 0.0001)), Vector2(sx, k), 0.0, c)
-	var outer := PackedVector2Array([Vector2(-6.4, -9.8), Vector2(6.4, -9.8), Vector2(6.9, -3.0), Vector2(5.0, 4.8), Vector2(0.0, 10.4), Vector2(-5.0, 4.8), Vector2(-6.9, -3.0)])
-	var inner := PackedVector2Array()
-	for q in outer:
-		inner.append(q * 0.78 + Vector2(0, -0.2))
-	# espessura do aro quando visto de lado
-	var edge := 1.6 * (1.0 - absf(face)) * signf(-fwd_x if face >= 0.0 else fwd_x)
-	var sk := Transform2D(0.0, Vector2(edge, 0.0)) * xf
-	_poly(_xf_pts(outer, sk), _c(gold_dark, shade))
-	_poly(_xf_pts(outer, xf), _c(gold, shade))
-	if face >= 0.0:
-		draw_colored_polygon(_xf_pts(inner, xf), _c(ivory, shade))
-		# metade sombreada (volume) e brilho no alto
-		draw_colored_polygon(_xf_pts(PackedVector2Array([Vector2(0.0, -7.8), Vector2(5.0, -7.8), Vector2(5.4, -2.5), Vector2(3.9, 3.6), Vector2(0.0, 7.9)]), xf), _c(ivory_shade, shade))
-		draw_colored_polygon(_xf_pts(PackedVector2Array([Vector2(-4.4, -7.4), Vector2(-1.4, -7.4), Vector2(-1.8, -4.8), Vector2(-4.2, -3.8)]), xf), _c(ivory_light, shade))
-		# sol dourado simples no centro
-		draw_colored_polygon(_xf_pts(PaladinMesh.star4(Vector2(0, -0.8), 3.2, 5.0, 5.6, 1.0), xf), _c(gold, shade))
-		draw_colored_polygon(_xf_pts(PaladinMesh.circle(Vector2(0, -0.8), 1.5, 10), xf), _c(gold_light, shade))
-	else:
-		# verso: madeira escura com as alças
-		draw_colored_polygon(_xf_pts(inner, xf), _c(wood, shade))
-		draw_colored_polygon(_xf_pts(PackedVector2Array([Vector2(0.0, -7.8), Vector2(5.0, -7.8), Vector2(5.4, -2.5), Vector2(3.9, 3.6), Vector2(0.0, 7.9)]), xf), _c(wood.darkened(0.18), shade))
-		# alças de couro com rebites dourados (o punho segura a de cima)
-		for yy in [-3.0, 2.6]:
-			_line(xf * Vector2(-4.2, yy), xf * Vector2(4.2, yy), _c(outline, shade), 2.2)
-			_line(xf * Vector2(-4.2, yy), xf * Vector2(4.2, yy), _c(leather.lightened(0.15), shade), 1.2)
-			for xx in [-4.0, 4.0]:
-				draw_circle(xf * Vector2(xx, yy), 0.7, _c(gold, shade))
-
-
-static func _xf_pts(pts: PackedVector2Array, xf: Transform2D) -> PackedVector2Array:
-	var out := PackedVector2Array()
-	out.resize(pts.size())
-	for i in pts.size():
-		out[i] = xf * pts[i]
-	return out
-
-
-func _draw_drops() -> void:
+## Sombra no chão, espada e escudo soltos (morte) e efeitos da habilidade.
+func _pose_extras(root: Transform2D) -> void:
+	var bn := _bones
 	var fs := 1.0 if _yaw >= 0.0 else -1.0
+	var lying := clampf(float(_pose.get(&"tilt", 0.0)) / 88.0, 0.0, 1.0)
+	bn[B_GROUND] = Transform2D(0.0, Vector2(1.0 + lying * 1.3, 0.32), 0.0, Vector2(-14.0 * lying * RIG_SCALE * fs, FOOT_Y))
+	# espada e escudo soltos (no espaço da raiz, não caem junto com o corpo)
+	bn[B_SHIELD_DROP] = LiteSkin.HIDDEN
+	bn[B_SWORD_DROP] = LiteSkin.HIDDEN
 	if not _shield_drop.is_empty():
 		var u := clampf(float(_shield_drop.t) / 0.42, 0.0, 1.0)
 		var pos: Vector2 = (_shield_drop.from as Vector2).lerp(_shield_drop.to, u)
 		pos.y = lerpf((_shield_drop.from as Vector2).y, (_shield_drop.to as Vector2).y, u * u)
-		# o escudo tomba e fica deitado (achatado), a face para cima
 		var flat := lerpf(1.0, 0.5, u * u)
-		var xf := Transform2D(deg_to_rad(-12.0 * fs * u), Vector2(shield_scale, shield_scale * flat), 0.0, pos)
-		var outer := PackedVector2Array([Vector2(-6.4, -9.8), Vector2(6.4, -9.8), Vector2(6.9, -3.0), Vector2(5.0, 4.8), Vector2(0.0, 10.4), Vector2(-5.0, 4.8), Vector2(-6.9, -3.0)])
-		_poly(_xf_pts(outer, xf), _c(gold))
-		var inner := PackedVector2Array()
-		for q in outer:
-			inner.append(q * 0.78)
-		_poly(_xf_pts(inner, xf), _c(ivory))
-		draw_colored_polygon(_xf_pts(PaladinMesh.star4(Vector2(0, -0.8), 3.2, 5.0, 5.6, 1.0), xf), _c(gold))
+		bn[B_SHIELD_DROP] = root * Transform2D(deg_to_rad(-12.0 * fs * u), Vector2(shield_scale, shield_scale * flat), 0.0, pos)
 	if not _sword_drop.is_empty():
 		var u := clampf(float(_sword_drop.t) / 0.36, 0.0, 1.0)
 		var pos: Vector2 = (_sword_drop.from as Vector2).lerp(_sword_drop.to, u)
@@ -902,51 +914,262 @@ func _draw_drops() -> void:
 			var b := clampf((float(_sword_drop.t) - 0.36) / 0.16, 0.0, 1.0)
 			pos.y -= sin(b * PI) * 1.1 * (1.0 - b)
 		var ang := lerp_angle(float(_sword_drop.from_ang), float(_sword_drop.to_ang), PaladinPoseLibrary.ease_by(&"out", u))
-		_draw_sword(pos, pos + Vector2.from_angle(ang) * 15.5 * sword_scale * (0.75 + 0.25 * u))
-
-
-func _draw_shadow() -> void:
-	var lying := clampf(float(_pose.get(&"tilt", 0.0)) / 88.0, 0.0, 1.0)
-	var fs := 1.0 if _yaw >= 0.0 else -1.0
-	draw_set_transform(Vector2(-14.0 * lying * RIG_SCALE * fs, FOOT_Y), 0.0, Vector2(1.0 + lying * 1.3, 0.32))
-	draw_circle(Vector2.ZERO, 12.5, Color(0, 0, 0, 0.32))
-	draw_set_transform(Vector2.ZERO)
-
-
-## Transformação do corpo no quadro (as partes que mudam a transformação voltam para ela).
-var _body_xf := Transform2D.IDENTITY
-
-
-# --- Efeitos (simples, separados do corpo) ------------------------------------------------
-
-func _draw_effects_under() -> void:
+		bn[B_SWORD_DROP] = root * _limb(pos, pos + Vector2.from_angle(ang) * 15.5 * sword_scale * (0.75 + 0.25 * u), 15.5 * sword_scale)
+	# efeitos por baixo: anel no raio real da provocação + onda dourada no chão
+	bn[B_TAUNT_RING] = LiteSkin.HIDDEN
+	bn[B_GROUND_ARC] = LiteSkin.HIDDEN
 	if _ring_t >= 0.0:
-		PaladinFx.taunt_ring(self, _ring_t, 1.0, Color("f0c674"))
+		if _ring_t <= PaladinFx.TAUNT_RING_TIME:
+			var k := clampf(_ring_t / PaladinFx.TAUNT_RING_TIME, 0.0, 1.0)
+			var tr := lerpf(0.35, 1.0, 1.0 - (1.0 - k) * (1.0 - k)) * (1.0 if k < 0.9 else 0.0)
+			bn[B_TAUNT_RING] = Transform2D(0.0, Vector2(tr, tr), 0.0, Vector2.ZERO)
 		var p := _ring_t / 0.9
-		draw_set_transform(Vector2(0, FOOT_Y), 0.0, Vector2(1.0, 0.36))
-		draw_arc(Vector2.ZERO, lerpf(10.0, 30.0, ease(clampf(p / 0.6, 0.0, 1.0), 0.4)), 0.0, TAU, 40, Color(gold_light, 0.5 * (1.0 - p)), 1.6, true)
-		draw_set_transform(Vector2.ZERO)
+		var r := lerpf(10.0, 30.0, ease(clampf(p / 0.6, 0.0, 1.0), 0.4)) / GROUND_ARC_R
+		if p < 0.85:
+			bn[B_GROUND_ARC] = Transform2D(0.0, Vector2(r, r * 0.36), 0.0, Vector2(0, FOOT_Y))
+	# efeitos por cima: contorno do Escudo Sagrado, anel ao subir, faíscas do bloqueio
+	bn[B_HOLY_ARC] = LiteSkin.HIDDEN
+	bn[B_SHIELD_UP] = LiteSkin.HIDDEN
+	for i in 5:
+		bn[B_SPARK + i] = LiteSkin.HIDDEN
+	if anchors.has(&"shield_c") and _shield_drop.is_empty():
+		var sc: Vector2 = _body_xf * (anchors.shield_c as Vector2)
+		var g := animator.guard_blend * animator.defense_w
+		if g > 0.05:
+			var pulse := 0.97 + 0.03 * sin(_time * 5.0)
+			bn[B_HOLY_ARC] = Transform2D(0.0, Vector2(pulse, pulse), 0.0, sc)
+		if _shield_up_t >= 0.0 and _shield_up_t < 0.35:
+			var p := _shield_up_t / 0.35
+			var r := lerpf(6.0, 16.0, ease(p, 0.4)) / SHIELD_UP_R
+			bn[B_SHIELD_UP] = Transform2D(0.0, Vector2(r, r), 0.0, sc)
+		if _block_fx_t >= 0.0 and _block_fx_t < 0.26:
+			var p := _block_fx_t / 0.26
+			for i in 5:
+				var ang := (i - 2) * 0.45 + (0.0 if fs > 0.0 else PI)
+				var dir := Vector2.from_angle(ang)
+				bn[B_SPARK + i] = _seg_bone(sc + dir * lerpf(3.0, 8.0, p), sc + dir * lerpf(7.0, 10.0, p), 1.0 - p * 0.5)
 
 
-func _draw_effects_over(body_xf: Transform2D) -> void:
-	if not anchors.has(&"shield_c") or not _shield_drop.is_empty():
-		return
-	var sc: Vector2 = body_xf * (anchors.shield_c as Vector2)
-	var g := animator.guard_blend * animator.defense_w
-	if g > 0.05:
-		# Escudo Sagrado ativo: contorno dourado sutil em volta do escudo
-		var pulse := 0.8 + 0.2 * sin(_time * 5.0)
-		draw_arc(sc, 11.0 * RIG_SCALE * shield_scale, 0.0, TAU, 32, Color(holy, 0.35 * g * pulse), 1.4, true)
-	if _shield_up_t >= 0.0 and _shield_up_t < 0.35:
-		var p := _shield_up_t / 0.35
-		draw_arc(sc, lerpf(6.0, 16.0, ease(p, 0.4)), 0.0, TAU, 32, Color(gold_light, 0.8 * (1.0 - p)), 1.4, true)
-	if _block_fx_t >= 0.0 and _block_fx_t < 0.26:
-		var p := _block_fx_t / 0.26
-		var fs := 1.0 if _yaw >= 0.0 else -1.0
-		for i in 5:
-			var ang := (i - 2) * 0.45 + (0.0 if fs > 0.0 else PI)
-			var dir := Vector2.from_angle(ang)
-			draw_line(sc + dir * lerpf(3.0, 8.0, p), sc + dir * lerpf(7.0, 10.0, p), Color(gold_light, 1.0 - p), 1.2, true)
+# --- Peças (montadas uma vez, no espaço canônico) -------------------------------------------
+
+## Membro/segmento ao longo de +x com `length`, larguras `wa` → `wb` (o _quad do desenho original).
+func _bake_limb(length: float, wa: float, wb: float, col: Color, shade: float) -> void:
+	_poly(PackedVector2Array([Vector2(0, -wa), Vector2(length, -wb), Vector2(length, wb), Vector2(0, wa)]), _c(col, shade))
+
+
+func _bake_shin(shade: float) -> void:
+	_bake_limb(SHIN_L, 2.9, 2.6, ivory_shade, shade)
+	# faixa dourada na canela (a 62% da canela)
+	var x := SHIN_L * 0.62 * 1.1
+	_line(Vector2(x, 2.6), Vector2(x, -2.6), _c(gold, shade), 1.2)
+
+
+## Bota (vista 3/4): sola + bico pontudo + faixa dourada, no espaço do pé.
+func _bake_boot(shade: float) -> void:
+	var a := 24.0
+	var pts: Array = []
+	for c in [[-2.3, -2.2, 0.0], [2.3, -2.2, 0.0], [2.2, 3.9, 0.0], [0.0, 5.2, 0.4], [-2.2, 3.9, 0.0], [-2.2, -0.6, 3.6], [2.2, -0.6, 3.6]]:
+		pts.append(_v2(_proj(c[0], c[1], c[2], a)))
+	var b := PackedVector2Array()
+	for i in [0, 4, 3, 2, 1]:
+		b.append(pts[i])
+	_poly(Geometry2D.convex_hull(b + PackedVector2Array([pts[5], pts[6]])), _c(ivory, shade))
+	_line(pts[5], pts[6], _c(gold, shade), 1.6)
+
+
+## Joelheira: disco marfim com aro dourado (no espaço do joelho).
+func _bake_knee(shade: float) -> void:
+	_circle(Vector2(0, -0.3), 2.2, _c(gold, shade))
+	_disc(Vector2(-0.4, -0.7), 0.8, _c(gold_light, shade))
+
+
+## Tabardo no plano do corpo: u = lateral, v = distância abaixo do topo (0..TAB_H).
+func _bake_tabard(front: bool) -> void:
+	var pts := PackedVector2Array()
+	for c in [[-3.6, 0.0], [3.6, 0.0], [4.1, TAB_H], [0.7, TAB_H - 1.8], [0.0, TAB_H - 1.1], [-0.7, TAB_H - 1.8], [-4.1, TAB_H]]:
+		pts.append(Vector2(c[0], c[1]))
+	_poly(pts, _c(ivory_light if front else ivory))
+	if front:
+		_fill(PaladinMesh.star4(Vector2(0, 5.4), 1.5 * 0.9, 2.2, 2.4, 0.55), _c(gold))
+	_line(Vector2(-3.6, 0), Vector2(3.6, 0), _c(gold_dark), 0.8)
+
+
+## Peitoral (largura canônica TORSO_W; o giro escala na horizontal): placa + sombra inferior.
+func _bake_torso() -> void:
+	var w := TORSO_W
+	_poly(PackedVector2Array([
+		Vector2(-w * 0.92, -6.4), Vector2(w * 0.92, -6.4), Vector2(w, -2.4), Vector2(w * 0.78, 4.6),
+		Vector2(-w * 0.78, 4.6), Vector2(-w, -2.4)]), _c(ivory))
+	_fill(PackedVector2Array([Vector2(-w * 0.86, 1.8), Vector2(w * 0.86, 1.8), Vector2(w * 0.78, 4.6), Vector2(-w * 0.78, 4.6)]), _c(ivory_shade))
+
+
+## Lado de trás do peito (volume) quando o corpo está de lado.
+func _bake_torso_side() -> void:
+	var bx := -TORSO_W
+	_fill(PackedVector2Array([Vector2(bx, -2.4), Vector2(bx * 0.92, -6.4), Vector2(bx * 0.55, -6.4), Vector2(bx * 0.6, 4.6), Vector2(bx * 0.78, 4.6)]), _c(ivory_shade))
+
+
+func _bake_torso_hi() -> void:
+	var w := TORSO_W
+	_fill(PackedVector2Array([Vector2(-w * 0.62, -5.6), Vector2(-w * 0.08, -5.6), Vector2(-w * 0.2, -3.2), Vector2(-w * 0.6, -3.4)]), _c(ivory_light))
+
+
+## Frente: gola dourada em V e símbolo solar (o osso desloca pelo giro).
+func _bake_torso_front() -> void:
+	var w := TORSO_W
+	_fill(PackedVector2Array([Vector2(-w * 0.62, -6.4), Vector2(w * 0.62, -6.4), Vector2(0, -3.0)]), _c(gold))
+	_fill(PackedVector2Array([Vector2(-w * 0.4, -6.4), Vector2(w * 0.4, -6.4), Vector2(0, -4.2)]), _c(dark))
+	_fill(_xf_pts(PaladinMesh.star4(Vector2.ZERO, 2.1 * 0.9, 2.1, 2.1, 0.7), Transform2D(0.0, Vector2(0, -0.6))), _c(gold))
+	_disc(Vector2(0, -0.6), 0.9, _c(gold_light))
+
+
+## Costas: costura central e gola dourada.
+func _bake_torso_back() -> void:
+	var w := TORSO_W
+	_line(Vector2(0, -5.8), Vector2(0, 3.6), _c(ivory_shade), 1.0)
+	_line(Vector2(-w * 0.6, -6.2), Vector2(w * 0.6, -6.2), _c(gold), 1.3)
+
+
+## Cinto dourado.
+func _bake_torso_belt() -> void:
+	var w := TORSO_W
+	_poly(PackedVector2Array([Vector2(-w * 0.8, 3.7), Vector2(w * 0.8, 3.7), Vector2(w * 0.82, 6.1), Vector2(-w * 0.82, 6.1)]), _c(gold))
+	_line(Vector2(-w * 0.8, 5.5), Vector2(w * 0.8, 5.5), _c(gold_dark), 0.7)
+
+
+## Elmo fechado arredondado (largura canônica; o giro escala na horizontal).
+func _bake_helm() -> void:
+	var w := 5.8 * head_scale * 0.95
+	var h := 11.4 * head_scale
+	var helm := PackedVector2Array()
+	for i in 13:
+		helm.append(Vector2(_HELM_COS[i] * w, -h * 0.55 + _HELM_SIN[i] * h * 0.45))
+	helm.append(Vector2(w * 0.98, 0.0))
+	helm.append(Vector2(-w * 0.98, 0.0))
+	_poly(helm, _c(ivory))
+
+
+func _bake_helm_shade(back: float) -> void:
+	var w := 5.8 * head_scale * 0.95
+	var h := 11.4 * head_scale
+	_fill(PackedVector2Array([Vector2(back * w * 0.94, -0.3), Vector2(back * w * 0.96, -h * 0.55), Vector2(back * w * 0.62, -h * 0.88), Vector2(back * w * 0.55, -0.3)]), _c(ivory_shade))
+
+
+func _bake_helm_top() -> void:
+	var w := 5.8 * head_scale * 0.95
+	var h := 11.4 * head_scale
+	_fill(PackedVector2Array([Vector2(-w * 0.6, -h * 0.82), Vector2(-w * 0.1, -h * 0.95), Vector2(-w * 0.15, -h * 0.72), Vector2(-w * 0.55, -h * 0.62)]), _c(ivory_light))
+	_line(Vector2(-w * 0.98, -0.9), Vector2(w * 0.98, -0.9), _c(gold), 1.1)
+
+
+## Visor em T estreito com borda dourada e linha dourada no alto (centro em x = 0; o osso desloca).
+func _bake_visor() -> void:
+	var h := 11.4 * head_scale
+	_line(Vector2(0, -h * 0.97), Vector2(0, -h * 0.62), _c(gold), 1.2)
+	_fill(PackedVector2Array([Vector2(-3.6, -h * 0.62), Vector2(3.6, -h * 0.62), Vector2(3.6, -h * 0.47),
+		Vector2(1.2, -h * 0.47), Vector2(1.2, -h * 0.16), Vector2(-1.2, -h * 0.16), Vector2(-1.2, -h * 0.47), Vector2(-3.6, -h * 0.47)]), _c(gold))
+	_fill(PackedVector2Array([Vector2(-2.8, -h * 0.585), Vector2(2.8, -h * 0.585), Vector2(2.8, -h * 0.505),
+		Vector2(0.45, -h * 0.505), Vector2(0.45, -h * 0.22), Vector2(-0.45, -h * 0.22), Vector2(-0.45, -h * 0.505), Vector2(-2.8, -h * 0.505)]), _c(visor))
+
+
+## Auréola: anel com contorno e três pontas (o osso estreita pelo giro).
+func _bake_halo() -> void:
+	var r := 7.0 * head_scale
+	_arc_line(Vector2.ZERO, r, 0.0, TAU, 28, _c(outline), 2.3)
+	_arc_line(Vector2.ZERO, r, 0.0, TAU, 28, _c(gold), 1.3)
+	for spec in [[Vector2(0, -r - 1.2), 3.4], [Vector2(-r - 0.4, 0), 2.0], [Vector2(r + 0.4, 0), 2.0]]:
+		_poly(_xf_pts(PaladinMesh.star4(Vector2.ZERO, spec[1] * 0.55, spec[1], spec[1] * 0.75, 0.3 * spec[1]), Transform2D(0.0, spec[0])), _c(gold))
+
+
+## Antebraço (cotovelo → mão) com o punho dourado a 70%.
+func _bake_fore(shade: float) -> void:
+	_bake_limb(FORE_L, 2.3, 2.1, ivory, shade)
+	var x := FORE_L * 0.7
+	_line(Vector2(x, -2.3), Vector2(x, 2.3), _c(gold, shade), 1.4)
+
+
+func _bake_elbow(shade: float) -> void:
+	_disc(Vector2.ZERO, 1.7, _c(gold, shade))
+	_disc(Vector2.ZERO, 1.0, _c(ivory_light, shade))
+
+
+## Ombreira grande e arredondada (largura canônica k = 0,92; o osso escala pelo giro).
+func _bake_pauldron(shade: float) -> void:
+	var rx := 6.0 * 0.92 * body_width
+	var ry := 5.2
+	var pts := PackedVector2Array()
+	for i in 13:
+		pts.append(Vector2(_PAULDRON_COS[i] * rx, _PAULDRON_SIN[i] * ry + 1.2))
+	pts.append(Vector2(rx * 0.95, 2.6))
+	pts.append(Vector2(-rx * 0.95, 2.6))
+	_poly(pts, _c(ivory, shade))
+	_fill(PackedVector2Array([Vector2(-rx * 0.97, 0.9), Vector2(rx * 0.97, 0.9), Vector2(rx * 0.95, 2.6), Vector2(-rx * 0.95, 2.6)]), _c(gold, shade))
+	_fill(PackedVector2Array([Vector2(-rx * 0.55, -2.3), Vector2(-rx * 0.05, -2.8), Vector2(-rx * 0.1, -1.4), Vector2(-rx * 0.5, -1.0)]), _c(ivory_light, shade))
+	_disc(Vector2(rx * 0.25, -0.3), 1.4, _c(gold_light, shade))
+	_disc(Vector2(rx * 0.25, -0.3), 0.6, _c(gold_dark, shade))
+	for i in 3:
+		_disc(Vector2((i - 1) * rx * 0.55, 1.75), 0.45, _c(gold_dark, shade))
+
+
+## Espada da mão (0,0) até a ponta (L,0): lâmina larga com fio escuro, guarda, punho e pomo.
+func _bake_sword() -> void:
+	var length := 15.5 * sword_scale
+	var bw := 1.45 * sword_scale
+	var n := Vector2(0, -1)
+	var base := Vector2(1.9, 0)
+	var near_tip := Vector2(length - 2.2, 0)
+	_poly(PackedVector2Array([base + n * bw, near_tip + n * bw * 0.9, Vector2(length, 0), near_tip - n * bw * 0.9, base - n * bw]), _c(blade))
+	_line(base + Vector2(0.5, 0), Vector2(length - 2.6, 0), _c(blade_dark), 0.55)
+	_poly(PackedVector2Array([Vector2(1.5, -3.2) + Vector2(-0.75, 0), Vector2(1.5, 3.2) + Vector2(-0.75, 0), Vector2(1.5, 3.2) + Vector2(0.75, 0), Vector2(1.5, -3.2) + Vector2(0.75, 0)]), _c(gold))
+	_poly(PackedVector2Array([Vector2(-2.2, -0.65), Vector2(1.0, -0.65), Vector2(1.0, 0.65), Vector2(-2.2, 0.65)]), _c(leather))
+	_circle(Vector2(-2.7, 0), 1.0, _c(gold))
+
+
+func _shield_outer() -> PackedVector2Array:
+	return PackedVector2Array([Vector2(-6.4, -9.8), Vector2(6.4, -9.8), Vector2(6.9, -3.0), Vector2(5.0, 4.8), Vector2(0.0, 10.4), Vector2(-5.0, 4.8), Vector2(-6.9, -3.0)])
+
+
+## Escudo (espaço do escudo; o osso dá giro, estreitamento e inclinação): face ou verso.
+func _bake_shield(front: bool) -> void:
+	var outer := _shield_outer()
+	var inner := PackedVector2Array()
+	for q in outer:
+		inner.append(q * 0.78 + Vector2(0, -0.2))
+	_poly(outer, _c(gold))
+	var half := PackedVector2Array([Vector2(0.0, -7.8), Vector2(5.0, -7.8), Vector2(5.4, -2.5), Vector2(3.9, 3.6), Vector2(0.0, 7.9)])
+	if front:
+		_fill(inner, _c(ivory))
+		_fill(half, _c(ivory_shade))
+		_fill(PackedVector2Array([Vector2(-4.4, -7.4), Vector2(-1.4, -7.4), Vector2(-1.8, -4.8), Vector2(-4.2, -3.8)]), _c(ivory_light))
+		_fill(PaladinMesh.star4(Vector2(0, -0.8), 3.2, 5.0, 5.6, 1.0), _c(gold))
+		_fill(PaladinMesh.circle(Vector2(0, -0.8), 1.5, 10), _c(gold_light))
+	else:
+		_fill(inner, _c(wood))
+		_fill(half, _c(wood.darkened(0.18)))
+		for yy in [-3.0, 2.6]:
+			_line(Vector2(-4.2, yy), Vector2(4.2, yy), _c(outline), 2.2)
+			_line(Vector2(-4.2, yy), Vector2(4.2, yy), _c(leather.lightened(0.15)), 1.2)
+			for xx in [-4.0, 4.0]:
+				_disc(Vector2(xx, yy), 0.7, _c(gold))
+
+
+## Escudo caído no chão (face para cima).
+func _bake_shield_drop() -> void:
+	var outer := _shield_outer()
+	_poly(outer, _c(gold))
+	var inner := PackedVector2Array()
+	for q in outer:
+		inner.append(q * 0.78)
+	_poly(inner, _c(ivory))
+	_fill(PaladinMesh.star4(Vector2(0, -0.8), 3.2, 5.0, 5.6, 1.0), _c(gold))
+
+
+static func _xf_pts(pts: PackedVector2Array, xf: Transform2D) -> PackedVector2Array:
+	return xf * pts
+
+
+## Transformação do corpo no quadro.
+var _body_xf := Transform2D.IDENTITY
 
 
 ## Debug (F4, junto do debug de combate): direção, estado da apresentação e progresso.

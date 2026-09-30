@@ -167,6 +167,36 @@ O mesmo refactor resolve as duas partes, **se** montar o lote for mais barato qu
    - O que mexeria no visual (pré-render em textura, animar a menos quadros por segundo) fica de fora.
 6. **Fora do escopo**: gameplay, targeting, IA, stats, combate e aparência.
 
+## Reformulação leve (implementada): malha estática com ossos
+
+Em vez do lote por unidade refeito a cada quadro (que cortava os draw calls mas não a CPU), cada tropa virou uma
+**malha estática por tipo com ossos** (skinning 2D na GPU):
+- as peças (mesmas formas de antes) são montadas uma vez;
+- cada unidade tem só um esqueleto;
+- a pose do quadro só move os ossos (detalhes em `ARCHITECTURE.md`, "Desenho leve").
+
+| tropa | draw calls/unid. (antes → agora) | CPU/unid. (antes → agora) | vértices da malha (compartilhada) | ossos |
+|---|---|---|---|---|
+| Guerreiro | 72 → **1** | 0,09 → **0,011 ms** | 4.218 | 13 |
+| Guerreiro Sombra | 189 → **1** | 0,40 → **0,040 ms** | 8.754 | 42 |
+| Sentinela | 119 → **1** | 0,19 → **0,032 ms** | 9.096 | 67 |
+| Sentinela Sombra | 218 → **1** | 0,49 → **0,058 ms** | 13.260 | 67 |
+| Paladino | 180 → **1** | 0,32 → **0,115 ms** | 10.494 | 45 |
+| Paladino Sombra | 253 → **1** | 0,41 → **0,043 ms** | 16.500 | 55 |
+
+Notas:
+- Os draw calls são medidos com render (40 unidades paradas; mais a barra de HP, 1 por unidade).
+- A CPU é medida headless com 1.000 unidades: (quadro normal − quadro congelado) / 1.000.
+- Cena dos prints (40 Guerreiros Sombra + 40 Guerreiros): **10.817 → 536 draw calls**. A CPU dessas 80 unidades
+  cai de ~20 ms para ~2 ms neste processador. No PC do usuário (onde eram ~50 ms de `_draw` + ~12 ms de draw
+  calls), o esperado é o custo das tropas quase sumir; confirmar com F6/F7.
+
+O que mudou no visual (o resto é a mesma geometria):
+- Formas que mudavam a cada quadro viraram transformações: capa e barra do manto por cisalhamento, abas do manto
+  girando, botas deslizando, joelho dobrando.
+- Fumaça, brasas, lâminas voltando, anéis e brilhos crescem/encolhem em vez de esmaecer.
+- As pontas da capa da Sombra não tremulam mais, e a pulsação das fissuras ficou fixa.
+
 ## Como repetir
 
 - Neste ambiente: `tools/bench/render_matrix.sh` e `tools/bench/render_breakdown.gd` (ver `tools/bench/README.md`).

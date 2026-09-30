@@ -881,6 +881,54 @@ Capturas grandes dos 16 estados, folha comparativa e capturas em escala real no 
   - As sprite sheets e a cena de sprites continuam no projeto como alternativa.
   - `PaladinVisual` continua existindo porque é a base do Sombra.
 
+### Tropas leves: malha estática com ossos (desenho leve) ✔ (aguardando validação)
+
+**Pedido.** Deixar as tropas leves para o jogo (FPS e RAM), podendo reformular cada uma mantendo o design e o
+sentido; o que mais pesava eram as partes das tropas (no PC do usuário, ~50 ms de CPU do `_draw` + ~12 ms de
+draw calls com 80 unidades).
+
+**Feito.**
+- Base nova em `scripts/visuals/units/lite/`:
+  - `LiteBuilder`: formas → triângulos com cor e borda suavizada como a do motor.
+  - `LitePart`: peça pronta.
+  - `LiteSkin`: malha estática do tipo + esqueleto 2D por unidade.
+  - `LiteFx`: clarão, escurecimento e alfa por shader, com materiais compartilhados.
+  - `LiteShadowParts`: olhos e fissuras da sombra.
+- `CodeDrawnUnitVisual` ganhou o "modo de montagem": as funções `_draw_*` de cada tropa montam as peças UMA vez
+  por tipo. Cada unidade tem 1 comando (a malha), e a pose só move os ossos.
+- As 6 tropas foram convertidas (Guerreiro, Sentinela, Paladino e as sombras). O Paladino Vivo mantém a pose
+  2.5D, com a projeção afim das peças planas e uma malha por ordem de profundidade.
+- O que mudava de forma a cada quadro virou transformação: capa/manto por cisalhamento, abas girando, botas
+  deslizando, joelho dobrando. Fumaça, brasas, lâminas voltando, anéis e brilhos crescem e encolhem em vez de
+  esmaecer. Todo o resto é a mesma geometria de antes.
+- Testes: `redraw_test` e `corpse_freeze_test` seguem o novo contrato (a pose anda pelos ossos, sem redesenho).
+  Os testes de pose, gameplay e 8 direções não mudaram.
+- Ferramenta nova: `tools/bench/unit_gallery.gd` (6 tropas × 9 poses, de perto).
+
+**Resultado** (este ambiente; detalhes em `RENDER_REPORT.md`):
+- Draw calls por unidade: 72–253 → **1** (+ a barra de HP). A cena de 80 unidades dos prints: 10.817 → **536**.
+- CPU por unidade (atualização + desenho, headless):
+
+  | tropa | antes | agora |
+  |---|---|---|
+  | Guerreiro | 0,09 ms | 0,011 ms |
+  | Guerreiro Sombra | 0,40 ms | 0,040 ms |
+  | Sentinela | 0,19 ms | 0,032 ms |
+  | Sentinela Sombra | 0,49 ms | 0,058 ms |
+  | Paladino | 0,32 ms | 0,115 ms |
+  | Paladino Sombra | 0,41 ms | 0,043 ms |
+
+- RAM: cada tipo é uma malha de 4 a 16 mil vértices, compartilhada (≈ 3 MB para os 6 tipos). Cada unidade guarda
+  só o esqueleto (13–67 ossos), em vez de 70–250 comandos de desenho refeitos a cada quadro.
+
+**Validado.** 17 suítes OK. As galerias antes/depois mostram o mesmo visual.
+
+**Limitações.**
+- A fumaça e os brilhos agora crescem/encolhem em vez de esmaecer. A capa da Sombra não tremula mais nas pontas.
+  A pulsação das fissuras ficou fixa.
+- O Paladino Vivo ainda é a tropa mais cara de CPU (pose 2.5D).
+- O FPS real precisa ser medido no PC (F6/F7): aqui o render é por software.
+
 ### Diagnóstico do render das unidades (simulação parada) ✔ (aguardando validação)
 
 **Pedido.** Pelos prints do painel F6 no PC do usuário, 80 unidades visíveis com a simulação parada dão 13 FPS e

@@ -109,6 +109,12 @@ res://
     visuals/units/circle_unit_visual.gd     # class_name CircleUnitVisual — círculo padrão (sem visual_script)
     visuals/units/code_drawn_unit_visual.gd # class_name CodeDrawnUnitVisual — utilitários de desenho comuns
     visuals/units/draw_cache.gd      # class_name DrawCache — formas repetidas viram malhas (mesma geometria do motor)
+    visuals/units/lite/              # DESENHO LEVE das tropas: peças prontas + malha estática com ossos
+      lite_builder.gd                #   class_name LiteBuilder — formas → triângulos com cor (borda suavizada como o motor)
+      lite_part.gd                   #   class_name LitePart — peça pronta (compartilhada por tipo)
+      lite_skin.gd                   #   class_name LiteSkin — malha do tipo (cache) + esqueleto por unidade
+      lite_fx.gd                     #   class_name LiteFx — clarão/escurecimento/alfa por shader (materiais compartilhados)
+      lite_shadow_parts.gd           #   class_name LiteShadowParts — olhos e fissuras da sombra nas peças
     visuals/units/sentinel_visual.gd        # class_name SentinelVisual — Sentinela Arcana viva
     visuals/units/sentinel_shadow_visual.gd # class_name SentinelShadowVisual — Sentinela Sombra (herda a viva)
     visuals/effects/arcane_blade.gd         # class_name ArcaneBlade — desenho da lâmina (pairando e em voo)
@@ -391,16 +397,31 @@ Nenhum PNG, SVG, sprite sheet ou asset externo. Cadeia: `CombatUnit` → `UnitVi
   - Ordem de desenho: sombra · capa · braço e ombreira de trás · pernas · saiote/cinto · peitoral
     · elmo (pluma, fenda) · espada · braço, ombreira e mão da frente.
   - Tamanho: ≈ 36 unidades do mundo de altura (≈ 58 px em 1600×896). Os pés ficam 9 abaixo do centro lógico.
-- A cada quadro, `update_visual` recalcula uma **pose** (`p_*`: ângulos e deslocamentos) a partir do estado real,
-  e `_draw()` só a aplica.
+- A cada quadro, `update_visual` recalcula uma **pose** (`p_*`: ângulos e deslocamentos) a partir do estado real
+  e a envia aos **ossos** (ver "Desenho leve"). O `_draw()` só registra a malha, uma vez.
 - **Cadáver estático:** todo visual informa `death_elapsed()` e `corpse_settle_time()` (quando queda, quique,
   escurecimento e efeitos terminam); daí em diante o UnitView não o atualiza nem redesenha mais.
-- **Geometria cacheada (`DrawCache`):** `_poly`, `_circle` e `_rim_poly` do `CodeDrawnUnitVisual` desenham cada
-  forma repetida (mesmos pontos no espaço da peça) como uma malha branca feita uma vez, com a cor pelo
-  `modulate`. A geometria é a mesma que o Godot 4.7 gera para polígono, contorno suavizado (3 faixas → 1 malha),
-  círculo e arco (portada do motor, float32): pixels idênticos, metade dos draw calls por contorno e nenhuma
-  triangulação por quadro. Formas que mudam todo quadro seguem pelo caminho direto (`use_draw_cache = false`
-  no Paladino Vivo, cujos polígonos são projetados a cada quadro).
+- **Desenho leve (malha estática com ossos)** — todas as tropas (Guerreiro, Sentinela, Paladino e as sombras):
+  - **Peças prontas.** Cada parte do rig (perna, braço, peitoral, elmo, espada, escudo, chapéu…) é montada **uma
+    vez por tipo** pelas mesmas funções `_draw_*` de antes, no "modo de montagem": com `_bake` ativo, os
+    utilitários `_poly/_circle/_line/_fill/_disc/_pline/_arc_line` geram triângulos com cor (`LiteBuilder`, com a
+    borda suavizada do motor) em vez de desenhar. Cache estático por script + estilo da sombra + variação.
+  - **Malha do tipo + ossos.** As peças, em ordem de desenho e cada uma presa ao seu osso, formam a malha do tipo
+    (`LiteSkin.mesh`, compartilhada por todas as unidades). Cada unidade tem só um esqueleto 2D
+    (`RenderingServer.skeleton_*`); o CanvasItem guarda **um** comando (`canvas_item_add_mesh`) = **1 draw call
+    por unidade**, e a pose do quadro só atualiza os ossos (skinning na GPU). Nada é redesenhado nem reenviado.
+  - **Regras do Godot (Compatibility):** a malha precisa de bones/weights/UV; o esqueleto 2D precisa da "base"
+    = transformação global do nó (atualizada na notificação de mudança de transformação).
+  - **Formas que mudavam a cada quadro viraram transformações:** capa e barra do manto por cisalhamento, abas do
+    manto girando no ombro, botas deslizando, joelho dobrando (canela é outro osso), brilhos que crescem/encolhem;
+    peças escondidas = osso com escala zero. Esmaecer de fumaça/lâmina virou crescer/encolher.
+  - **Clarão, escurecimento e esmaecer** vão por shader (`LiteFx`: materiais compartilhados por valores
+    arredondados). O clarão só vale para o corpo (UV.x = 1); sombra no chão, névoa e aura não piscam.
+  - **Paladino Vivo (2.5D):** a pose projetada continua (âncoras, 8 direções); peças planas do corpo usam a
+    projeção afim exata (osso de três pontos), membros/espada são esticados entre as articulações; a ordem por
+    profundidade escolhe a malha (uma por ordem, em cache), trocada só quando a ordem muda.
+  - Resultado e medições: `RENDER_REPORT.md` ("Reformulação leve"). O `DrawCache` segue para o que ainda desenha
+    direto (projéteis, efeitos antigos).
 
 | Estado | Como é lido | O que acontece |
 |---|---|---|
@@ -417,7 +438,8 @@ Nenhum PNG, SVG, sprite sheet ou asset externo. Cadeia: `CombatUnit` → `UnitVi
 **Guerreiro × Guerreiro Sombra.** `ShadowWarriorVisual extends WarriorVisual`: mesmo rig; a paleta viva é
 convertida pela regra `ShadowStyle` (ver "Versões sombra") e os detalhes entram por pontos de extensão
 (`_draw_plume`, `_draw_visor`, `_draw_torso_wear`, `_draw_helmet_wear`, `_blade_shape`, `_draw_blade_extra`,
-`_draw_fx_front`).
+`_draw_cape_extra`) e pelos pontos da malha (`_layout_back/_layout_head_back/_layout_front`, `_pose_extra`: névoa,
+aura, chama espectral e fumaça como peças com ossos).
 
 | | Guerreiro | Guerreiro Sombra |
 |---|---|---|
@@ -1047,8 +1069,8 @@ godot --headless -s res://tests/paladin_sprite_test.gd  # Paladino Vivo por spri
 godot --headless -s res://tests/paladin_live_test.gd  # Paladino Vivo padrão: gameplay idêntico, família visual, espada/escudo, estados
 godot --headless -s res://tests/paladin_rig_test.gd  # rig 2.5D (alternativa): espada/escudo, direções, estados
 godot --headless -s res://tests/bench_parity_test.gd  # CombatSim otimizada == referência congelada (40 lutas) + BenchCombatSim
-godot --headless -s res://tests/corpse_freeze_test.gd  # cadáver assentado não é mais atualizado nem redesenhado
-godot --headless -s res://tests/redraw_test.gd  # anel/barra só por mudança; DrawCache (1ª vez direto, 2ª malha)
+godot --headless -s res://tests/corpse_freeze_test.gd  # na queda a pose (ossos) anda todo quadro; cadáver assentado congela
+godot --headless -s res://tests/redraw_test.gd  # corpo anima pelos ossos sem redesenho; anel/barra só por mudança; DrawCache
 godot --headless -s res://tests/sim_pacing_test.gd  # limite de passos por quadro; mesmo resultado em 60/30/5 FPS
 godot --headless -s res://tests/perf_overlay_test.gd  # painel F6: liga/desliga, métricas, não bloqueia, não muda a luta
 godot --headless -s res://tests/render_compare_test.gd  # F7: ciclo de modos, restauração, Reiniciar, mesma luta em todos os modos
@@ -1135,6 +1157,7 @@ Ferramentas para medir o custo do combate com muitas unidades, **sem mudar o jog
 - `tools/bench/godot_profiler.py`: servidor de depuração remota que liga o Profiler do Godot (servers + funções de
   script) sem o editor — o jogo roda com `--remote-debug tcp://127.0.0.1:PORTA`.
 - `tools/bench/run_matrix.sh` (matriz completa) e `tools/bench/make_report.py` (tabelas Markdown).
+- `tools/bench/unit_gallery.gd`: galeria das 6 tropas em 9 poses, de perto (comparar o visual antes/depois).
 - Render das unidades: `tools/bench/render_breakdown.gd` (modos normal/frozen/squares/merged/hidden) e
   `tools/bench/render_probe/` (cópia instrumentada: todo `draw_*` dos visuais contado por parte e desligável por
   categoria). Resultado em `RENDER_REPORT.md`.

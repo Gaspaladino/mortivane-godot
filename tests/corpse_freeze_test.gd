@@ -2,8 +2,8 @@ extends SceneTree
 ## Etapa 2 da otimização: cadáver estático.
 ## Para cada tipo de unidade do catálogo (vivas e sombras): mata a unidade, deixa a morte acontecer
 ## pelo UnitView real e verifica que
-##   - durante a queda o visual continua sendo redesenhado a cada quadro;
-##   - depois do tempo de assentamento o UnitView congela: nenhum _draw do corpo, do anel nem da barra;
+##   - durante a queda a pose (os ossos da malha do corpo) muda a cada quadro;
+##   - depois do tempo de assentamento o UnitView congela: a pose para e não há _draw do corpo, do anel nem da barra;
 ##   - mover o cadáver só muda a posição do nó (sem redesenho);
 ##   - reviver (Necromancia no futuro) volta a animar;
 ##   - ligar o debug volta a redesenhar.
@@ -29,6 +29,12 @@ func _check(cond: bool, msg: String) -> void:
 		print("  FALHOU: " + msg)
 
 
+## Assinatura da pose: nº de atualizações de osso enviadas ao esqueleto (o servidor de render
+## headless não guarda as transformações; a contagem mostra se a pose foi enviada).
+static func _pose_sig(v: CodeDrawnUnitVisual) -> int:
+	return v._skin.updates
+
+
 func _test_unit(id: StringName) -> void:
 	var def := UnitCatalog.get_def(id)
 	var u := CombatUnit.new(1, CombatUnit.Team.PLAYER, def.to_stats(), Vector2(300, 300))
@@ -44,14 +50,17 @@ func _test_unit(id: StringName) -> void:
 		view._process(DT)
 	await process_frame
 	u.take_damage(u.hp)
-	# queda: continua redesenhando
+	# queda: a pose continua mudando (pelos ossos)
 	var during := 0
+	var sig := _pose_sig(view.visual)
 	for i in 30:
-		draws[0] = 0
 		view._process(DT)
 		await process_frame
-		during += draws[0]
-	_check(during >= 30 and not view.is_frozen(), "%s: durante a queda redesenha todo quadro (%d)" % [id, during])
+		var s := _pose_sig(view.visual)
+		if s != sig:
+			during += 1
+		sig = s
+	_check(during >= 28 and not view.is_frozen(), "%s: durante a queda a pose muda todo quadro (%d/30)" % [id, during])
 	var settle := view.visual.corpse_settle_time()
 	_check(settle < 5.0, "%s: o cadáver tem tempo de assentamento (%.2f s)" % [id, settle])
 	var t := 0.5
@@ -61,10 +70,12 @@ func _test_unit(id: StringName) -> void:
 	await process_frame
 	_check(view.is_frozen(), "%s: congelado depois de %.2f s" % [id, settle])
 	draws[0] = 0
+	var frozen_sig := _pose_sig(view.visual)
 	for i in 120:
 		view._process(DT)
 		await process_frame
 	_check(draws[0] == 0, "%s: 2 s de cadáver sem nenhum redesenho (%d)" % [id, draws[0]])
+	_check(_pose_sig(view.visual) == frozen_sig, "%s: cadáver congelado: a pose não muda" % id)
 	# mover o cadáver: só a posição do nó
 	u.position += Vector2(10, 0)
 	view._process(DT)

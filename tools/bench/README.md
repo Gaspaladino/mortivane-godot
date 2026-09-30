@@ -18,6 +18,7 @@ nada daqui: a única mudança fora desta pasta é o gancho `Battle.sim_script`, 
 | `tools/bench/corpse_pixels.gd` | etapa 2: o que o cadáver congelado deixa de mostrar (pixels). |
 | `tools/bench/paladin_pixels.gd` | etapa 5: roteiro fixo de 24 poses do Paladino para comparar commits. |
 | `tests/support/reference_combat_sim.gd` | cópia congelada da CombatSim de antes da otimização (referência de paridade). |
+| `tools/bench/unit_gallery.gd` | galeria das 6 tropas × 9 poses (parado, andando, preparando, golpe, dano, habilidade, morrendo, cadáver), de perto: `godot --path . -s res://tools/bench/unit_gallery.gd -- saida.png 2.3 warrior,u_warrior`. |
 | `tools/bench/render_breakdown.gd` | custo de RENDER das unidades com a simulação PARADA (Sandbox em preparação): draw calls, objetos, primitivas, quadro, nos modos `normal` / `frozen` (sem redesenho) / `squares` (1 quadrado por unidade) / `merged` (simula 1 triangle array por unidade) / `hidden`. |
 | `tools/bench/render_probe/` | `make_probe_copy.py` cria uma CÓPIA instrumentada do projeto em que todo `draw_*` dos visuais passa por `draw_probe.gd` (conta por parte/tipo e pode desligar categorias com `skip=`). O projeto real não muda. |
 | `tools/bench/render_matrix.sh` | matriz de render: comandos e draw calls por tipo de unidade e por categoria (cópia instrumentada) + tempos no projeto real. Resultado em `RENDER_REPORT.md`. |
