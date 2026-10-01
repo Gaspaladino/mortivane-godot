@@ -66,8 +66,8 @@ var idle_bob := 0.25
 var stride := 13.0              # distância no mundo por ciclo de passos (curta e pesada)
 var leg_swing := 18.0
 var walk_bob := 0.6
-var rest_sword_arm := 26.0      # braço da espada em repouso (+ = para trás)
-var rest_sword := -12.0         # espada quase em pé, pronta (0 = para cima, + = para frente)
+var rest_sword_arm := 62.0      # mão afastada do tronco: lâmina legível ao lado do elmo
+var rest_sword := -14.0         # guarda alta, leve inclinação para fora
 var windup_arm := 150.0
 var windup_sword := -58.0
 var strike_arm := -72.0
@@ -633,7 +633,7 @@ func _draw_barrier_shape() -> void:
 func _draw_cape_part() -> void:
 	var pts := PackedVector2Array([
 		Vector2(1.0, -15.0), Vector2(-6.4, -14.4),
-		Vector2(-12.6, 12.0), Vector2(-7.4, 13.4), Vector2(-2.4, 11.2),
+		Vector2(-10.8, 10.6), Vector2(-6.8, 11.4), Vector2(-2.4, 10.0),
 	])
 	_poly(_cape_shape(pts), _c(cape_color))
 	_line(Vector2(-4.2, -13.2), Vector2(-8.4, 12.4), _c(cape_color.darkened(0.25)), 1.0)
@@ -760,8 +760,6 @@ func _draw_halo() -> void:
 	_arc_line(c, 8.0, PI * 0.84, PI * 2.16, 24, _c(outline), 2.1)
 	_arc_line(c, 8.0, PI * 0.84, PI * 2.16, 24, col, 1.25)
 	_star(c + Vector2(0, -8.0), 2.6, _c(gold_light))
-	_star(c + Vector2(-8.0 * 0.95, -1.6), 1.5, col)
-	_star(c + Vector2(8.0 * 0.95, -1.6), 1.5, col)
 
 
 func _draw_pauldron(shade: float) -> void:
@@ -772,18 +770,15 @@ func _draw_pauldron(shade: float) -> void:
 		top.append(Vector2(cos(a) * 4.8, sin(a) * 3.6 + 0.8))
 	top.append(Vector2(4.4, 2.2))
 	top.append(Vector2(-4.6, 2.2))
-	var lame := PackedVector2Array([Vector2(-4.4, 1.4), Vector2(4.2, 1.4), Vector2(3.8, 4.4), Vector2(-4.0, 4.4)])
-	_poly(lame, _c(ivory, shade * 0.92))
 	_poly(top, _c(ivory, shade))
 	if _rim_pass:
 		return
-	_line(Vector2(-4.2, 4.0), Vector2(3.8, 4.0), _c(gold, shade), 0.8)
+	_line(Vector2(-4.2, 1.7), Vector2(3.8, 1.7), _c(gold, shade), 1.0)
 	var rim := PackedVector2Array()
 	for i in 11:
 		var a := lerpf(PI * 1.08, PI * 1.92, i / 10.0)
 		rim.append(Vector2(cos(a) * 4.1, sin(a) * 2.9 + 1.4))
 	_pline(rim, _c(gold, shade), 0.9)
-	_disc(Vector2(0.4, -1.2), 0.8, _c(gold_light, shade))
 
 
 func _draw_arm(shade: float) -> void:
@@ -805,7 +800,7 @@ func _draw_sword() -> void:
 	_poly(PackedVector2Array([Vector2(-4.0, -2.6), Vector2(-1.0, -2.2), Vector2(1.0, -2.2), Vector2(4.0, -2.6), Vector2(3.6, -0.8), Vector2(-3.6, -0.8)]), _c(gold))
 	if _rim_pass:
 		return
-	_line(Vector2(0, -3.0), Vector2(0, -15.0), _c(blade.darkened(0.3)), 0.6)
+	_fill(PackedVector2Array([Vector2(0, -2.2), Vector2(1.4, -2.2), Vector2(1.25, -15.4), Vector2(0, -SWORD_LENGTH)]), _c(blade.darkened(0.3)))
 	_draw_blade_extra()
 
 
@@ -825,7 +820,7 @@ func _draw_shield() -> void:
 	if _rim_pass:
 		return
 	# metade sombreada, borda dourada, sol
-	_fill(PackedVector2Array([Vector2(0, -10.4), Vector2(-5.2, -9.1), Vector2(-5.1, 1.4), Vector2(-3.5, 7.2), Vector2(0, 11.6)]), _c(steel_shade, 1.02))
+	_fill(PackedVector2Array([Vector2(0, -10.4), Vector2(-6.2, -7.3), Vector2(-5.9, 1.0), Vector2(-3.8, 6.8), Vector2(0, 11.6)]), _c(steel_shade, 1.02))
 	var rim := pts.duplicate()
 	rim.append(pts[0])
 	_pline(rim, _c(gold), 1.3)
@@ -834,10 +829,10 @@ func _draw_shield() -> void:
 
 
 func _shield_points() -> PackedVector2Array:
-	var w := 5.4
+	var w := 6.4
 	return PackedVector2Array([
-		Vector2(0, -10.6), Vector2(w, -9.2), Vector2(w * 0.97, 1.4), Vector2(w * 0.66, 7.2),
-		Vector2(0, 11.8), Vector2(-w * 0.66, 7.2), Vector2(-w * 0.97, 1.4), Vector2(-w, -9.2),
+		Vector2(0, -10.6), Vector2(w, -7.5), Vector2(w * 0.95, 1.2), Vector2(w * 0.63, 7.0),
+		Vector2(0, 11.8), Vector2(-w * 0.63, 7.0), Vector2(-w * 0.95, 1.2), Vector2(-w, -7.5),
 	])
 
 
@@ -851,7 +846,7 @@ func _draw_emblem(c: Vector2, size: float) -> void:
 	var col := _c(emblem)
 	_star(c, size, col)
 	_star(c, size * 0.62, col, PI / 4.0)
-	_arc_line(c, size * 0.42, 0.0, TAU, 14, col, 0.7)
+	_disc(c, size * 0.35, _c(ivory_light))
 
 
 func _star(c: Vector2, s: float, col: Color, rot := 0.0) -> void:
