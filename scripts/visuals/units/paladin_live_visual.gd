@@ -38,10 +38,10 @@ const LEFT := 1.0
 const DIR_YAW := [8.0, 20.0, 30.0, 128.0, 164.0]
 
 @export_group("Proporções")
-## Largura do tronco e distância entre os ombros (1.12 = ~20% mais largo que o Guerreiro).
-@export_range(0.8, 1.4, 0.01) var body_width := 1.12
+## Largura do tronco e distância entre os ombros; silhueta compacta de frontline.
+@export_range(0.8, 1.4, 0.01) var body_width := 1.04
 @export_range(0.8, 1.5, 0.01) var shield_scale := 1.18
-@export_range(0.8, 1.5, 0.01) var sword_scale := 1.4
+@export_range(0.8, 1.5, 0.01) var sword_scale := 1.18
 @export_range(0.8, 1.3, 0.01) var head_scale := 1.0
 
 @export_group("Movimento")
@@ -189,12 +189,12 @@ func update_visual(delta: float) -> void:
 
 ## Pose neutra (valores absolutos). Ângulos em graus. swing: 0 = braço para baixo, 90 = à frente.
 ## s_elev: elevação da lâmina (0 = horizontal para a frente, −90 = para baixo, 90 = para cima).
-## Pronto para lutar: espada erguida na diagonal, para fora (s_elev 52, s_yaw 78), cotovelo dobrado.
+## Guarda alta: lâmina afastada do elmo, cotovelo dobrado e escudo à frente.
 ## s_yaw: lâmina para fora (lado direito); sh_yaw: face do escudo girada para fora (lado esquerdo).
 static func neutral() -> Dictionary:
 	return {
-		twist = 0.0, lean = 3.0, crouch = 1.0, rootx = 0.0, rooty = 0.0, stance = 0.0,
-		r_swing = 14.0, r_abd = 30.0, r_elbow = 44.0, s_elev = 52.0, s_yaw = 78.0,
+		twist = 0.0, lean = 1.0, crouch = 0.6, rootx = 0.0, rooty = 0.0, stance = 0.0,
+		r_swing = 28.0, r_abd = 38.0, r_elbow = 68.0, s_elev = 70.0, s_yaw = 62.0,
 		l_swing = 42.0, l_abd = -10.0, l_elbow = 58.0, sh_yaw = 18.0, sh_fwd = 0.0,
 		tab = 0.0, head_tilt = 0.0, head_turn = 0.0,
 		rf = 0.9, rl = 0.0, lf = -0.7, ll = 0.0, tilt = 0.0, glow = 0.0,
@@ -748,7 +748,9 @@ func _build_parts(p: Dictionary) -> Array:
 			var f := 5.0 if front else -4.2
 			var sw := (tab if front else -tab) * 0.06
 			var bone := B_TAB_FRONT if front else B_TAB_BACK
-			bn[bone] = body * _plane_bone(f, sw / TAB_H, top, -ky, a)
+			# A capa reutiliza a peça/osso traseiro: nenhum nó ou passe adicional.
+			var cape_top := 27.0 - crouch
+			bn[bone] = body * _plane_bone(f, sw / TAB_H, top if front else cape_top, -ky if front else -(cape_top - bot) / TAB_H, a)
 			_group(G_TAB_F if front else G_TAB_B, (4.8 * ca + 0.8) if front else (-4.2 * ca - 0.8))
 
 	# --- tronco (yaw do tronco) ---
@@ -985,6 +987,10 @@ func _bake_knee(shade: float) -> void:
 
 ## Tabardo no plano do corpo: u = lateral, v = distância abaixo do topo (0..TAB_H).
 func _bake_tabard(front: bool) -> void:
+	if not front:
+		_poly(PackedVector2Array([Vector2(-5.6, 0), Vector2(5.6, 0), Vector2(8.4, TAB_H - 0.7), Vector2(3.0, TAB_H), Vector2(-8.0, TAB_H - 0.4)]), _c(ivory_shade))
+		_fill(PackedVector2Array([Vector2(-4.3, 0.5), Vector2(-1.4, 0.5), Vector2(-2.6, TAB_H - 0.6), Vector2(-6.5, TAB_H - 0.8)]), _c(ivory))
+		return
 	var pts := PackedVector2Array()
 	for c in [[-3.6, 0.0], [3.6, 0.0], [4.1, TAB_H], [0.7, TAB_H - 1.8], [0.0, TAB_H - 1.1], [-0.7, TAB_H - 1.8], [-4.1, TAB_H]]:
 		pts.append(Vector2(c[0], c[1]))
@@ -1072,12 +1078,12 @@ func _bake_visor() -> void:
 		Vector2(0.45, -h * 0.505), Vector2(0.45, -h * 0.22), Vector2(-0.45, -h * 0.22), Vector2(-0.45, -h * 0.505), Vector2(-2.8, -h * 0.505)]), _c(visor))
 
 
-## Auréola: anel com contorno e três pontas (o osso estreita pelo giro).
+## Auréola simples: anel e uma ponta central (o osso estreita pelo giro).
 func _bake_halo() -> void:
 	var r := 7.0 * head_scale
 	_arc_line(Vector2.ZERO, r, 0.0, TAU, 28, _c(outline), 2.3)
 	_arc_line(Vector2.ZERO, r, 0.0, TAU, 28, _c(gold), 1.3)
-	for spec in [[Vector2(0, -r - 1.2), 3.4], [Vector2(-r - 0.4, 0), 2.0], [Vector2(r + 0.4, 0), 2.0]]:
+	for spec in [[Vector2(0, -r - 0.6), 2.5]]:
 		_poly(_xf_pts(PaladinMesh.star4(Vector2.ZERO, spec[1] * 0.55, spec[1], spec[1] * 0.75, 0.3 * spec[1]), Transform2D(0.0, spec[0])), _c(gold))
 
 
@@ -1093,10 +1099,10 @@ func _bake_elbow(shade: float) -> void:
 	_disc(Vector2.ZERO, 1.0, _c(ivory_light, shade))
 
 
-## Ombreira grande e arredondada (largura canônica k = 0,92; o osso escala pelo giro).
+## Ombreira compacta: placa, borda e luz; sem rebites pequenos.
 func _bake_pauldron(shade: float) -> void:
-	var rx := 6.0 * 0.92 * body_width
-	var ry := 5.2
+	var rx := 5.2 * 0.92 * body_width
+	var ry := 4.4
 	var pts := PackedVector2Array()
 	for i in 13:
 		pts.append(Vector2(_PAULDRON_COS[i] * rx, _PAULDRON_SIN[i] * ry + 1.2))
@@ -1105,10 +1111,6 @@ func _bake_pauldron(shade: float) -> void:
 	_poly(pts, _c(ivory, shade))
 	_fill(PackedVector2Array([Vector2(-rx * 0.97, 0.9), Vector2(rx * 0.97, 0.9), Vector2(rx * 0.95, 2.6), Vector2(-rx * 0.95, 2.6)]), _c(gold, shade))
 	_fill(PackedVector2Array([Vector2(-rx * 0.55, -2.3), Vector2(-rx * 0.05, -2.8), Vector2(-rx * 0.1, -1.4), Vector2(-rx * 0.5, -1.0)]), _c(ivory_light, shade))
-	_disc(Vector2(rx * 0.25, -0.3), 1.4, _c(gold_light, shade))
-	_disc(Vector2(rx * 0.25, -0.3), 0.6, _c(gold_dark, shade))
-	for i in 3:
-		_disc(Vector2((i - 1) * rx * 0.55, 1.75), 0.45, _c(gold_dark, shade))
 
 
 ## Espada da mão (0,0) até a ponta (L,0): lâmina larga com fio escuro, guarda, punho e pomo.
@@ -1119,14 +1121,14 @@ func _bake_sword() -> void:
 	var base := Vector2(1.9, 0)
 	var near_tip := Vector2(length - 2.2, 0)
 	_poly(PackedVector2Array([base + n * bw, near_tip + n * bw * 0.9, Vector2(length, 0), near_tip - n * bw * 0.9, base - n * bw]), _c(blade))
-	_line(base + Vector2(0.5, 0), Vector2(length - 2.6, 0), _c(blade_dark), 0.55)
+	_fill(PackedVector2Array([base, Vector2(length, 0), near_tip - n * bw * 0.9, base - n * bw]), _c(blade_dark))
 	_poly(PackedVector2Array([Vector2(1.5, -3.2) + Vector2(-0.75, 0), Vector2(1.5, 3.2) + Vector2(-0.75, 0), Vector2(1.5, 3.2) + Vector2(0.75, 0), Vector2(1.5, -3.2) + Vector2(0.75, 0)]), _c(gold))
 	_poly(PackedVector2Array([Vector2(-2.2, -0.65), Vector2(1.0, -0.65), Vector2(1.0, 0.65), Vector2(-2.2, 0.65)]), _c(leather))
 	_circle(Vector2(-2.7, 0), 1.0, _c(gold))
 
 
 func _shield_outer() -> PackedVector2Array:
-	return PackedVector2Array([Vector2(-6.4, -9.8), Vector2(6.4, -9.8), Vector2(6.9, -3.0), Vector2(5.0, 4.8), Vector2(0.0, 10.4), Vector2(-5.0, 4.8), Vector2(-6.9, -3.0)])
+	return PackedVector2Array([Vector2(0.0, -11.0), Vector2(7.0, -7.8), Vector2(6.6, 0.8), Vector2(4.2, 6.5), Vector2(0.0, 11.2), Vector2(-4.2, 6.5), Vector2(-6.6, 0.8), Vector2(-7.0, -7.8)])
 
 
 ## Escudo (espaço do escudo; o osso dá giro, estreitamento e inclinação): face ou verso.
@@ -1136,13 +1138,13 @@ func _bake_shield(front: bool) -> void:
 	for q in outer:
 		inner.append(q * 0.78 + Vector2(0, -0.2))
 	_poly(outer, _c(gold))
-	var half := PackedVector2Array([Vector2(0.0, -7.8), Vector2(5.0, -7.8), Vector2(5.4, -2.5), Vector2(3.9, 3.6), Vector2(0.0, 7.9)])
+	var half := PackedVector2Array([Vector2(0.0, -8.8), Vector2(5.46, -6.28), Vector2(5.15, 0.42), Vector2(3.28, 4.87), Vector2(0.0, 8.54)])
 	if front:
 		_fill(inner, _c(ivory))
 		_fill(half, _c(ivory_shade))
 		_fill(PackedVector2Array([Vector2(-4.4, -7.4), Vector2(-1.4, -7.4), Vector2(-1.8, -4.8), Vector2(-4.2, -3.8)]), _c(ivory_light))
 		_fill(PaladinMesh.star4(Vector2(0, -0.8), 3.2, 5.0, 5.6, 1.0), _c(gold))
-		_fill(PaladinMesh.circle(Vector2(0, -0.8), 1.5, 10), _c(gold_light))
+		_fill(PaladinMesh.circle(Vector2(0, -0.8), 1.65, 10), _c(ivory_light))
 	else:
 		_fill(inner, _c(wood))
 		_fill(half, _c(wood.darkened(0.18)))
