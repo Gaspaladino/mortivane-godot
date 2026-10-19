@@ -355,8 +355,8 @@ const CONTRACTS=[
  {name:'Quintal Pequeno',size:5,bonus:10,blurb:'Só grama normal. Aprenda o ritmo: posicione, morda, invista.'},
  {name:'Jardim Residencial',size:10,bonus:50,blurb:'Mais área e as primeiras touceiras de mato enroscado.',seed:17,patches:4,radius:[1,1],density:.7},
  {name:'Terreno Amplo',size:20,bonus:200,blurb:'Escala de verdade. Sua frota precisa estar afinada.',seed:91,patches:10,radius:[1,2],density:.55},
- {name:'Jardim Rochoso',size:20,bonus:300,blurb:'Pedras bloqueiam caminhos. Hora do Triturador.',seed:203,patches:18,radius:[1,2],density:.65,layout:'rochoso'},
- {name:'Jardim do Riacho',size:24,bonus:500,blurb:'Pedras e um riacho com correnteza cortam o terreno.',seed:331,patches:24,radius:[1,2],density:.65,layout:'riacho'}];
+ {name:'Jardim Rochoso',size:30,bonus:300,blurb:'Pedras bloqueiam caminhos. Hora do Triturador.',seed:203,patches:40,radius:[1,2],density:.65,layout:'rochoso'},
+ {name:'Jardim do Riacho',size:45,bonus:500,blurb:'Pedras e um riacho com correnteza cortam o terreno.',seed:331,patches:84,radius:[1,2],density:.65,layout:'riacho'}];
 const RESISTANT_HP=2;
 
 // ===================== GEOMETRIA =====================
@@ -396,11 +396,11 @@ function buildMap(ct){const N=ct.size,hp=Array(N*N).fill(1);
 }
 // Layouts: paredes com aberturas (geram desvios sem fechar nenhuma região) + pedras soltas.
 const LAYOUTS={
- rochoso:N=>{const r=[],line=(x0,y0,x1,y1)=>{for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)r.push([x,y])};line(2,5,8,5);line(12,2,12,8);line(11,14,17,14);line(6,11,6,17);
-  for(const p of [[15,4],[16,4],[15,5],[3,9],[4,9],[9,9],[10,10],[17,10],[17,11],[2,17],[3,17],[13,18],[18,2]])r.push(p);return {rocks:r}},
- riacho:N=>{const ry=x=>11+Math.round(2.2*Math.sin(x/3.6)),water=[],r=[],line=(x0,y0,x1,y1)=>{for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)r.push([x,y])};
-  for(let x=0;x<N;x++)water.push([x,ry(x)],[x,ry(x)+1]);line(6,2,6,6);line(13,19,19,19);line(19,3,19,7);
-  for(const p of [[2,20],[3,20],[3,21],[21,20],[11,4],[12,4],[4,16],[16,16],[9,7]])r.push(p);for(const x of [4,10,17])r.push([x,x%2?ry(x)-1:ry(x)+2]);
+ rochoso:N=>{const f=N/20,r=[],line=(x0,y0,x1,y1)=>{x0=Math.round(x0*f);y0=Math.round(y0*f);x1=Math.round(x1*f);y1=Math.round(y1*f);for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)r.push([x,y])};line(2,5,8,5);line(12,2,12,8);line(11,14,17,14);line(6,11,6,17);
+  for(const p of [[15,4],[16,4],[15,5],[3,9],[4,9],[9,9],[10,10],[17,10],[17,11],[2,17],[3,17],[13,18],[18,2]])line(p[0],p[1],p[0],p[1]);return {rocks:r}},
+ riacho:N=>{const f=N/24,ry=x=>Math.round(N*.46+2.2*f*Math.sin(x/(3.6*f))),water=[],r=[],line=(x0,y0,x1,y1)=>{x0=Math.round(x0*f);y0=Math.round(y0*f);x1=Math.round(x1*f);y1=Math.round(y1*f);for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)r.push([x,y])};
+  const W=Math.max(2,Math.round(2*f));for(let x=0;x<N;x++)for(let k=0;k<W;k++)water.push([x,ry(x)+k]);line(6,2,6,6);line(13,19,19,19);line(19,3,19,7);
+  for(const p of [[2,20],[3,20],[3,21],[21,20],[11,4],[12,4],[4,16],[16,16],[9,7]])line(p[0],p[1],p[0],p[1]);for(const x0 of [4,10,17]){const x=Math.round(x0*f);r.push([x,x0%2?ry(x)-1:ry(x)+W])}
   return {rocks:r,water,flow:{x:1,y:0}}}};
 const MAPS=CONTRACTS.map(buildMap);
 const goalOf=i=>MAPS[i].filter(h=>h>0).length;
