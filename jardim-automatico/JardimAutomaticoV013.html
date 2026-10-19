@@ -300,7 +300,7 @@ body.fullui header{display:none}
 // ===================== CONFIGURAÇÃO (dados) =====================
 // simRate: multiplicador global e fixo do relógio da simulação.
 // travelStep: tempo de simulação por célula em deslocamento.
-const CONFIG=Object.freeze({stun:.5,maxRobots:36,coinPerCell:1,simRate:2,travelStep:.22,saveKey:'jardim-automatico-v001'});
+const CONFIG=Object.freeze({cell:80,stun:.5,maxRobots:36,coinPerCell:1,simRate:2,travelStep:.22,saveKey:'jardim-automatico-v001'});
 // Robôs. Cada modelo tem atributos base e SUA PRÓPRIA linha de melhorias:
 //  tank: +per de bateria por nível · speed: +per (fração) de cadência por nível · efficiency: −per no consumo por nível.
 //  Custo de um nível = ceil(base × mult^nível). max = nível máximo (o "teto" que empurra para o próximo modelo).
@@ -361,7 +361,7 @@ const RESISTANT_HP=2;
 
 // ===================== GEOMETRIA =====================
 const distance=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
-function makeGeo(N){const TOTAL=N*N,XY=cell=>({x:cell%N,y:Math.floor(cell/N)});
+function makeGeo(N,cellSize){const TOTAL=N*N,XY=cell=>({x:cell%N,y:Math.floor(cell/N)});
  const nb=Array.from({length:TOTAL},(_,cell)=>{const {x,y}=XY(cell);return [[x+1,y],[x,y+1],[x-1,y],[x,y-1]].filter(([a,b])=>a>=0&&a<N&&b>=0&&b<N).map(([a,b])=>b*N+a)});
  // Duas vagas por célula de borda, todas fora da grama e alinhadas à entrada.
  const slots=[];
@@ -373,7 +373,7 @@ function makeGeo(N){const TOTAL=N*N,XY=cell=>({x:cell%N,y:Math.floor(cell/N)});
  // Vagas da Serra Gêmea: centradas entre duas células de borda (a máquina ocupa 2 blocos).
  for(let side=0;side<4;side++)for(let a=0;a<N-1;a++){const e=1.05,p=[{x:a+.5,y:-e,axis:'v',dir:1,angle:Math.PI/2},{x:N-1+e,y:a+.5,axis:'h',dir:-1,angle:Math.PI},{x:a+.5,y:N-1+e,axis:'v',dir:-1,angle:-Math.PI/2},{x:-e,y:a+.5,axis:'h',dir:1,angle:0}][side];
   slots.push({...p,a,side,lane:0,model:'dual',entry:p.axis==='v'?(p.dir>0?a:(N-1)*N+a):(p.dir>0?a*N:a*N+N-1),id:slots.length})}
- return {N,TOTAL,XY,nb,slots,C:600/N};
+ return {N,TOTAL,XY,nb,slots,C:cellSize??CONFIG.cell};
 }
 function rng(seed){let s=seed>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296}}
 // Mapa = resistência (mordidas necessárias) de cada célula.
@@ -764,7 +764,7 @@ function showScreen(name){const prev=screen;if(name==='upgrades'&&prev!=='upgrad
 function closeTree(){if(screen!=='upgrades')return;sound('click');if(treeReturn==='contract')prepare();else showScreen(treeReturn||'menu')}
 function selectContract(i){if(i>save.unlocked){toast('Conclua o contrato anterior para liberar este.');return}
  const changed=i!==ci||screen!=='contract';positionsBy[ci]=positions;ci=i;G=makeGeo(CONTRACTS[i].size);positions=positionsBy[i];save.last=i;persist();
- if(changed){introT=0;centerCamera(true);sound('van')}
+ if(changed){introT=0;cam.needCenter=true;sound('van')}
  if(!save.ui.camTip){save.ui.camTip=true;persist();setTimeout(()=>showCamTip(),1600)}prepare()}
 // Restaura terreno e bateria; moedas e melhorias são permanentes. Posições válidas são mantidas.
 function prepare(){clearTimeout(resultTimer);closeModal('result');run=null;phase='prep';paused=false;particles=[];texts=[];flights=[];drones=[];shake=0;moving=-1;
@@ -813,7 +813,7 @@ function updateFleetBar(){const types=fleetTypes(save);
 // A câmera move só o mundo (arena, van, robôs). A HUD fica em coordenadas de tela.
 const cam={x:400,y:400,z:1,tx:400,ty:400,tz:1,keys:new Set(),drag:null},CAM_ZOOM=[.65,2.5],CAM_SPEED=900;
 function sceneBox(){const C=G.C,ext=B/2+1.05*C+46;return {l:CENTER-ext,r:CENTER+ext,t:CENTER-ext,b:VAN.y(G)+80}}
-function centerCamera(instant=false){const b=sceneBox();cam.tx=(b.l+b.r)/2;cam.ty=(b.t+b.b)/2;cam.tz=1;if(instant){cam.x=cam.tx;cam.y=cam.ty;cam.z=1}}
+function centerCamera(instant=false){const b=sceneBox(),hv=(view.H-190)/(view.fit||1)/2;cam.tx=(b.l+b.r)/2;cam.ty=Math.max((b.t+b.b)/2,b.b-hv);cam.tz=1;if(instant){cam.x=cam.tx;cam.y=cam.ty;cam.z=1}}
 function clampCam(){const b=sceneBox();cam.tx=Math.max(b.l,Math.min(b.r,cam.tx));cam.ty=Math.max(b.t,Math.min(b.b,cam.ty));cam.tz=Math.max(CAM_ZOOM[0],Math.min(CAM_ZOOM[1],cam.tz))}
 function camView(){const k=view.fit*cam.z;view.k=k;view.ox=view.acx-cam.x*k;view.oy=view.acy-cam.y*k}
 // Dica de controles: aparece na 1ª entrada em contrato, some sozinha (~5 s) ou quando a câmera é usada.
@@ -946,11 +946,13 @@ function zoomTree(f,cx,cy){const v=$('treeView').getBoundingClientRect();cx??=v.
 function renderContracts(){const list=$('contractList');list.innerHTML='';CONTRACTS.forEach((ct,i)=>{const locked=i>save.unlocked,el=document.createElement('article'),rc=resistantCount(i);el.className='card contract-card'+(locked?' locked':'');
  el.innerHTML=`<canvas width="400" height="400"></canvas><span class="num">${i+1}</span><h3>${ct.name}</h3><p>${ct.blurb}</p><div class="meta"><span class="chip">📐 ${ct.size}×${ct.size}</span><span class="chip">${rc?`🌿 ${rc} mato`:'🌱 só grama normal'}</span>${MAPS[i].rocks.some(Boolean)?`<span class="chip">🪨 ${MAPS[i].rocks.filter(Boolean).length} pedras</span>`:''}${MAPS[i].water.some(Boolean)?'<span class="chip">🌊 riacho</span>':''}<span class="chip">🏆 ◈ ${ct.bonus}</span>${save.wins[i]?`<span class="chip ok">✓ ${save.wins[i]}×</span>`:save.best[i]?`<span class="chip">melhor ${save.best[i]}%</span>`:''}</div>${locked?`<button disabled>🔒 BLOQUEADO</button><div class="lock"><div><span>🔒</span>Conclua o Contrato ${i}</div></div>`:`<button class="btn-gold">${save.wins[i]?'↻ JOGAR DE NOVO':'▶ JOGAR'}</button>`}`;
  if(!locked)el.onclick=()=>selectContract(i);list.append(el);
- const c=el.querySelector('canvas').getContext('2d'),g=makeGeo(ct.size);c.fillStyle='#7ec46a';c.fillRect(0,0,400,400);c.save();c.translate(-60,-60);c.scale(.65,.65);drawBoard(c,g,{hp:MAPS[i],maxHp:MAPS[i]},0);c.restore()})}
+ const c=el.querySelector('canvas').getContext('2d'),g=makeGeo(ct.size);c.fillStyle='#7ec46a';c.fillRect(0,0,400,400);c.save();{const kk=400/(g.N*g.C+90);c.translate(-(M-45)*kk,-(M-45)*kk);c.scale(kk,kk)}drawBoard(c,g,{hp:MAPS[i],maxHp:MAPS[i]},0);c.restore()})}
 
 // ===================== RENDERIZAÇÃO =====================
 const canvas=$('garden'),ctx=canvas.getContext('2d'),preview=$('preview'),pc=preview.getContext('2d');
-const M=100,B=600,CENTER=400;
+// O tabuleiro tem N×célula de lado: contratos maiores ocupam mais mundo (van e robôs mantêm o tamanho).
+const M=100;let B=600,CENTER=400;
+function setBoard(g){B=g.N*g.C;CENTER=M+B/2}
 const pixel=(g,p)=>({x:M+(p.x+.5)*g.C,y:M+(p.y+.5)*g.C});
 const robotScale=g=>Math.min(1,g.C/62);
 function round(c,x,y,w,h,r,fill){c.beginPath();c.roundRect(x,y,w,h,Math.max(0,Math.min(r,w/2,h/2)));c.fillStyle=fill;c.fill()}
@@ -1052,7 +1054,7 @@ function drawTuft(c,g,i,x,y,hp,maxHp,t,sc=1,sy=1,lean=0,alpha=1,cutAngle=null,ea
  c.scale(sc,sc*sy);c.drawImage(sp,-S/2,-S/2,S,S);c.restore()}
 // Moldura de caminho de pedras ao redor do jardim (cacheada).
 let frameCache=null;
-function boardFrame(c){if(!frameCache){frameCache=document.createElement('canvas');const R=2,W=B+90;frameCache.width=W*R;frameCache.height=(W+10)*R;const f=frameCache.getContext('2d');f.scale(R,R);f.translate(45,45);const rnd=rng(99);
+function boardFrame(c){if(!frameCache||frameCache.B!==B){frameCache=document.createElement('canvas');frameCache.B=B;const R=Math.min(2,2400/(B+90)),W=B+90;frameCache.width=W*R;frameCache.height=(W+10)*R;const f=frameCache.getContext('2d');f.scale(R,R);f.translate(45,45);const rnd=rng(99);
   f.fillStyle='rgba(20,60,15,.3)';f.beginPath();f.roundRect(-34,-26,B+68,B+70,34);f.fill();
   round(f,-34,-34,B+68,B+68,32,'#8a6a43');round(f,-30,-30,B+60,B+60,30,'#b98e5c');
   const stone=(x,y)=>{const w=16+rnd()*8,h=13+rnd()*6;f.save();f.translate(x,y);f.rotate((rnd()-.5)*.6);f.fillStyle='#efe3c8';f.strokeStyle='#8a6a43';f.lineWidth=2;f.beginPath();f.roundRect(-w/2,-h/2,w,h,6);f.fill();f.stroke();f.fillStyle='#ffffff80';f.beginPath();f.roundRect(-w/2+3,-h/2+2,w*.45,3,2);f.fill();f.restore()};
@@ -1071,18 +1073,20 @@ function drawWater(c,g,water,flow,t){const {C,N,TOTAL,XY}=g;let any=false;c.save
   c.fillStyle='#1e6f99';const o=Math.max(1,C*.035);if(edge(x,y-1))c.fillRect(bx,by,C,o);if(edge(x,y+1))c.fillRect(bx,by+C-o,C,o);if(edge(x-1,y))c.fillRect(bx,by,o,C);if(edge(x+1,y))c.fillRect(bx+C-o,by,o,C)}}
 // Tabuleiro: moldura de pedras, solo, rio, grama top-down e pedras. As fileiras são desenhadas
 // de cima para baixo e S.afterRow(fileira) intercala robôs/cápsulas (pedras altas os cobrem).
-function drawBoard(c,g,S,t){const {C,TOTAL,XY,N}=g,rock=S.rock??S.hp.rocks,rockMax=S.rockMax??rock,water=S.water??S.hp.water,flow=S.flow??S.hp.flow??{x:1,y:0};
+function drawBoard(c,g,S,t){const oB=B,oC=CENTER;setBoard(g);try{drawBoardInner(c,g,S,t)}finally{B=oB;CENTER=oC}}
+function drawBoardInner(c,g,S,t){const {C,TOTAL,XY,N}=g,rock=S.rock??S.hp.rocks,rockMax=S.rockMax??rock,water=S.water??S.hp.water,flow=S.flow??S.hp.flow??{x:1,y:0};
  boardFrame(c);
  c.save();c.beginPath();c.roundRect(M,M,B,B,10);c.clip();
  c.fillStyle='#3c9a42';c.fillRect(M,M,B,B);
  const isGrass=i=>S.hp[i]>0&&!(rock&&rock[i])&&!(water&&water[i]);
- for(let i=0;i<TOTAL;i++){if(S.hp[i]>0&&!(S.cuts?.[i]>0))continue;if(water&&water[i])continue;const {x:gx,y:gy}=XY(i);c.drawImage(dirtSprite(C,cellVariant(i,GRASS_VARIANTS.dirt)),M+gx*C,M+gy*C,C,C)}
+ const V=S.view,cx0=V?Math.max(0,Math.floor((V.x0-M)/C)-1):0,cx1=V?Math.min(N-1,Math.ceil((V.x1-M)/C)+1):N-1,cy0=V?Math.max(0,Math.floor((V.y0-M)/C)-1):0,cy1=V?Math.min(N-1,Math.ceil((V.y1-M)/C)+1):N-1;
+ for(let i=0;i<TOTAL;i++){if(S.hp[i]>0&&!(S.cuts?.[i]>0))continue;if(water&&water[i])continue;const {x:gx,y:gy}=XY(i);if(gx<cx0||gx>cx1||gy<cy0||gy>cy1)continue;c.drawImage(dirtSprite(C,cellVariant(i,GRASS_VARIANTS.dirt)),M+gx*C,M+gy*C,C,C)}
  if(water)drawWater(c,g,water,flow,t);
  c.restore();
  S.afterRow?.(-1);
  const face=faceSprite(C),ol=Math.max(1.4,C*.04);
- for(let gy=0;gy<N;gy++){
-  for(let gx=0;gx<N;gx++){const i=gy*N+gx,hp=S.hp[i],x=M+gx*C,y=M+gy*C;
+ for(let gy=0;gy<N;gy++){if(gy<cy0||gy>cy1){S.afterRow?.(gy);continue}
+  for(let gx=cx0;gx<=cx1;gx++){const i=gy*N+gx,hp=S.hp[i],x=M+gx*C,y=M+gy*C;
    if(hp>0){let sc=1,sy=1,lean=0,ang=null,eaten=0;const e=S.eater?.(i);
     if(e){if(e.type==='dual'){ang=e.angle;eaten=e.bite*(e.partial?.45:.85);lean=0}
      else{const b=e.bite;if(b<.58)lean=Math.sin(b*22)*.02*b;else{const pull=(b-.58)/.42;lean=-Math.cos(e.angle)*pull*.12;sc=1-pull*(e.partial?.08:.3)}}}
@@ -1117,7 +1121,7 @@ function robotCrusher(c,x,y,color,fuel,max,t,angle=0,ghost=false,working=false,s
 
 
 // Prévia do menu: um robô mordendo uma fileira.
-const DEMO=makeGeo(5),DEMO_MAP=Array(25).fill(1);DEMO_MAP[18]=3;
+const DEMO=makeGeo(5,120),DEMO_MAP=Array(25).fill(1);DEMO_MAP[18]=3;
 function drawPreview(t){const cyc=(t*.8)%5,col=Math.floor(cyc),hp=DEMO_MAP.map((h,i)=>{const y=Math.floor(i/5),x=i%5;if(y===2&&x<=col-1)return 0;if(y===2&&x===col&&cyc-col>.6)return 0;return h});
  pc.clearRect(0,0,640,640);pc.save();pc.scale(.8,.8);drawBoard(pc,DEMO,{hp,maxHp:DEMO_MAP},t);
  const p=cyc-col,from=pixel(DEMO,{x:col-1,y:2}),adv=bitePose(p).advance;robot(pc,from.x+DEMO.C*adv,from.y,'#ffd25e',14,20,t,0,false,true,false,p,0,1);pc.restore()}
@@ -1163,13 +1167,13 @@ let view={k:1,ox:0,oy:0,W:0,H:0,dpr:1,fit:1,acx:0,acy:0},decor=null,decorFor=-1,
 const DECOR={x0:-1100,y0:-1000,w:2600,h:2700,res:.5};
 // Van estacionada abaixo do jardim (fora da área cortável); o inventor fica ao lado.
 const VAN={x:()=>CENTER-90,y:g=>CENTER+B/2+1.05*g.C+150};
-function layout(){const dpr=Math.min(2,window.devicePixelRatio||1),W=innerWidth,H=innerHeight;canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);
- const top=W<900?112:72,bottom=W<700?150:118,b=sceneBox(),fit=Math.max(.15,Math.min((W-24)/(b.r-b.l),(H-top-bottom)/(b.b-b.t)));
+function layout(){setBoard(G);const dpr=Math.min(2,window.devicePixelRatio||1),W=innerWidth,H=innerHeight;canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);
+ const top=W<900?112:72,bottom=W<700?150:118,b=sceneBox(),full=Math.min((W-24)/(b.r-b.l),(H-top-bottom)/(b.b-b.t)),fit=Math.max(full,Math.min((W-24)/Math.min(b.r-b.l,1500),(H-top-bottom)/Math.min(b.b-b.t,1150)));CAM_ZOOM[0]=Math.min(.65,full/fit*.97);
  Object.assign(view,{dpr,W,H,fit,acx:W/2,acy:top+(H-top-bottom)/2});
  const ctx2=ctx;groundGrad=ctx2.createRadialGradient(W/2,H/2,50,W/2,H/2,Math.max(W,H)*.75);groundGrad.addColorStop(0,'#5fc455');groundGrad.addColorStop(1,'#3b9a3f');
- if(decorFor!==ci)buildDecor();clampCam();camView()}
+ if(decorFor!==ci)buildDecor();if(cam.needCenter){cam.needCenter=false;centerCamera(true)}clampCam();camView()}
 // Cenário decorativo em coordenadas de mundo (pré-renderizado uma vez por contrato).
-function buildDecor(){decorFor=ci;decor??=document.createElement('canvas');const R=DECOR.res;decor.width=DECOR.w*R;decor.height=DECOR.h*R;const c=decor.getContext('2d');
+function buildDecor(){decorFor=ci;{const E0=B/2+G.C+300;DECOR.x0=CENTER-E0*2.6-700;DECOR.y0=CENTER-E0*2.6-700;DECOR.w=E0*5.2+1400;DECOR.h=E0*5.2+1900;DECOR.res=Math.min(.5,2600/DECOR.w)}decor??=document.createElement('canvas');const R=DECOR.res;decor.width=DECOR.w*R;decor.height=DECOR.h*R;const c=decor.getContext('2d');
  c.setTransform(R,0,0,R,-DECOR.x0*R,-DECOR.y0*R);const g=G,E=B/2+1.05*g.C+40,vx=VAN.x(),vy=VAN.y(g);
  c.fillStyle='#ffffff0c';for(let x=Math.floor(DECOR.x0/90)*90;x<DECOR.x0+DECOR.w;x+=180)c.fillRect(x,DECOR.y0,90,DECOR.h);
  // estacionamento de cascalho e trilha até o jardim
@@ -1306,7 +1310,7 @@ function drawGame(t){const g=G,s=robotScale(g),{dpr,k,ox,oy,W,H}=view,c=ctx;
  const sx=shake>0?(Math.random()-.5)*shake*6:0,sy=shake>0?(Math.random()-.5)*shake*6:0;
  c.setTransform(dpr*k,0,0,dpr*k,dpr*(ox+sx),dpr*(oy+sy));
  c.drawImage(decor,DECOR.x0,DECOR.y0,DECOR.w,DECOR.h);
- const S=run?{hp:run.hp,maxHp:run.maxHp,eater:i=>{const o=run.claims.get(i);if(o===undefined)return null;const r=run.robots[o];return r.traveling?null:r},hits:hitAges,cuts:cutAges,angles:cutAngles,rock:run.rock,rockMax:run.rockMax,water:run.water,flow:run.flow,rockHits:rockHitAges}:{hp:MAPS[ci],maxHp:MAPS[ci]};
+ const S=run?{hp:run.hp,maxHp:run.maxHp,eater:i=>{const o=run.claims.get(i);if(o===undefined)return null;const r=run.robots[o];return r.traveling?null:r},view:{x0:-view.ox/view.k,y0:-view.oy/view.k,x1:(view.W-view.ox)/view.k,y1:(view.H-view.oy)/view.k},hits:hitAges,cuts:cutAges,angles:cutAngles,rock:run.rock,rockMax:run.rockMax,water:run.water,flow:run.flow,rockHits:rockHitAges}:{hp:MAPS[ci],maxHp:MAPS[ci]};
  S.cutKind=cutKind;if(run){const rows=new Map();for(const r of run.robots){const row=Math.max(-1,Math.min(g.N,Math.round(r.y)));if(!rows.has(row))rows.set(row,[]);rows.get(row).push(r)}S.afterRow=row=>{drawCapsules(c,t,row);for(const r of rows.get(row)??[])drawRobot(c,r,t,s)}}
  drawBoard(c,g,S,t);
  // base de operações: a van chega no início do contrato e o inventor desce
