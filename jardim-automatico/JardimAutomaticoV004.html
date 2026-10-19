@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#1f4a2c"><title>Jardim Automático · V004</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#3a2a1c;--muted:#8a7660;--cream:#fff8e7;--cream2:#f6ebcf;--edge:#e2cfa2;--green:#4caf50;--greenD:#2f7d34;--gold:#ffc94a;--goldD:#d9962a;--dirt:#a8723f;--sky1:#2c6b3f;--sky2:#173a24;--danger:#c4553d}
+*{box-sizing:border-box}
+html{background:#173a24}
+body{margin:0;min-height:100vh;color:var(--ink);font:15px 'Fredoka',system-ui,-apple-system,'Segoe UI',sans-serif;background:radial-gradient(ellipse at 50% -10%,#4c9a55 0%,var(--sky1) 38%,var(--sky2) 100%) fixed;overflow-x:hidden}
+body:before{content:'';position:fixed;inset:0;pointer-events:none;background-image:radial-gradient(#ffffff10 1.5px,transparent 1.6px);background-size:26px 26px;z-index:0}
+h1,h2,h3,p{margin:0}
+button{font:inherit;cursor:pointer;border:0;border-radius:14px;padding:12px 18px;font-weight:600;color:var(--ink);background:linear-gradient(#fffdf5,#f1e3bf);box-shadow:0 4px 0 #cdb27a,0 6px 12px #0002;transition:transform .12s,box-shadow .12s,filter .15s;position:relative}
+button:hover{filter:brightness(1.05);transform:translateY(-1px)}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 #cdb27a,0 2px 5px #0002}
+button:disabled{opacity:.5;cursor:default;transform:none;filter:grayscale(.4)}
+button:focus-visible,canvas:focus-visible{outline:3px solid #fff3a8;outline-offset:3px}
+.btn-gold{background:linear-gradient(#ffe07a,var(--gold));box-shadow:0 5px 0 var(--goldD),0 8px 16px #0003;color:#5a3510}
+.btn-gold:active{box-shadow:0 1px 0 var(--goldD)}
+.btn-green{background:linear-gradient(#7fd66b,var(--green));box-shadow:0 5px 0 var(--greenD),0 8px 16px #0003;color:#fff;text-shadow:0 1px 0 #2f7d34}
+.btn-green:active{box-shadow:0 1px 0 var(--greenD)}
+.small{padding:8px 12px;font-size:13px;border-radius:11px}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+header{position:relative;z-index:2;max-width:1380px;margin:auto;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:12px;color:#fff;font-weight:700;font-size:20px;letter-spacing:.5px;text-shadow:0 2px 0 #0003;cursor:pointer}
+.brandmark{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(#ffe07a,var(--gold));box-shadow:0 4px 0 var(--goldD);font-size:24px}
+.ver{font-size:11px;background:#ffffff22;padding:3px 8px;border-radius:8px;letter-spacing:1px}
+.header-actions{display:flex;gap:8px;align-items:center}
+.wallet{display:flex;align-items:center;gap:8px;padding:8px 16px 8px 8px;background:linear-gradient(#5a3a20,#432a16);border-radius:30px;color:#ffe9a8;font-weight:700;font-size:18px;box-shadow:inset 0 2px 0 #ffffff20,0 4px 0 #2a190b;min-width:110px}
+.coin{width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3b0,#ffc94a 55%,#c98a1f);box-shadow:inset 0 -2px 0 #a8701a;display:grid;place-items:center;font-size:13px;color:#8a5a12}
+.wallet.pop{animation:pop .3s}
+main{position:relative;z-index:1;max-width:1380px;margin:auto;padding:6px 28px 28px}
+.screen{display:none;animation:arrive .35s}.screen.active{display:block}
+.card{background:var(--cream);border-radius:22px;box-shadow:0 6px 0 var(--edge),0 14px 30px #0003;padding:20px}
+.title-xl{font-size:clamp(46px,7vw,92px);line-height:.95;color:#fff;font-weight:700;letter-spacing:-1px;text-shadow:0 5px 0 #1d4527,0 10px 30px #0005}
+.title-xl em{font-style:normal;color:var(--gold)}
+/* MENU */
+.menu{display:grid;grid-template-columns:1.05fr 1fr;gap:40px;align-items:center;min-height:calc(100vh - 130px)}
+.menu-copy{color:#e4f3dc;font-size:17px;line-height:1.6;max-width:430px;margin:20px 0 28px}
+.menu-buttons{display:flex;flex-direction:column;gap:14px;max-width:340px}
+.menu-buttons button{font-size:19px;padding:16px 22px;text-align:left;display:flex;justify-content:space-between;align-items:center}
+.tag{display:inline-block;background:#ffffff1f;color:#fff;border-radius:20px;padding:6px 12px;font-size:12px;font-weight:600;letter-spacing:1px}
+.menu-art{position:relative}
+.menu-art canvas{width:100%;max-width:560px;display:block;margin:auto;filter:drop-shadow(0 25px 30px #0005);animation:float 5s ease-in-out infinite}
+/* CONTRACTS */
+.section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin:8px 0 22px;color:#fff}
+.section-head h2{font-size:34px;text-shadow:0 3px 0 #1d4527}
+.section-head .eyebrow{color:#bfe3b3}
+.section-head p{color:#d8ecd0;margin-top:6px}
+.contracts{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.contract-card{position:relative;overflow:hidden;cursor:pointer;transition:transform .18s;display:flex;flex-direction:column;gap:10px}
+.contract-card:hover{transform:translateY(-4px) rotate(-.4deg)}
+.contract-card canvas{width:100%;aspect-ratio:1/1;border-radius:16px;background:#7ec46a;display:block}
+.contract-card h3{font-size:22px}
+.contract-card .meta{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--cream2);border-radius:10px;padding:4px 9px;font-size:12px;font-weight:600;color:#6e5638}
+.chip.ok{background:#d8f0c8;color:#2f7d34}
+.contract-card.locked{cursor:default;filter:saturate(.25)}
+.contract-card.locked:hover{transform:none}
+.lock{position:absolute;inset:0;display:grid;place-items:center;background:#2a1d1288;color:#fff;font-size:18px;font-weight:700;text-align:center;border-radius:22px}
+.lock span{display:block;font-size:42px}
+/* GAME */
+.hud{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
+.hud-item{background:linear-gradient(#fffaf0,#f4e6c4);border-radius:16px;padding:9px 12px;box-shadow:0 4px 0 var(--edge),0 8px 18px #0002;min-width:0}
+.hud-item small{display:block;font-size:10px;letter-spacing:1.3px;font-weight:700;color:var(--muted);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hud-item b{font-size:21px;display:block;white-space:nowrap}
+.bar{height:9px;background:#e4d3aa;border-radius:9px;overflow:hidden;margin-top:4px;box-shadow:inset 0 1px 2px #0002}
+.bar span{display:block;height:100%;width:0;background:linear-gradient(#9ee07b,#4caf50);border-radius:9px;transition:width .3s}
+.bar.fuel span{background:linear-gradient(#ffe07a,#f0a830)}
+.game-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px}
+.board{position:relative;border-radius:28px;padding:10px;background:radial-gradient(ellipse at 50% 40%,#8fd16f,#5fa84c 70%,#4a8f3c);box-shadow:inset 0 3px 0 #ffffff40,0 8px 0 #2d6b2e,0 18px 40px #0004}
+.board canvas{display:block;width:100%;height:auto;max-width:min(100%,calc(100vh - 230px));aspect-ratio:1/1;margin:auto;touch-action:manipulation}
+.board-caption{display:flex;justify-content:space-between;color:#f0ffe6;font-size:12px;font-weight:600;letter-spacing:1px;padding:4px 10px 2px;text-shadow:0 1px 0 #2d6b2e}
+.phase-banner{position:absolute;top:18px;left:50%;translate:-50% 0;background:#2a1d12d8;color:#fff;padding:7px 16px;border-radius:20px;font-size:13px;font-weight:600;white-space:nowrap;pointer-events:none}
+.sidebar .card{margin-bottom:16px;padding:18px}
+.sidebar h3{font-size:18px}
+.sidebar p{font-size:13px;color:var(--muted);line-height:1.5;margin-top:6px}
+#robotList{max-height:220px;overflow:auto;margin-top:10px;display:flex;flex-direction:column;gap:5px}
+.robot-row{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:10px;font-size:12px;width:100%;background:var(--cream2);box-shadow:none;text-align:left}
+.robot-row:active{transform:none;box-shadow:none}
+.robot-row.selected{background:#fff0b8;outline:2px solid var(--gold)}
+.robot-row .bar{flex:1;margin:0;height:7px}
+.robot-row small{min-width:62px;text-align:right;color:var(--muted)}
+.dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;box-shadow:inset 0 -2px 0 #0003}
+.wide{width:100%;margin-top:10px}
+.tools{display:flex;gap:8px;margin-top:10px}.tools button{flex:1}
+.stat-line{font-size:12px;color:var(--muted);margin-top:8px}
+/* UPGRADES */
+.tree{position:relative;display:grid;grid-template-columns:1fr 250px 1fr;grid-template-areas:". top ." "left core right" ". bottom .";gap:26px;max-width:960px;margin:0 auto;align-items:center}
+.tree:before,.tree:after{content:'';position:absolute;z-index:0;border:3px dashed #ffffff40}
+.tree:before{left:50%;top:12%;bottom:12%;border-width:0 0 0 3px}
+.tree:after{top:50%;left:12%;right:12%;border-width:3px 0 0}
+.node{position:relative;z-index:1;transition:transform .2s}
+.node[data-upgrade=robots]{grid-area:top}.node[data-upgrade=tank]{grid-area:left}.node[data-upgrade=speed]{grid-area:right}.node[data-upgrade=efficiency]{grid-area:bottom}
+.node-core{grid-area:core;z-index:1;text-align:center;background:linear-gradient(#7fd66b,#3f9c45);color:#fff;box-shadow:0 6px 0 #2a6e2e,0 14px 30px #0003}
+.node-core .eyebrow{color:#e0f7d4}
+.node-head{display:flex;align-items:center;gap:10px}
+.node-icon{width:44px;height:44px;border-radius:13px;background:var(--cream2);display:grid;place-items:center;font-size:24px;flex-shrink:0}
+.node h3{font-size:17px}
+.level{margin-left:auto;font-size:11px;font-weight:700;background:#3a2a1c;color:#ffe9a8;padding:4px 8px;border-radius:8px;white-space:nowrap}
+.node p{font-size:13px;color:var(--muted);margin:10px 0 6px;line-height:1.45}
+.benefit{background:#eef8e2;border-radius:10px;padding:7px 10px;font-weight:600;color:#2f7d34;font-size:14px}
+.node button{width:100%;margin-top:12px;font-size:15px}
+.price{font-weight:700}
+.node.afford{box-shadow:0 6px 0 #9fd27f,0 0 0 3px #9fd27f80,0 14px 30px #0003}
+.node.buying{animation:buy .55s}
+.node.buying:after{content:'✦ ✧ ✦';position:absolute;top:6px;right:16px;color:var(--goldD);font-size:20px;pointer-events:none;animation:spark .6s forwards}
+.future{max-width:960px;margin:34px auto 0;display:flex;gap:16px;align-items:center;opacity:.92}
+.future .node-icon{background:#d7ccb5;filter:grayscale(1)}
+.fleet-stats{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:22px}
+.fleet-stats span{background:#ffffff1c;color:#fff;border-radius:12px;padding:8px 14px;font-size:13px}
+.fleet-stats b{color:var(--gold);margin-left:6px}
+/* MODALS */
+.overlay{position:fixed;inset:0;background:#10241699;backdrop-filter:blur(6px);z-index:10;display:none;align-items:center;justify-content:center;padding:18px}
+.overlay.open{display:flex}
+.modal{width:460px;max-width:100%;text-align:center;animation:modalIn .4s cubic-bezier(.2,1.4,.4,1);padding:30px}
+.result-icon{width:86px;height:86px;margin:-72px auto 10px;border-radius:50%;display:grid;place-items:center;font-size:44px;background:linear-gradient(#ffe07a,var(--gold));box-shadow:0 6px 0 var(--goldD),0 10px 20px #0003}
+.result-icon.fail{background:linear-gradient(#d8d0c0,#b8ab92);box-shadow:0 6px 0 #8f8268}
+.modal h2{font-size:28px;margin-top:6px}
+.modal p{color:var(--muted);line-height:1.55;margin:10px 0 16px}
+.result-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
+.result-stats div{background:var(--cream2);border-radius:14px;padding:10px}
+.result-stats b{display:block;font-size:22px}
+.result-stats small{font-size:10px;letter-spacing:1px;color:var(--muted);font-weight:700}
+.unlock{background:linear-gradient(#ffe9a0,#ffd166);border-radius:14px;padding:12px;font-weight:700;color:#6a4210;margin-bottom:6px;animation:glow 1.4s ease-in-out infinite}
+#toast{position:fixed;bottom:30px;left:50%;transform:translate(-50%,20px);background:#3a2a1c;color:#fff4d0;padding:12px 20px;border-radius:14px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;z-index:30;box-shadow:0 5px 0 #1d140c}
+#toast.visible{opacity:1;transform:translate(-50%,0)}
+.hidden{display:none!important}
+@keyframes arrive{from{opacity:0;translate:0 12px}to{opacity:1;translate:0 0}}
+@keyframes modalIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+@keyframes pop{50%{transform:scale(1.12)}}
+@keyframes buy{40%{transform:scale(1.05);filter:brightness(1.12)}}
+@keyframes spark{to{translate:0 -28px;opacity:0}}
+@keyframes float{50%{transform:translateY(-10px)}}
+@keyframes glow{50%{box-shadow:0 0 0 6px #ffd16655}}
+@media(max-width:980px){.hud{grid-template-columns:repeat(3,1fr)}.game-layout{grid-template-columns:1fr}.board canvas{max-width:100%}.sidebar{display:grid;grid-template-columns:1fr 1fr;gap:14px}.sidebar .card{margin:0}.contracts{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){header{padding:12px 16px}.brand{font-size:15px}.brandmark{width:36px;height:36px}.ver{display:none}main{padding:4px 16px 24px}.menu{grid-template-columns:1fr;min-height:0;gap:24px;padding-top:16px}.menu-art{order:-1}.menu-art canvas{max-width:340px}.contracts{grid-template-columns:1fr}.sidebar{grid-template-columns:1fr}.hud{grid-template-columns:repeat(2,1fr)}.tree{grid-template-columns:1fr;grid-template-areas:"core" "top" "left" "right" "bottom"}.tree:before,.tree:after{display:none}.section-head{flex-direction:column;align-items:flex-start}.header-actions button{padding:8px 10px}.wallet{min-width:0;font-size:15px}}
+</style></head>
+<body>
+<header><div class="brand" id="home"><span class="brandmark">🌱</span>JARDIM AUTOMÁTICO <span class="ver">V004</span></div><div class="header-actions"><div class="wallet" aria-label="Moedas disponíveis"><span class="coin">◈</span><span id="coins">0</span></div><button id="sound" class="small" aria-label="Ativar ou desativar sons">🔊</button><button id="settings" class="small" aria-label="Configurações">⚙</button></div></header>
+<main>
+<section id="menu" class="screen active"><div class="menu"><div><span class="tag">PEQUENOS ROBÔS · GRANDES PLANOS</span><h1 class="title-xl" style="margin-top:16px">Jardim<br><em>Automático</em></h1><p class="menu-copy">Posicione seus robôs mastigadores, deixe-os devorar a grama — vum… nhac! — e invista cada moeda numa frota melhor. Três contratos esperam por você.</p><div class="menu-buttons"><button class="btn-gold" id="play">▶ JOGAR <span id="playSub" style="font-size:13px;opacity:.75"></span></button><button class="btn-green" id="menuContracts">🗺 Contratos <span>›</span></button><button id="menuUpgrades">🔧 Oficina de melhorias <span>›</span></button></div></div><div class="menu-art"><canvas id="preview" width="640" height="640" aria-label="Ilustração de um robô comendo grama"></canvas></div></div></section>
+
+<section id="contracts" class="screen"><div class="section-head"><div><div class="eyebrow">ESCOLHA O TRABALHO</div><h2>Contratos</h2><p>Conclua um contrato para liberar o próximo. Contratos liberados podem ser rejogados à vontade.</p></div><button id="contractsBack">← Menu</button></div><div class="contracts" id="contractList"></div></section>
+
+<section id="contract" class="screen">
+ <div class="section-head" style="margin-bottom:14px"><div><div class="eyebrow" id="ctEyebrow">CONTRATO 1</div><h2 id="ctName">Quintal Pequeno</h2></div><div class="row" style="display:flex;gap:8px"><button class="small" id="toContracts">🗺 Contratos</button><button class="small" id="contractUpgrades">🔧 Melhorias</button></div></div>
+ <div class="hud">
+  <div class="hud-item"><small>Progresso</small><b><span id="percent">0</span>%</b><div class="bar"><span id="progress"></span></div></div>
+  <div class="hud-item"><small>Grama restante</small><b id="remaining">25</b></div>
+  <div class="hud-item"><small>Ganhos</small><b id="earned">◈ 0</b></div>
+  <div class="hud-item"><small>Robôs ativos</small><b id="active">1 / 1</b></div>
+  <div class="hud-item"><small>Combustível da frota</small><b id="fuelText">20</b><div class="bar fuel"><span id="fuelBar"></span></div></div>
+  <div class="hud-item"><small>Tempo</small><b id="timer">00:00</b></div>
+ </div>
+ <div class="game-layout">
+  <div class="board"><canvas id="garden" width="800" height="800" tabindex="0" aria-label="Jardim. Clique em um ponto fora do terreno para posicionar o robô. Setas percorrem os pontos externos e Enter posiciona."></canvas><div class="phase-banner" id="phaseBadge">● PREPARAÇÃO</div><div class="board-caption"><span id="caption">5 × 5</span><span>+1 ◈ POR CÉLULA COMPLETA</span></div></div>
+  <aside class="sidebar">
+   <div class="card"><h3 id="fleetTitle">Sua frota</h3><p id="placementHint"></p><div id="robotList"></div><div class="stat-line" id="speedStat"></div><button class="btn-gold wide" id="start" style="font-size:17px">▶ INICIAR CORTE</button><div class="tools"><button class="small" id="pause" disabled>⏸ Pausar</button><button class="small" id="rate" disabled>1×</button></div></div>
+   <div class="card"><h3>Legenda</h3><p>🟩 Grama normal · 1 mordida<br>🟫 Terra · já comida<br>🌿 Mato enroscado · 2 ou 3 mordidas. A moeda só vem quando o mato sai por completo.</p><p id="ctInfo"></p></div>
+  </aside>
+ </div>
+</section>
+
+<section id="upgrades" class="screen"><div class="section-head"><div><div class="eyebrow">OFICINA DO JARDIM</div><h2>Melhorias da frota</h2><p>Toda a frota recebe cada melhoria. Os efeitos valem a partir da próxima tentativa.</p></div><button id="back">← Voltar ao jardim</button></div>
+ <div class="tree"><div class="card node-core"><div style="font-size:40px">🤖</div><b style="font-size:18px">Robô Básico</b><div class="eyebrow" style="margin-top:4px">DESBLOQUEADO</div></div><article class="card node" data-upgrade="robots"></article><article class="card node" data-upgrade="tank"></article><article class="card node" data-upgrade="speed"></article><article class="card node" data-upgrade="efficiency"></article></div>
+ <div class="card future"><span class="node-icon">⚙</span><div><h3 id="futureName">Triturador</h3><p style="color:var(--muted);font-size:13px;margin-top:4px" id="futureDesc"></p></div><span class="level" style="margin-left:auto">🔒 EM BREVE</span></div>
+ <div class="fleet-stats" id="fleetStats"></div>
+</section>
+</main>
+<div id="result" class="overlay" role="dialog" aria-modal="true" aria-labelledby="resultTitle"><div class="card modal"><div class="result-icon" id="resultIcon">✦</div><div class="eyebrow" id="resultEyebrow">FIM DA TENTATIVA</div><h2 id="resultTitle">COMBUSTÍVEL ESGOTADO!</h2><p id="resultCopy"></p><div id="unlockBox" class="unlock hidden"></div><div class="result-stats" id="resultStats"></div><button class="btn-gold wide" id="retry">↻ TENTAR NOVAMENTE</button><button class="btn-green wide hidden" id="nextContract">PRÓXIMO CONTRATO →</button><div class="tools"><button id="resultUpgrades">🔧 Melhorias</button><button id="resultContracts">🗺 Contratos</button></div></div></div>
+<div id="settingsModal" class="overlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle"><div class="card modal"><h2 id="settingsTitle">Configurações</h2><p>Seu progresso é salvo automaticamente neste navegador. Tentativas interrompidas voltam à preparação.</p><p id="saveStatus"></p><button id="reset" class="wide" style="color:var(--danger)">Apagar progresso</button><button id="closeSettings" class="btn-green wide">Voltar</button></div></div>
+<div id="toast" role="status"></div>
+<script>
+'use strict';
+// ===================== CONFIGURAÇÃO (dados) =====================
+const CONFIG=Object.freeze({initialFuel:20,baseSpeed:1,maxRobots:36,coinPerCell:1,saveKey:'jardim-automatico-v001'});
+// Efeitos por nível. Ajuste aqui sem tocar na lógica.
+const EFFECTS=Object.freeze({fuelPerLevel:2,speedFactor:1.02,efficiencyFactor:.95});
+// Cada melhoria: custo inicial, multiplicador e como ler o nível atual.
+const UPGRADES={
+ robots:{icon:'🤖',name:'Novo robô',desc:'+1 robô básico na frota. Caro, mas multiplica tudo.',base:75,mult:2,level:s=>s.robots-1},
+ tank:{icon:'⛽',name:'Tanque maior',desc:'+2 de combustível em cada robô.',base:8,mult:1.35,level:s=>s.tank},
+ speed:{icon:'⚡',name:'Motor turbo',desc:'+2% de velocidade sobre a atual.',base:6,mult:1.28,level:s=>s.speed},
+ efficiency:{icon:'🍃',name:'Mordida eficiente',desc:'−5% no consumo atual por mordida.',base:10,mult:1.38,level:s=>s.efficiency}};
+// Tipos de robô — base para expansão futura. Apenas o básico é jogável nesta versão.
+const ROBOT_TYPES={
+ basic:{name:'Robô Básico',bite:1,unlocked:true,desc:'Redondo, faminto e confiável.'},
+ crusher:{name:'Triturador',bite:2,unlocked:false,desc:'Mandíbulas reforçadas: cada mordida tira 2 camadas do mato enroscado. Chega numa próxima atualização.'}};
+// Contratos. Os mapas são gerados com semente fixa: o mesmo contrato sempre tem o mesmo terreno.
+const CONTRACTS=[
+ {name:'Quintal Pequeno',size:5,bonus:10,blurb:'Aprenda o ritmo: posicione, morda, invista.',fixed:[[2,2,2]]},
+ {name:'Jardim Residencial',size:10,bonus:50,blurb:'Mais área e as primeiras touceiras de mato enroscado.',seed:17,patches:4,radius:[1,1],density:.7,hard:.18},
+ {name:'Terreno Amplo',size:20,bonus:200,blurb:'Escala de verdade. Sua frota precisa estar afinada.',seed:91,patches:10,radius:[1,2],density:.55,hard:.35}];
+const attributes=s=>({fuel:CONFIG.initialFuel+EFFECTS.fuelPerLevel*s.tank,speed:CONFIG.baseSpeed*EFFECTS.speedFactor**s.speed,consumption:EFFECTS.efficiencyFactor**s.efficiency});
+const cost=(s,key)=>{const u=UPGRADES[key];return Math.ceil(u.base*u.mult**u.level(s))};
+
+// ===================== GEOMETRIA =====================
+const distance=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
+function makeGeo(N){const TOTAL=N*N,XY=cell=>({x:cell%N,y:Math.floor(cell/N)});
+ const nb=Array.from({length:TOTAL},(_,cell)=>{const {x,y}=XY(cell);return [[x+1,y],[x,y+1],[x-1,y],[x,y-1]].filter(([a,b])=>a>=0&&a<N&&b>=0&&b<N).map(([a,b])=>b*N+a)});
+ // Duas vagas por célula de borda, todas fora da grama e alinhadas à entrada.
+ const slots=[];
+ for(let lane=0;lane<2;lane++)for(let side=0;side<4;side++)for(let i=0;i<N;i++){
+  const offset=lane===0?-.23:.23,edge=.85;
+  const points=[{x:i+offset,y:-edge,entry:i,angle:Math.PI/2},{x:N-1+edge,y:i+offset,entry:i*N+N-1,angle:Math.PI},{x:N-1-i-offset,y:N-1+edge,entry:(N-1)*N+N-1-i,angle:-Math.PI/2},{x:-edge,y:N-1-i-offset,entry:(N-1-i)*N,angle:0}];
+  slots.push({...points[side],side,lane,id:slots.length});
+ }
+ return {N,TOTAL,XY,nb,slots,C:600/N};
+}
+function rng(seed){let s=seed>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296}}
+// Mapa = resistência (mordidas necessárias) de cada célula.
+function buildMap(ct){const N=ct.size,hp=Array(N*N).fill(1);
+ if(ct.fixed)for(const [x,y,h] of ct.fixed)hp[y*N+x]=h;
+ if(ct.patches){const r=rng(ct.seed);for(let p=0;p<ct.patches;p++){
+  const cx=1+Math.floor(r()*(N-2)),cy=1+Math.floor(r()*(N-2)),rad=ct.radius[0]+Math.floor(r()*(ct.radius[1]-ct.radius[0]+1));
+  for(let y=cy-rad;y<=cy+rad;y++)for(let x=cx-rad;x<=cx+rad;x++){if(x<0||y<0||x>=N||y>=N)continue;const d=Math.abs(x-cx)+Math.abs(y-cy);if(d>rad)continue;if(d===0||r()<ct.density)hp[y*N+x]=Math.max(hp[y*N+x],d===0&&rad>1?3:r()<ct.hard?3:2)}
+ }}
+ return hp;
+}
+const MAPS=CONTRACTS.map(buildMap);
+const smooth=p=>{p=Math.max(0,Math.min(1,p));return p*p*(3-2*p)};
+// Um ciclo inteiro escala com a velocidade. A boca fecha exatamente na mordida.
+function bitePose(progress,impact=0){const p=Math.max(0,Math.min(1,progress));
+ const mouth=p<.2?smooth(p/.2)*.35:p<.58?.35+.65*smooth((p-.2)/.38):1-smooth((p-.58)/.42);
+ const surge=Math.sin(Math.PI*p),squash=impact*.055;
+ return {mouth,sx:1+surge*.045-squash,sy:1-surge*.025+squash,advance:smooth(Math.min(1,p/.9))};
+}
+
+// ===================== SIMULAÇÃO =====================
+class GardenRun{
+ constructor(save,positions,geo,map){
+  const g=this.g=geo,{TOTAL,XY}=g;
+  this.stats=attributes(save);this.hp=map.slice();this.maxHp=map.slice();this.claims=new Map();this.cut=0;this.earned=0;this.time=0;this.status='running';this.revision=0;this.decisions=0;
+  this.robots=positions.map((slotId,id)=>{const s=g.slots[slotId];if(!s)throw Error('Posição externa inválida');return {id,type:'basic',slotId,fuel:this.stats.fuel,cell:s.entry,x:s.x,y:s.y,angle:s.angle,forward:{x:Math.round(Math.cos(s.angle)),y:Math.round(Math.sin(s.angle))},target:null,path:[],elapsed:0,duration:1,bite:0,impact:0,mode:'entry',stopped:false,partial:false,zig:0,lastDirection:s.angle,visited:Array(TOTAL).fill(0),history:[],waitRevision:-1}});
+  // Regiões preferenciais bem espaçadas. São preferências, nunca fronteiras.
+  this.anchors=[];
+  for(const r of this.robots){let anchor=r.cell,best=-Infinity;for(let cell=0;cell<TOTAL;cell++){
+   const p=XY(cell),separation=this.anchors.length?Math.min(...this.anchors.map(a=>distance(p,XY(a)))):0;
+   const score=separation*2-distance(p,XY(r.cell))*.9;if(score>best){best=score;anchor=cell}
+  }this.anchors.push(anchor)}
+  this.owners=Array.from({length:TOTAL},(_,cell)=>{let owner=0,best=Infinity;for(const r of this.robots){const d=distance(XY(cell),XY(this.anchors[r.id]));if(d<best){best=d;owner=r.id}}return owner});
+  for(const r of this.robots){const s=g.slots[r.slotId];r.path=[{x:s.x,y:s.y},XY(s.entry)];
+   if(!this.claims.has(s.entry)){this.claims.set(s.entry,r.id);r.target=s.entry;r.partial=this.hp[s.entry]>ROBOT_TYPES[r.type].bite}}
+ }
+ release(r){for(const [cell,owner] of this.claims)if(owner===r.id)this.claims.delete(cell);r.target=null}
+ stop(r){this.release(r);r.stopped=true;r.mode='stopped';r.path=[];r.bite=0;this.revision++}
+ // Dijkstra minúsculo: prefere terra já comida, evita destinos ocupados e mato denso.
+ routes(r){const {TOTAL,nb}=this.g,distances=Array(TOTAL).fill(Infinity),parents=Array(TOTAL).fill(-1),done=new Uint8Array(TOTAL);distances[r.cell]=0;
+  for(let k=0;k<TOTAL;k++){let cell=-1,best=Infinity;for(let i=0;i<TOTAL;i++)if(!done[i]&&distances[i]<best){cell=i;best=distances[i]}if(cell<0)break;done[cell]=1;
+   for(const next of nb[cell]){const h=this.hp[next],step=h<=0?1:this.claims.has(next)?2.4:1.6+(h-1)*.7,alt=best+step;if(alt<distances[next]){distances[next]=alt;parents[next]=cell}}
+  }return {distances,parents};
+ }
+ choose(r){this.decisions++;const {TOTAL,XY,nb}=this.g,{distances,parents}=this.routes(r),p=XY(r.cell),f=r.forward,l={x:f.y,y:-f.x};
+  const preference=[l,f,{x:-l.x,y:-l.y},f][r.zig%4];let selected=null,best=-Infinity;
+  for(let cell=0;cell<TOTAL;cell++){
+   if(this.hp[cell]<=0||this.claims.has(cell))continue;
+   const q=XY(cell),d=distance(p,q),adjacent=d===1;
+   const density=nb[cell].filter(c=>this.hp[c]>0&&!this.claims.has(c)).length;
+   const owner=this.owners[cell],ownerRobot=this.robots[owner];
+   const region=owner===r.id?5.2:ownerRobot&&!ownerRobot.stopped&&ownerRobot.target!==null?-3.8:0;
+   let crowd=0;for(const other of this.robots){if(other.id===r.id||other.stopped)continue;const dest=other.target===null?{x:other.x,y:other.y}:XY(other.target);crowd+=Math.max(0,2.4-distance(q,dest))*2.2}
+   const zig=adjacent&&q.x-p.x===preference.x&&q.y-p.y===preference.y?5.8:0;
+   const turn=adjacent&&Math.abs(Math.atan2(q.y-p.y,q.x-p.x)-r.lastDirection)>.1?1.3:0;
+   // Mato já mordido ganha prioridade (terminar o que começou); mato intacto pesa um pouco.
+   const tough=this.hp[cell]<this.maxHp[cell]?2:-(this.hp[cell]-1)*.6;
+   const score=-distances[cell]*2.6+region+density*.45-crowd+zig+turn+tough+(adjacent?2.2:0)-r.visited[cell]*.5;
+   if(score>best){best=score;selected=cell}
+  }
+  if(selected===null)return null;
+  const path=[selected];while(path[0]!==r.cell){const previous=parents[path[0]];if(previous<0)return null;path.unshift(previous)}
+  return {cell:selected,path:path.map(XY)};
+ }
+ assign(r){const {XY,TOTAL}=this.g;this.release(r);if(r.fuel+1e-9<this.stats.consumption){this.stop(r);return}
+  if(this.cut+this.claims.size>=TOTAL){r.mode='waiting';r.path=[];r.bite=0;r.waitRevision=this.revision;return}
+  const next=this.choose(r);if(!next){r.mode='waiting';r.path=[];r.bite=0;r.waitRevision=this.revision;return}
+  r.target=next.cell;this.claims.set(next.cell,r.id);r.path=next.path.length===1?[XY(r.cell),XY(r.cell)]:next.path;
+  r.partial=this.hp[next.cell]>ROBOT_TYPES[r.type].bite;
+  r.elapsed=0;r.duration=1+Math.max(0,r.path.length-2)*.22;r.mode='working';r.waitRevision=-1;
+ }
+ // Único local que aplica mordidas, desconta combustível e gera recompensa.
+ // A recompensa só vem quando a célula é totalmente consumida.
+ consume(r,onBite){const cell=r.target;if(cell===null||this.claims.get(cell)!==r.id||this.hp[cell]<=0||r.fuel+1e-9<this.stats.consumption)return null;
+  this.hp[cell]=Math.max(0,this.hp[cell]-ROBOT_TYPES[r.type].bite);r.fuel=Math.max(0,r.fuel-this.stats.consumption);r.impact=1;this.revision++;
+  const finished=this.hp[cell]===0;
+  if(finished){this.claims.delete(cell);this.cut++;this.earned+=CONFIG.coinPerCell;r.history.push(cell);r.visited[cell]++}
+  onBite(cell,r,finished);return finished?'cut':'damage';
+ }
+ visual(r,dt){if(!r.path.length)return;const segments=r.path.length-1,transit=Math.max(0,segments-1)*.22;let a,b,p;
+  if(r.elapsed<transit){const index=Math.min(segments-2,Math.floor(r.elapsed/.22));a=r.path[index];b=r.path[index+1];p=smooth((r.elapsed-index*.22)/.22);r.bite=0}
+  else{a=r.path[segments-1];b=r.path[segments];r.bite=Math.max(0,Math.min(1,r.elapsed-transit));
+   // Mordida parcial: avança, morde e recua. Mordida final: entra na célula.
+   p=r.partial?Math.sin(Math.PI*smooth(r.bite))*.3:bitePose(r.bite).advance}
+  const targetAngle=Math.atan2(b.y-a.y,b.x-a.x);if(a.x!==b.x||a.y!==b.y){const delta=Math.atan2(Math.sin(targetAngle-r.angle),Math.cos(targetAngle-r.angle));r.angle+=delta*(1-Math.exp(-dt*this.stats.speed*15))}
+  r.x=a.x+(b.x-a.x)*p;r.y=a.y+(b.y-a.y)*p;
+ }
+ update(dt,onBite=()=>{},onStop=()=>{}){const {N,TOTAL}=this.g;
+  if(this.status!=='running'||!Number.isFinite(dt)||dt<=0)return;this.time+=dt;
+  for(const r of this.robots){r.impact=Math.max(0,r.impact-dt*this.stats.speed*5);
+   if(r.stopped)continue;
+   if(r.fuel+1e-9<this.stats.consumption){this.stop(r);onStop(r);continue}
+   if(r.mode==='waiting'&&r.waitRevision!==this.revision)this.assign(r);
+   if(r.mode==='waiting'||r.stopped)continue;
+   let budget=dt*this.stats.speed;
+   while(budget>1e-10&&!r.stopped&&r.mode!=='waiting'&&this.cut<TOTAL){
+    const slice=Math.min(budget,Math.max(0,r.duration-r.elapsed));r.elapsed+=slice;budget-=slice;this.visual(r,slice/this.stats.speed);
+    if(r.elapsed+1e-9<r.duration)break;
+    const destination=r.path.at(-1),from=r.path.at(-2)??destination,was=r.stopped;
+    if(r.partial){
+     // Fica na borda e morde de novo a mesma célula, mantendo a reserva.
+     r.x=from.x;r.y=from.y;if(Number.isInteger(from.x)&&Number.isInteger(from.y))r.cell=from.y*N+from.x;
+     const res=this.consume(r,onBite);
+     if(res==='damage'&&r.fuel+1e-9>=this.stats.consumption){r.path=[{x:from.x,y:from.y},destination];r.elapsed=0;r.duration=1;r.partial=this.hp[r.target]>ROBOT_TYPES[r.type].bite}
+     else{if(res==='cut'){r.lastDirection=r.angle;r.zig++}this.assign(r)}
+    }else{
+     r.x=destination.x;r.y=destination.y;r.cell=Math.round(destination.y)*N+Math.round(destination.x);
+     this.consume(r,onBite);r.lastDirection=r.angle;r.zig++;this.assign(r);
+    }
+    if(!was&&r.stopped)onStop(r);
+   }
+  }
+  if(this.cut===TOTAL){this.status='complete';for(const r of this.robots){this.release(r);r.mode='done';r.path=[];r.bite=0}}
+  else if(this.robots.every(r=>r.stopped)){this.status='empty';this.claims.clear()}
+ }
+}
+
+// ===================== PERSISTÊNCIA =====================
+let storageOK=true;
+const freshSave=()=>({coins:0,robots:1,tank:0,speed:0,efficiency:0,completed:0,unlocked:0,last:0,wins:[0,0,0],best:[0,0,0],sound:true});
+function loadSave(){try{const raw=JSON.parse(localStorage.getItem(CONFIG.saveKey));if(!raw)return freshSave();const s=freshSave();
+ for(const k of ['coins','tank','speed','efficiency','completed'])if(Number.isSafeInteger(raw[k])&&raw[k]>=0)s[k]=Math.min(raw[k],k==='coins'?1e12:1000);
+ if(Number.isInteger(raw.robots))s.robots=Math.max(1,Math.min(CONFIG.maxRobots,raw.robots));
+ if(Number.isInteger(raw.unlocked))s.unlocked=Math.max(0,Math.min(CONTRACTS.length-1,raw.unlocked));
+ else if(s.completed>0)s.unlocked=1; // saves da V003 já concluíram o 5×5
+ if(Number.isInteger(raw.last))s.last=Math.max(0,Math.min(s.unlocked,raw.last));
+ for(const k of ['wins','best'])if(Array.isArray(raw[k]))s[k]=CONTRACTS.map((_,i)=>Number.isFinite(raw[k][i])&&raw[k][i]>=0?Math.min(raw[k][i],1e6):0);
+ if(!Array.isArray(raw.wins)&&s.completed>0)s.wins[0]=s.completed;
+ s.sound=raw.sound!==false;return s}catch(e){return freshSave()}}
+let save=loadSave();function persist(){try{localStorage.setItem(CONFIG.saveKey,JSON.stringify(save));storageOK=true}catch(e){storageOK=false}}
+
+// ===================== ÁUDIO =====================
+let audio=null,lastCutSound=0,activeVoices=0,lastStopSound=0;
+function tone(freq,duration=.08,type='sine',volume=.035,delay=0){if(!save.sound||activeVoices>=8)return;try{audio??=new(window.AudioContext||window.webkitAudioContext)();if(audio.state==='suspended')audio.resume();const t=audio.currentTime+delay,o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(volume,t+.01);g.gain.exponentialRampToValueAtTime(.001,t+duration);o.connect(g);g.connect(audio.destination);activeVoices++;o.onended=()=>{activeVoices=Math.max(0,activeVoices-1);o.disconnect();g.disconnect()};o.start(t);o.stop(t+duration+.01)}catch(e){}}
+function sound(kind){const now=performance.now();
+ if(kind==='cut'){if(now-lastCutSound<110)return;lastCutSound=now;tone(145,.055,'triangle',.025);tone(320,.055,'sine',.018,.022);tone(850,.08,'sine',.02,.04)}
+ else if(kind==='chew'){if(now-lastCutSound<110)return;lastCutSound=now;tone(110,.07,'square',.012);tone(190,.06,'triangle',.02,.03)}
+ else if(kind==='buy'){[440,660,880].forEach((f,i)=>tone(f,.13,'sine',.04,i*.065))}
+ else if(kind==='stop'){if(now-lastStopSound<180)return;lastStopSound=now;tone(170,.25,'triangle',.025);tone(90,.2,'sine',.02,.1)}
+ else if(kind==='win'){[523,659,784,1047,1319].forEach((f,i)=>tone(f,.28,'sine',.04,i*.11))}
+ else tone(480,.04,'sine',.02)}
+
+// ===================== ESTADO DA INTERFACE =====================
+const $=id=>document.getElementById(id);
+let screen='menu',phase='prep',run=null,ci=save.last,G=makeGeo(CONTRACTS[ci].size),positionsBy=CONTRACTS.map(()=>[]),positions=[null],selected=0,hover=null,keyboardCell=0,paused=false,rate=1,particles=[],texts=[],cutAges=[],cutAngles=[],hitAges=[],lastTime=0,toastTimer=null,previousFocus=null,celebrate=0;
+const COLORS=['#ffd25e','#7fd3e8','#ff9f8a','#b9a4f5','#c8e86b','#f7a8d0'];
+const fmt=n=>n.toLocaleString('pt-BR',{maximumFractionDigits:2});
+const timeFmt=t=>`${Math.floor(t/60).toString().padStart(2,'0')}:${Math.floor(t%60).toString().padStart(2,'0')}`;
+const resistantCount=i=>MAPS[i].filter(h=>h>1).length;
+function toast(message){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),2600)}
+function showScreen(name){screen=name;document.querySelectorAll('.screen').forEach(e=>e.classList.toggle('active',e.id===name));updateWallet();if(name==='upgrades')renderUpgrades();if(name==='contracts')renderContracts();if(name==='menu')updateMenu();window.scrollTo(0,0)}
+function openModal(id){previousFocus=document.activeElement;$(id).classList.add('open');$(id).querySelector('button')?.focus()}
+function closeModal(id){$(id).classList.remove('open');previousFocus?.focus()}
+function popWallet(){const w=$('coins').parentElement;w.classList.remove('pop');void w.offsetWidth;w.classList.add('pop')}
+function updateWallet(){$('coins').textContent=fmt(save.coins);$('sound').textContent=save.sound?'🔊':'🔇'}
+function updateMenu(){$('playSub').textContent=`Contrato ${save.last+1} ›`}
+function selectContract(i){if(i>save.unlocked){toast('Conclua o contrato anterior para liberar este.');return}
+ positionsBy[ci]=positions;ci=i;G=makeGeo(CONTRACTS[i].size);positions=positionsBy[i];save.last=i;persist();prepare()}
+function prepare(){closeModal('result');run=null;phase='prep';paused=false;rate=1;particles=[];texts=[];celebrate=0;
+ cutAges=Array(G.TOTAL).fill(0);cutAngles=Array(G.TOTAL).fill(0);hitAges=Array(G.TOTAL).fill(0);
+ const visible=visibleSlots().map(s=>s.id);positions=Array.from({length:save.robots},(_,i)=>positions[i]??null);const used=new Set();positions=positions.map(p=>{if(!visible.includes(p)||used.has(p))return null;used.add(p);return p});
+ selected=Math.max(0,positions.findIndex(p=>p===null));
+ const ct=CONTRACTS[ci];$('ctEyebrow').textContent=`CONTRATO ${ci+1} · ${ct.size}×${ct.size}`;$('ctName').textContent=ct.name;$('caption').textContent=`${ct.size} × ${ct.size} · ${resistantCount(ci)} TOUCEIRAS DE MATO`;
+ $('ctInfo').textContent=`Bônus de conclusão: ◈ ${ct.bonus}. Concluído ${save.wins[ci]}× · melhor ${save.best[ci]}%.`;
+ $('start').classList.remove('hidden');$('contractUpgrades').disabled=false;$('toContracts').disabled=false;$('pause').disabled=true;$('rate').disabled=true;$('pause').textContent='⏸ Pausar';$('rate').textContent='1×';
+ $('phaseBadge').textContent='📍 Posicione seus robôs fora do jardim';showScreen('contract');buildRobotList();updateHUD()}
+function buildRobotList(){$('robotList').innerHTML='';for(let i=0;i<save.robots;i++){const el=document.createElement('button');el.className='robot-row';el.dataset.index=i;el.innerHTML=`<span class="dot" style="background:${COLORS[i%COLORS.length]}"></span><span>R${String(i+1).padStart(2,'0')}</span><span class="bar fuel"><span></span></span><small></small>`;el.onclick=()=>{if(phase==='prep'){selected=i;updateHUD()}};$('robotList').append(el)}}
+function updateHUD(){const a=run?.stats??attributes(save),cut=run?.cut??0,T=G.TOTAL,percent=Math.floor(cut/T*100);
+ $('percent').textContent=percent;$('progress').style.width=percent+'%';$('remaining').textContent=T-cut;$('earned').textContent='◈ '+(run?.earned??0);$('timer').textContent=timeFmt(run?.time??0);
+ const active=run?run.robots.filter(r=>!r.stopped).length:save.robots;$('active').textContent=`${active} / ${save.robots}`;
+ const fuel=run?run.robots.reduce((s,r)=>s+r.fuel,0):a.fuel*save.robots,max=a.fuel*save.robots;$('fuelText').textContent=`${fmt(Math.round(fuel*10)/10)} / ${fmt(max)}`;$('fuelBar').style.width=(fuel/max*100)+'%';
+ $('fleetTitle').textContent=`Sua frota · ${save.robots} robô${save.robots>1?'s':''}`;
+ $('speedStat').textContent=`⚡ ${fmt(a.speed)} mordida/s · ⛽ ${a.consumption.toFixed(3)} por mordida · ${Math.floor(a.fuel/a.consumption+1e-9)} mordidas por tanque`;
+ $('placementHint').textContent=phase==='prep'?`Robô ${selected+1} selecionado · ${positions.filter(p=>p!==null).length}/${save.robots} posicionados. Clique num ponto “+” ao redor do jardim.`:`${active} robô${active===1?'':'s'} com combustível · tanques individuais`;
+ $('start').disabled=positions.some(p=>p===null);
+ document.querySelectorAll('.robot-row').forEach((el,i)=>{el.classList.toggle('selected',phase==='prep'&&i===selected);const f=run?run.robots[i].fuel:a.fuel;const bar=el.querySelector('.bar span');bar.style.width=(f/a.fuel*100)+'%';bar.style.background=f<a.consumption?'#b8ab92':'';el.querySelector('small').textContent=phase==='prep'&&positions[i]===null?'📍 posicionar':fmt(Math.round(f*10)/10)+' / '+fmt(a.fuel)})}
+function start(){if(phase!=='prep'||positions.some(p=>p===null))return;run=new GardenRun(save,positions,G,MAPS[ci]);phase='running';paused=false;$('start').classList.add('hidden');$('contractUpgrades').disabled=true;$('toContracts').disabled=true;$('pause').disabled=false;$('rate').disabled=false;$('phaseBadge').textContent='🌱 Vum… nhac! Seus robôs cuidam do resto';sound('click');updateHUD()}
+function finish(){phase='ended';$('pause').disabled=true;$('rate').disabled=true;const won=run.status==='complete',ct=CONTRACTS[ci],pct=Math.floor(run.cut/G.TOTAL*100);let unlockedNew=false;
+ save.best[ci]=Math.max(save.best[ci],pct);
+ if(won){save.completed++;save.wins[ci]++;save.coins+=ct.bonus;if(ci<CONTRACTS.length-1&&save.unlocked<ci+1){save.unlocked=ci+1;unlockedNew=true}celebrate=3;sound('win');popWallet();updateWallet();
+  for(let i=0;i<110;i++)particles.push({x:Math.random()*800,y:-Math.random()*300,vx:(Math.random()-.5)*120,vy:80+Math.random()*180,life:3.2,max:3.2,color:['#ffd25e','#9ee07b','#ff9f8a','#7fd3e8','#fff'][i%5],size:5+Math.random()*5,spin:Math.random()*6})}
+ else sound('stop');
+ persist();
+ $('resultIcon').textContent=won?'🏆':'⛽';$('resultIcon').classList.toggle('fail',!won);$('resultEyebrow').textContent=won?`CONTRATO ${ci+1} · ${ct.name.toUpperCase()}`:'FIM DA TENTATIVA';
+ $('resultTitle').textContent=won?'CONTRATO CONCLUÍDO!':'COMBUSTÍVEL ESGOTADO!';
+ const next=nextSuggestion();
+ $('resultCopy').textContent=won?'Jardim impecável — só terra fresquinha onde havia mato. Bônus de conclusão pago!':`Cada mordida conta. Suas moedas ficam com você. ${next}`;
+ $('unlockBox').classList.toggle('hidden',!unlockedNew);if(unlockedNew)$('unlockBox').textContent=`🔓 Novo contrato liberado: ${CONTRACTS[ci+1].name} (${CONTRACTS[ci+1].size}×${CONTRACTS[ci+1].size})!`;
+ $('nextContract').classList.toggle('hidden',!(won&&ci<CONTRACTS.length-1&&save.unlocked>ci));
+ $('resultStats').innerHTML=`<div><b>${pct}%</b><small>${run.cut} / ${G.TOTAL} CÉLULAS</small></div><div><b>◈ ${run.earned+(won?ct.bonus:0)}</b><small>${won?`INCLUI BÔNUS ◈ ${ct.bonus}`:'MOEDAS GANHAS'}</small></div><div><b>${timeFmt(run.time)}</b><small>TEMPO</small></div><div><b>◈ ${fmt(save.coins)}</b><small>SALDO</small></div>`;
+ setTimeout(()=>openModal('result'),won?650:250)}
+// Dica curta para o próximo passo: o que dá para comprar agora.
+function nextSuggestion(){const keys=['tank','efficiency','speed','robots'].filter(k=>save.coins>=cost(save,k));if(!keys.length){const k=['speed','tank','efficiency'].sort((a,b)=>cost(save,a)-cost(save,b))[0];return `Faltam ◈ ${cost(save,k)-save.coins} para ${UPGRADES[k].name}.`}return `Você já pode comprar: ${keys.map(k=>UPGRADES[k].name).join(', ')}!`}
+
+// ===================== MELHORIAS =====================
+function benefitText(key,a){if(key==='robots')return `${save.robots} → ${save.robots+1} robôs`;if(key==='tank')return `${fmt(a.fuel)} → ${fmt(a.fuel+EFFECTS.fuelPerLevel)} combustível`;if(key==='speed')return `${fmt(a.speed)} → ${fmt(a.speed*EFFECTS.speedFactor)} mordida/s`;return `${a.consumption.toFixed(3)} → ${(a.consumption*EFFECTS.efficiencyFactor).toFixed(3)} por mordida`}
+function renderUpgrades(){const a=attributes(save);document.querySelectorAll('[data-upgrade]').forEach(el=>{const key=el.dataset.upgrade,u=UPGRADES[key],price=cost(save,key),max=key==='robots'&&save.robots>=CONFIG.maxRobots,can=save.coins>=price&&!max;
+ el.classList.toggle('afford',can);
+ el.innerHTML=`<div class="node-head"><span class="node-icon">${u.icon}</span><h3>${u.name}</h3><span class="level">${key==='robots'?save.robots+' / '+CONFIG.maxRobots:'NV '+u.level(save)}</span></div><p>${u.desc}</p><div class="benefit">${max?'Frota completa':'Próximo: '+benefitText(key,a)}</div><button ${max?'disabled':''} class="${can?'btn-gold':''}" aria-label="Comprar ${u.name} por ${price} moedas">${max?'NÍVEL MÁXIMO':`<span class="price">◈ ${fmt(price)}</span> · ${can?'COMPRAR':'faltam '+fmt(price-save.coins)}`}</button>`;
+ el.querySelector('button').onclick=()=>buy(key)});
+ $('futureName').textContent=ROBOT_TYPES.crusher.name;$('futureDesc').textContent=ROBOT_TYPES.crusher.desc;
+ $('fleetStats').innerHTML=`<span>Frota<b>${save.robots} robô${save.robots>1?'s':''}</b></span><span>Tanque<b>${fmt(a.fuel)}</b></span><span>Velocidade<b>${fmt(a.speed)}/s</b></span><span>Consumo<b>${a.consumption.toFixed(3)}</b></span><span>Mordidas/tanque<b>${Math.floor(a.fuel/a.consumption+1e-9)}</b></span>`}
+function buy(key){if(screen!=='upgrades'||phase==='running')return;const price=cost(save,key);if(key==='robots'&&save.robots>=CONFIG.maxRobots)return;if(save.coins<price){toast('Faltam ◈ '+fmt(price-save.coins)+'. Mais uma tentativa?');return}
+ save.coins-=price;if(key==='robots')save.robots++;else save[key]++;persist();sound('buy');popWallet();updateWallet();renderUpgrades();
+ const el=document.querySelector(`[data-upgrade="${key}"]`);el.classList.add('buying');setTimeout(()=>el.classList.remove('buying'),650);toast(`${UPGRADES[key].icon} ${UPGRADES[key].name} instalado! Vale na próxima tentativa.`)}
+
+// ===================== CONTRATOS (tela) =====================
+function renderContracts(){const list=$('contractList');list.innerHTML='';CONTRACTS.forEach((ct,i)=>{const locked=i>save.unlocked,el=document.createElement('article');el.className='card contract-card'+(locked?' locked':'');
+ el.innerHTML=`<canvas width="400" height="400"></canvas><div class="eyebrow">CONTRATO ${i+1}</div><h3>${ct.name}</h3><p style="color:var(--muted);font-size:14px;line-height:1.45">${ct.blurb}</p><div class="meta"><span class="chip">📐 ${ct.size}×${ct.size}</span><span class="chip">🌱 ${ct.size*ct.size} células</span><span class="chip">🌿 ${resistantCount(i)} mato</span><span class="chip">🏆 bônus ◈ ${ct.bonus}</span>${save.wins[i]?`<span class="chip ok">✓ concluído ${save.wins[i]}×</span>`:save.best[i]?`<span class="chip">melhor ${save.best[i]}%</span>`:''}</div>${locked?'':`<button class="btn-gold wide">${save.wins[i]?'↻ JOGAR DE NOVO':'▶ JOGAR'}</button>`}${locked?`<div class="lock"><div><span>🔒</span>Conclua o Contrato ${i}</div></div>`:''}`;
+ if(!locked)el.onclick=()=>selectContract(i);list.append(el);
+ const c=el.querySelector('canvas').getContext('2d'),g=makeGeo(ct.size);c.save();c.scale(.5,.5);drawBoard(c,g,{hp:MAPS[i],maxHp:MAPS[i]},0);c.restore()})}
+
+// ===================== RENDERIZAÇÃO =====================
+const canvas=$('garden'),ctx=canvas.getContext('2d'),preview=$('preview'),pc=preview.getContext('2d');
+const M=100,B=600;
+const pixel=(g,p)=>({x:M+(p.x+.5)*g.C,y:M+(p.y+.5)*g.C});
+const robotScale=g=>Math.min(1,g.C/70);
+function round(c,x,y,w,h,r,fill){c.beginPath();c.roundRect(x,y,w,h,Math.max(0,Math.min(r,w/2,h/2)));c.fillStyle=fill;c.fill()}
+const hash=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v)};
+const DIRT=['#b07a45','#a8723f','#b5804a'],GRASS=['#7ccc52','#76c44d','#83d159'];
+// Robô "Pac-Man mecânico": corpo redondo, boca de mandíbulas, olhos de LED e antena.
+function robot(c,x,y,color,fuel,max,t,angle=0,ghost=false,working=false,stopped=false,bite=0,impact=0,s=1){
+ c.save();c.translate(x,y);c.scale(s,s);c.globalAlpha=ghost?.5:1;
+ const off=stopped||fuel<.000001,pose=bitePose(working?bite:0,working?impact:0),bob=working?Math.sin(t*14)*1.2:0;
+ c.fillStyle='rgba(40,25,10,.3)';c.beginPath();c.ellipse(3,13,31,23,0,0,Math.PI*2);c.fill();
+ c.save();c.translate(0,bob*.4);c.rotate(angle);c.scale(pose.sx,pose.sy);
+ // Esteiras
+ for(const ty of [-30,19]){round(c,-19,ty,38,11,5,'#3b3a40');c.fillStyle='#6d6c75';for(let i=-15;i<17;i+=6){const o=working?((t*40)%6):0;c.fillRect(i+o-2,ty+2,2.5,7)}}
+ // Chassi com gradiente e aro
+ const body=c.createRadialGradient(-9,-10,4,0,0,30);body.addColorStop(0,off?'#d3d3cc':'#ffffffcc');body.addColorStop(.25,off?'#a9ada2':color);body.addColorStop(1,off?'#7b8076':shade(color,-40));
+ c.fillStyle=body;c.beginPath();c.arc(0,0,28,0,Math.PI*2);c.fill();
+ c.strokeStyle='#00000035';c.lineWidth=2.5;c.stroke();
+ c.strokeStyle='#ffffffaa';c.lineWidth=2.5;c.beginPath();c.arc(-1,-1,22,Math.PI*.7,Math.PI*1.45);c.stroke();
+ // Boca mecânica
+ const opening=off?2:3+pose.mouth*16;
+ c.fillStyle='#2b2320';c.beginPath();c.moveTo(29,-opening);c.quadraticCurveTo(3,-opening-3,4,0);c.quadraticCurveTo(3,opening+3,29,opening);c.closePath();c.fill();
+ c.fillStyle='#c0392b55';c.beginPath();c.ellipse(13,0,7,Math.max(1,opening*.5),0,0,7);c.fill();
+ c.strokeStyle=off?'#777':'#e9eef2';c.lineWidth=4;c.lineCap='round';c.beginPath();c.moveTo(11,-opening);c.lineTo(27,-opening-1);c.moveTo(11,opening);c.lineTo(27,opening+1);c.stroke();
+ c.fillStyle=off?'#999':'#fff';for(const tx of [15,21]){c.beginPath();c.moveTo(tx,-opening);c.lineTo(tx+2,-opening+4);c.lineTo(tx+4,-opening);c.fill();c.beginPath();c.moveTo(tx+1,opening);c.lineTo(tx+3,opening-4);c.lineTo(tx+5,opening);c.fill()}
+ // Painel traseiro, olhos de LED e parafusos
+ round(c,-21,-11,17,22,7,off?'#5b5f58':'#2f3b44');
+ const blink=Math.sin(t*1.7+x)>.97?.3:1;c.fillStyle=off?'#6f756c':'#9ff2ff';c.beginPath();c.ellipse(-12,-5,3.5,3.2*blink,0,0,7);c.ellipse(-12,5,3.5,3.2*blink,0,0,7);c.fill();
+ if(!off){c.fillStyle='#ffffff';c.fillRect(-13,-7,1.6,1.6);c.fillRect(-13,3,1.6,1.6)}
+ c.fillStyle='#00000040';for(const [bx,by] of [[-2,-22],[-2,22],[-24,-8],[-24,8]]){c.beginPath();c.arc(bx,by,1.8,0,7);c.fill()}
+ c.restore();
+ // Antena com luz
+ c.strokeStyle='#4a4a52';c.lineWidth=2;c.beginPath();c.moveTo(-4,-14+bob*.4);c.lineTo(-8,-34+bob);c.stroke();
+ c.fillStyle=off?'#888':Math.sin(t*6+x)>0?'#ff6b5a':'#ffd25e';c.beginPath();c.arc(-8,-35+bob,3.5,0,7);c.fill();
+ if(!ghost){round(c,-26,-48,52,7,4,'#2a1d12aa');const pct=Math.max(0,fuel/max);round(c,-25,-47,50*pct,5,3,off?'#8b8b80':pct<.25?'#ff8a5a':'#ffd25e');
+  if(pct<.25&&!off&&Math.sin(t*8)>0){c.fillStyle='#fff3a8';c.font='bold 18px Fredoka,system-ui';c.fillText('!',30,-36)}}
+ c.restore();
+}
+function shade(hex,amt){const n=parseInt(hex.slice(1),16),f=v=>Math.max(0,Math.min(255,v+amt));return `rgb(${f(n>>16)},${f(n>>8&255)},${f(n&255)})`}
+// Bloco de grama elevado: topo, lateral escura e tufos. Mato enroscado é escuro e embaraçado.
+function grassTile(c,i,cx,cy,C,hp,maxHp,t,scale=1,lean=0){
+ const gap=Math.max(1,C*.04),w=C-gap*2,d=Math.max(2,C*.09),r=Math.max(3,C*.17),tough=maxHp>1;
+ c.save();c.translate(cx,cy);c.scale(scale,scale);c.transform(1,0,lean,1,0,0);
+ round(c,-w/2,-w/2+d*.6,w,w-d*.2,r,tough?'#22472a':'#3e8a33');
+ round(c,-w/2,-w/2-d*.4,w,w-d*.4,r,tough?(hp>=3?'#3c6e33':'#4a7e3a'):GRASS[i%3]);
+ c.fillStyle='#ffffff22';round(c,-w/2+w*.08,-w/2-d*.4+w*.06,w*.5,w*.18,r*.6,'#ffffff1c');
+ const s=C/120,bladesN=Math.max(5,Math.round(22*Math.min(1,C/60)));
+ if(!tough){
+  for(let k=0;k<bladesN;k++){const px=-w*.4+hash(i*23+k)*w*.8,py=-w*.38+hash(i*19+k+55)*w*.68,sway=Math.sin(t*1.4+i+k)*1.8*s,L=(7+hash(k+i)*6)*Math.max(.5,s);
+   c.strokeStyle=k%3===0?'#c4ef8a':'#4f9e38';c.lineWidth=Math.max(1.2,2.4*s);c.lineCap='round';c.beginPath();c.moveTo(px,py+L*.5);c.lineTo(px-L*.35+sway,py-L*.5);c.moveTo(px,py+L*.5);c.lineTo(px+L*.3+sway,py-L*.7);c.stroke()}
+ }else{
+  // Partes já mordidas revelam terra no topo.
+  const bitten=maxHp-hp;for(let k=0;k<bitten*4;k++){c.fillStyle=DIRT[k%3];c.beginPath();c.ellipse(-w*.32+hash(i*7+k)*w*.64,-w*.3+hash(i*5+k+3)*w*.6,w*.11,w*.08,hash(k)*3,0,7);c.fill()}
+  const density=hp/maxHp,curls=Math.round(bladesN*1.3*density);
+  c.lineCap='round';
+  for(let k=0;k<curls;k++){const px=-w*.36+hash(i*29+k)*w*.72,py=-w*.36+hash(i*31+k+7)*w*.66,rr=(4+hash(k*3+i)*5)*Math.max(.45,s),sway=Math.sin(t*1.1+i+k)*.3;
+   c.strokeStyle=k%2?'#1f4a22':'#5c9a3e';c.lineWidth=Math.max(1.3,2.8*s);c.beginPath();c.arc(px,py,rr,sway+hash(k)*3,sway+hash(k)*3+Math.PI*1.4);c.stroke()}
+  if(hp>=2){c.strokeStyle='#7a5532';c.lineWidth=Math.max(1.2,2.6*s);for(let k=0;k<(hp>=3?4:2);k++){const px=-w*.3+hash(i*11+k)*w*.6,py=-w*.25+hash(i*13+k)*w*.5,L=w*.28;c.beginPath();c.moveTo(px-L/2,py+L*.2);c.lineTo(px+L/2,py-L*.2);c.moveTo(px,py);c.lineTo(px+L*.15,py-L*.3);c.stroke()}}
+  for(let k=0;k<Math.round(curls*.4);k++){c.fillStyle='#8fd16a';c.beginPath();c.ellipse(-w*.35+hash(i*37+k)*w*.7,-w*.35+hash(i*41+k)*w*.65,2.6*Math.max(.5,s),1.6*Math.max(.5,s),hash(k+i)*3,0,7);c.fill()}
+  // Pips: mordidas restantes
+  if(C>=24){const pr=Math.max(2,C*.035);for(let k=0;k<maxHp;k++){c.fillStyle=k<hp?'#fff6c8':'#00000040';c.beginPath();c.arc(-((maxHp-1)*pr*1.4)+k*pr*2.8,w/2-d*.4-pr*1.8,pr,0,7);c.fill()}}
+ }
+ c.restore();
+}
+function drawBoard(c,g,S,t){const {N,C,TOTAL,XY}=g;
+ c.clearRect(0,0,800,800);
+ c.fillStyle='rgba(20,40,10,.28)';c.beginPath();c.ellipse(400,M+B+38,370,34,0,0,7);c.fill();
+ round(c,M-20,M-14,B+40,B+46,30,'#5a3a1e');
+ round(c,M-20,M-20,B+40,B+40,30,'#9b6a3a');
+ c.strokeStyle='#c99662';c.lineWidth=3;c.beginPath();c.roundRect(M-18,M-18,B+36,B+36,28);c.stroke();
+ round(c,M-8,M-8,B+16,B+16,20,'#6b4426');
+ const gap=Math.max(1,C*.04),r=Math.max(3,C*.17),specks=Math.max(2,Math.round(C/14));
+ for(let i=0;i<TOTAL;i++){const {x:gx,y:gy}=XY(i),x=M+gx*C,y=M+gy*C;
+  // Terra marrom por baixo de tudo
+  round(c,x+gap,y+gap,C-gap*2,C-gap*2,r,DIRT[(gx+gy*3)%3]);
+  c.fillStyle='rgba(70,35,10,.25)';c.fillRect(x+gap+r*.5,y+gap,C-gap*2-r,Math.max(1.5,C*.06));
+  for(let k=0;k<specks;k++){c.fillStyle=k%3?'#8a5a2e':'#d29f68';c.beginPath();c.arc(x+gap*2+hash(i*27+k)*(C-gap*4),y+gap*2+hash(i*31+k+9)*(C-gap*4),Math.max(.8,C*(k%3?.022:.03)),0,7);c.fill()}
+  const hp=S.hp[i];
+  if(hp>0){let scale=1,lean=0;const eater=S.eater?.(i);
+   if(eater){const pull=Math.max(0,(eater.bite-.62)/.38);scale=1-pull*(eater.partial?.08:.18);lean=Math.cos(eater.angle)*pull*.22}
+   const hit=S.hits?.[i]??0;const shake=hit*Math.sin(t*70)*C*.04;
+   grassTile(c,i,x+C/2+shake,y+C/2,C,hp,S.maxHp[i],t,scale*(1-hit*.06),lean);
+   if(hit>0){c.fillStyle=`rgba(255,255,230,${hit*.35})`;round(c,x+gap,y+gap,C-gap*2,C-gap*2,r,`rgba(255,250,220,${hit*.4})`)}
+  }
+  const age=S.cuts?.[i]??0;if(age>0){const a=S.angles[i];c.save();c.globalAlpha=age;grassTile(c,i,x+C/2-Math.cos(a)*(1-age)*C*.2,y+C/2-Math.sin(a)*(1-age)*C*.2,C,1,1,t,age,Math.cos(a)*.2);c.restore()}
+ }
+}
+function visibleSlots(){return save.robots>G.N*4?G.slots:G.slots.filter(s=>s.lane===0)}
+function drawGame(t){const g=G,s=robotScale(g);
+ const S=run?{hp:run.hp,maxHp:run.maxHp,eater:i=>{const o=run.claims.get(i);return o===undefined?null:run.robots[o]},hits:hitAges,cuts:cutAges,angles:cutAngles}:{hp:MAPS[ci],maxHp:MAPS[ci]};
+ drawBoard(ctx,g,S,t);const c=ctx;
+ if(phase==='prep'){
+  for(const sl of visibleSlots()){const p=pixel(g,sl),occupied=positions.includes(sl.id),R=31*s;c.fillStyle='#ffffff26';c.beginPath();c.arc(p.x,p.y,R,0,7);c.fill();c.strokeStyle='#ffffffa0';c.lineWidth=2;c.setLineDash([4,5]);c.stroke();c.setLineDash([]);
+   if(!occupied){c.fillStyle='#ffffffd0';c.font=`bold ${Math.round(22*s+4)}px Fredoka,system-ui`;c.textAlign='center';c.textBaseline='middle';c.fillText('+',p.x,p.y);c.textAlign='left';c.textBaseline='alphabetic'}}
+  positions.forEach((slot,i)=>{if(slot===null)return;const sl=g.slots[slot],p=pixel(g,sl);robot(c,p.x,p.y,COLORS[i%COLORS.length],1,1,t,sl.angle,false,false,false,0,0,s);if(i===selected){c.strokeStyle='#fff3a8';c.lineWidth=3;c.beginPath();c.arc(p.x,p.y,36*s+Math.sin(t*5)*2,0,7);c.stroke()}});
+  if(hover!==null&&isSlot(hover)&&!positions.some((p,i)=>p===hover&&i!==selected)){const sl=g.slots[hover],p=pixel(g,sl);robot(c,p.x,p.y,COLORS[selected%COLORS.length],1,1,t,sl.angle,true,false,false,0,0,s)}
+ }else if(run){for(const r of run.robots){const p=pixel(g,r);robot(c,p.x,p.y,COLORS[r.id%COLORS.length],r.fuel,run.stats.fuel,t,r.angle,false,phase==='running'&&!paused&&!r.stopped&&r.mode!=='waiting',r.stopped,r.bite,r.impact,s)}}
+ drawFx(c);
+ if(celebrate>0){c.save();c.globalAlpha=Math.min(1,celebrate);c.font='bold 64px Fredoka,system-ui';c.textAlign='center';c.lineWidth=10;c.strokeStyle='#5a3510';c.strokeText('CONCLUÍDO!',400,400);c.fillStyle='#ffd25e';c.fillText('CONCLUÍDO!',400,400);c.restore()}
+}
+function drawFx(c){for(const p of particles){c.globalAlpha=Math.max(0,p.life/p.max);c.fillStyle=p.color;c.save();c.translate(p.x,p.y);c.rotate((p.spin??0)*p.life);c.fillRect(-p.size/2,-p.size/2,p.size,p.size*(p.twig?.35:1));c.restore()}c.globalAlpha=1;
+ for(const p of texts){c.globalAlpha=Math.max(0,Math.min(1,p.life*1.5));c.font=`bold ${p.size}px Fredoka,system-ui`;c.textAlign='center';c.lineWidth=4;c.strokeStyle='#4a3010';c.strokeText(p.text,p.x,p.y);c.fillStyle=p.color;c.fillText(p.text,p.x,p.y)}c.globalAlpha=1;c.textAlign='left'}
+// Prévia do menu: um robô mordendo uma fileira e uma touceira enroscada.
+const DEMO=makeGeo(5),DEMO_MAP=Array(25).fill(1);DEMO_MAP[18]=3;DEMO_MAP[6]=2;
+function drawPreview(t){const cyc=(t*.8)%5,col=Math.floor(cyc),hp=DEMO_MAP.map((h,i)=>{const y=Math.floor(i/5),x=i%5;if(y===2&&x<=col-1)return 0;if(y===2&&x===col&&cyc-col>.6)return 0;return h});
+ if(col===0&&cyc<.6)hp[10]=1;
+ pc.save();pc.scale(.8,.8);drawBoard(pc,DEMO,{hp,maxHp:DEMO_MAP},t);
+ const p=cyc-col,from=pixel(DEMO,{x:col-1,y:2}),adv=bitePose(p).advance;robot(pc,from.x+DEMO.C*adv,from.y,'#ffd25e',14,20,t,0,false,true,false,p,0,1);pc.restore()}
+
+// ===================== EFEITOS =====================
+function biteEffect(cell,r,finished){const p=pixel(G,G.XY(cell)),s=robotScale(G),many=save.robots>8,show=(!many||r.id%3===0)&&particles.length<160,tough=run.maxHp[cell]>1;
+ if(finished){save.coins+=CONFIG.coinPerCell;persist();cutAges[cell]=1;cutAngles[cell]=r.angle;
+  if(show){for(let i=0;i<(many?4:10);i++)particles.push({x:p.x,y:p.y,vx:(Math.random()-.5)*160*s,vy:(-50-Math.random()*130)*s,life:.5+Math.random()*.3,max:.8,color:i%4===0?'#c08a52':tough?'#4a7e3a':'#9ee07b',size:(2+Math.random()*4)*Math.max(.6,s),spin:Math.random()*10});if(texts.length<14)texts.push({x:p.x,y:p.y-24*s,life:1,text:'+'+CONFIG.coinPerCell,size:Math.round(18+10*s),color:'#ffe07a'})}
+  sound('cut');updateWallet();popWallet();
+ }else{hitAges[cell]=1;
+  if(show){for(let i=0;i<(many?3:7);i++)particles.push({x:p.x,y:p.y,vx:(Math.random()-.5)*120*s,vy:(-30-Math.random()*90)*s,life:.45+Math.random()*.25,max:.7,color:i%2?'#7a5532':'#2f5f2a',size:(3+Math.random()*4)*Math.max(.6,s),twig:i%2===1,spin:Math.random()*12});if(texts.length<14)texts.push({x:p.x,y:p.y-20*s,life:.7,text:`${run.hp[cell]} ✶`,size:Math.round(14+6*s),color:'#e8ffd0'})}
+  sound('chew')}}
+function stopEffect(r){sound('stop');if(particles.length>160)return;const p=pixel(G,r);for(let i=0;i<5;i++)particles.push({x:p.x,y:p.y,vx:(Math.random()-.5)*25,vy:-25-Math.random()*30,life:.9,max:.9,color:'#d6ddcb',size:6})}
+let visualClock=0;
+function frame(now){const dt=Math.min((now-lastTime)/1000,.1)||0;lastTime=now;
+ if(screen==='contract'&&phase==='running'&&!paused){run.update(dt*rate,biteEffect,stopEffect);if(run.status!=='running')finish();updateHUD()}
+ const effectDt=paused?0:dt*(screen==='contract'?rate:1);visualClock+=effectDt;
+ for(const p of particles){p.life-=effectDt;p.x+=p.vx*effectDt;p.y+=p.vy*effectDt;p.vy+=90*effectDt}particles=particles.filter(p=>p.life>0);
+ for(const p of texts){p.life-=effectDt;p.y-=28*effectDt}texts=texts.filter(p=>p.life>0);
+ for(let i=0;i<cutAges.length;i++){if(cutAges[i])cutAges[i]=Math.max(0,cutAges[i]-effectDt*5);if(hitAges[i])hitAges[i]=Math.max(0,hitAges[i]-effectDt*4)}
+ if(celebrate>0)celebrate=Math.max(0,celebrate-dt);
+ if(screen==='contract')drawGame(visualClock);
+ if(screen==='menu')drawPreview(visualClock);
+ requestAnimationFrame(frame)}
+
+// ===================== ENTRADA =====================
+const isSlot=i=>Number.isInteger(i)&&i>=0&&i<G.slots.length;
+function eventSlot(e){const rect=canvas.getBoundingClientRect(),x=(e.clientX-rect.left)*800/rect.width,y=(e.clientY-rect.top)*800/rect.height;
+ if(x>=M&&x<=M+B&&y>=M&&y<=M+B)return null;
+ let found=null,best=Math.max(22,40*robotScale(G));for(const sl of visibleSlots()){const p=pixel(G,sl),d=Math.hypot(x-p.x,y-p.y);if(d<best){best=d;found=sl.id}}return found}
+function place(slot){if(phase!=='prep'||!isSlot(slot)){toast('Escolha um ponto do lado de fora do jardim.');return}
+ if(positions.some((p,i)=>p===slot&&i!==selected)){toast('Este lugar já tem um robô.');return}
+ positions[selected]=slot;const next=positions.findIndex(p=>p===null);if(next!==-1)selected=next;sound('click');updateHUD()}
+canvas.addEventListener('pointermove',e=>{hover=eventSlot(e);canvas.style.cursor=phase==='prep'&&isSlot(hover)?'pointer':'default'});
+canvas.addEventListener('pointerleave',()=>hover=null);
+canvas.addEventListener('click',e=>{if(phase==='prep')place(eventSlot(e))});
+canvas.addEventListener('keydown',e=>{if(phase!=='prep')return;const vis=visibleSlots(),count=vis.length;
+ if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Enter',' '].includes(e.key))e.preventDefault();
+ if(e.key==='ArrowLeft'||e.key==='ArrowUp')keyboardCell=(keyboardCell-1+count)%count;
+ if(e.key==='ArrowRight'||e.key==='ArrowDown')keyboardCell=(keyboardCell+1)%count;
+ keyboardCell%=count;hover=vis[keyboardCell].id;if(e.key==='Enter'||e.key===' ')place(hover)});
+canvas.addEventListener('focus',()=>{const vis=visibleSlots();hover=vis[keyboardCell%vis.length].id});
+
+const pause=v=>{paused=v;$('pause').textContent=paused?'▶ Continuar':'⏸ Pausar';$('phaseBadge').textContent=paused?'Ⅱ PAUSADO':'🌱 Vum… nhac! Seus robôs cuidam do resto'};
+$('play').onclick=()=>selectContract(save.last);$('menuContracts').onclick=()=>showScreen('contracts');$('contractsBack').onclick=()=>showScreen('menu');$('home').onclick=()=>{if(phase!=='running')showScreen('menu')};
+$('start').onclick=start;$('retry').onclick=prepare;$('back').onclick=prepare;
+$('nextContract').onclick=()=>{closeModal('result');selectContract(ci+1)};
+$('menuUpgrades').onclick=()=>showScreen('upgrades');$('contractUpgrades').onclick=()=>{if(phase!=='running')showScreen('upgrades')};$('toContracts').onclick=()=>{if(phase!=='running')showScreen('contracts')};
+$('resultUpgrades').onclick=()=>{closeModal('result');phase='prep';showScreen('upgrades')};$('resultContracts').onclick=()=>{closeModal('result');phase='prep';showScreen('contracts')};
+$('pause').onclick=()=>{if(phase==='running')pause(!paused)};$('rate').onclick=()=>{rate=rate===1?2:rate===2?4:1;$('rate').textContent=rate+'×'};
+$('sound').onclick=()=>{save.sound=!save.sound;persist();updateWallet();if(save.sound)sound('click')};
+$('settings').onclick=()=>{if(phase==='running'&&!paused)pause(true);$('saveStatus').textContent=storageOK?'💾 Salvamento local ativo.':'O navegador bloqueou o salvamento. Permita armazenamento para manter seu progresso.';openModal('settingsModal')};
+$('closeSettings').onclick=()=>closeModal('settingsModal');
+$('reset').onclick=()=>{if(!confirm('Apagar moedas, robôs, melhorias e contratos liberados? Esta ação não pode ser desfeita.'))return;save=freshSave();persist();run=null;phase='prep';ci=0;G=makeGeo(CONTRACTS[0].size);positionsBy=CONTRACTS.map(()=>[]);positions=[null];particles=[];texts=[];closeModal('settingsModal');closeModal('result');showScreen('menu');toast('Progresso apagado. Um novo jardim espera por você.')};
+document.addEventListener('click',e=>{if(e.target.closest('button'))sound('click')});
+document.addEventListener('keydown',e=>{const modal=document.querySelector('.overlay.open');if(!modal)return;if(e.key==='Tab'){const buttons=[...modal.querySelectorAll('button:not(:disabled):not(.hidden)')],first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}if(e.key==='Escape'&&modal.id==='settingsModal')closeModal('settingsModal')});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&phase==='running')pause(true)});
+updateWallet();updateMenu();requestAnimationFrame(frame);
+</script></body></html>
