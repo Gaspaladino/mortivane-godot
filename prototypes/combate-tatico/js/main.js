@@ -45,6 +45,44 @@
     for (const m of (sk && sk.combo ? sk.members : [lead, uid])) delete view.choices[m];
   }
 
+  // ------------------------------------------------------------ formação da equipe
+  let team = loadTeam();
+  function loadTeam() {
+    try { const t = JSON.parse(localStorage.getItem('duelo-team') || 'null'); if (Array.isArray(t) && t.length === 3 && t.every(id => G.ROSTER.includes(id))) return t; } catch (e) { /* ok */ }
+    return G.PARTY.slice();
+  }
+  const teamState = { team: team.slice(), focus: team[0] };
+  const teamCb = {
+    focus(id) { teamState.focus = id; G.SFX.play('uiSelect'); UI.renderTeam(teamState, teamCb); },
+    toggle(id) {
+      const i = teamState.team.indexOf(id);
+      if (i >= 0) teamState.team.splice(i, 1);                 // remover
+      else if (teamState.team.length < 3) teamState.team.push(id); // sem duplicatas, máximo 3
+      teamState.focus = id;
+      G.SFX.play(i >= 0 ? 'uiCancel' : 'uiConnect');
+      UI.renderTeam(teamState, teamCb);
+    },
+    start() {
+      if (teamState.team.length !== 3) return;
+      // ordem em campo: frente → retaguarda pela especialidade (Cavaleiro/Lutador na frente, Mago/Arqueira atrás)
+      team = teamState.team.slice().sort((a, b) => (G.UNITS[a].formation || 0) - (G.UNITS[b].formation || 0));
+      try { localStorage.setItem('duelo-team', JSON.stringify(teamState.team)); } catch (e) { /* ok */ }
+      G.SFX.play('uiConfirm');
+      UI.showTeam(false);
+      start();
+    },
+  };
+  function openTeam() {
+    gen++;
+    presenter.skip(); presenter.skipping = false; presenter.ambient = false;
+    planner.setEnabled(false);
+    UI.hideEnd();
+    teamState.team = team.slice(); teamState.focus = teamState.team[0] || G.ROSTER[0];
+    fsm.state = 'TEAM';
+    UI.renderTeam(teamState, teamCb);
+    UI.showTeam(true);
+  }
+
   const Phase = { INTENTS: 'INTENTS', PLAN: 'PLAN', RESOLVE: 'RESOLVE', END: 'END' };
   const fsm = { state: null, go(s, data) { this.state = s; enter[s](data); } };
 
@@ -69,6 +107,7 @@
     },
 
     PLAN() {
+      presenter.ambient = true; // pequenos reposicionamentos naturais durante o planejamento
       planner.setEnabled(true);
       refreshPlan();
     },
@@ -76,6 +115,8 @@
     async RESOLVE() {
       const g = gen;
       planner.setEnabled(false);
+      presenter.ambient = false;
+      G.SFX.play('uiConfirm');
       UI.setTop(battle, 'Execução da rodada', true);
       UI.renderWaiting('Confrontos em andamento…  <small>(Espaço pula)</small>');
       presenter.threatened = null;
@@ -93,9 +134,10 @@
     },
 
     END(result) {
+      presenter.ambient = false;
       UI.setTop(battle, result === 'victory' ? 'Vitória' : 'Derrota', false);
       UI.renderWaiting('');
-      UI.renderEnd(result, start);
+      UI.renderEnd(result, start, openTeam);
     },
   };
 
@@ -135,11 +177,23 @@
     UI.hideEnd();
     // ?seed=123 repete a mesma batalha (útil para testes)
     const fixed = +new URLSearchParams(location.search).get('seed');
-    battle = new Battle(fixed || ((Date.now() ^ (Math.random() * 1e9)) >>> 0));
+    team = team.slice().sort((a, b) => (G.UNITS[a].formation || 0) - (G.UNITS[b].formation || 0));
+    battle = new Battle(fixed || ((Date.now() ^ (Math.random() * 1e9)) >>> 0), team);
     presenter.reset(battle);
     fsm.go(Phase.INTENTS);
   }
+  // ------------------------------------------------------------ áudio (volume geral, efeitos, silenciar)
+  const A = G.SFX.settings;
+  document.getElementById('vol-master').value = A.master; document.getElementById('vol-sfx').value = A.sfx; document.getElementById('vol-mute').checked = A.muted;
+  document.getElementById('vol-master').oninput = e => G.SFX.set('master', +e.target.value);
+  document.getElementById('vol-sfx').oninput = e => { G.SFX.set('sfx', +e.target.value); G.SFX.play('uiSkill'); };
+  document.getElementById('vol-mute').onchange = e => { G.SFX.set('muted', e.target.checked); document.getElementById('btn-audio').textContent = e.target.checked ? '🔇' : '🔊'; };
+  document.getElementById('btn-audio').textContent = A.muted ? '🔇' : '🔊';
+  document.getElementById('btn-audio').onclick = () => document.getElementById('audio-pop').classList.toggle('show');
+  document.getElementById('btn-team').onclick = () => { if (fsm.state === 'TEAM' || confirm('Voltar para a formação de equipe? A batalha atual será encerrada.')) openTeam(); };
+
   UI.setSpeed(1);
-  start();
-  G.debug = { get battle() { return battle; }, presenter, planner, fsm, get view() { return view; } };
+  // ?seed=… vai direto para a batalha (testes); senão começa pela formação
+  if (new URLSearchParams(location.search).get('seed')) start(); else { battle = new Battle(1, team); presenter.reset(battle); openTeam(); }
+  G.debug = { get battle() { return battle; }, presenter, planner, fsm, get view() { return view; }, teamCb, teamState };
 })(window);

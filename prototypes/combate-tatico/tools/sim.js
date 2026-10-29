@@ -2,6 +2,7 @@
 require('../js/data.js'); require('../js/ai.js'); require('../js/combat.js');
 const G = globalThis, N = +process.argv[2] || 500;
 const { SKILLS } = G;
+const PARTIES = [['knight', 'swordsman', 'mage'], ['knight', 'mage', 'archer'], ['swordsman', 'lancer', 'brawler'], ['knight', 'brawler', 'mage'], ['lancer', 'archer', 'brawler']];
 
 // Jogador simples: tenta Clashes favoráveis, protege o mago se ele for alvo, senão ataca o mais fraco.
 function smartChoices(b) {
@@ -15,7 +16,7 @@ function smartChoices(b) {
     else choices[u.id] = { skillId: atk[Math.floor(b.rand() * atk.length)], targetId: enemies.sort((x, y) => x.hp - y.hp)[0].id, intercept: true };
   }
   // às vezes usa a combinação Cavaleiro + Espadachim no inimigo mais fraco
-  if (b.combosFor('knight').length && b.rand() < 0.35) {
+  if (b.unit('knight') && b.combosFor('knight').length && b.rand() < 0.35) {
     choices.knight = { skillId: 'combo_ks', targetId: enemies.sort((x, y) => x.hp - y.hp)[0].id };
     choices.swordsman = { comboWith: 'knight' };
   }
@@ -32,9 +33,10 @@ function randomChoices(b) {
 }
 
 for (const [label, pick] of [['aleatório', randomChoices], ['simples', smartChoices]]) {
-  let wins = 0, rounds = 0; const types = {};
+  let wins = 0, rounds = 0; const types = {}, byParty = {};
   for (let s = 1; s <= N; s++) {
-    const b = new G.Battle(s);
+    const party = PARTIES[s % PARTIES.length];
+    const b = new G.Battle(s, party);
     while (!b.outcome() && b.round < 40) {
       b.planEnemyIntents();
       const plan = b.buildPlan(pick(b));
@@ -53,8 +55,10 @@ for (const [label, pick] of [['aleatório', randomChoices], ['simples', smartCho
       if (b.outcome()) break;
       b.endRound();
     }
-    if (b.outcome() === 'victory') wins++;
+    const key = party.join('+'); byParty[key] = byParty[key] || [0, 0]; byParty[key][1]++;
+    if (b.outcome() === 'victory') { wins++; byParty[key][0]++; }
     rounds += b.round;
   }
   console.log(`jogador ${label}: vitórias ${(wins / N * 100).toFixed(1)}%, rodadas médias ${(rounds / N).toFixed(1)}`, JSON.stringify(types));
+  for (const k in byParty) console.log(`   ${k.padEnd(28)} ${(byParty[k][0] / byParty[k][1] * 100).toFixed(0)}%`);
 }

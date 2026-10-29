@@ -146,7 +146,7 @@
           // círculos a caminho do alvo não troca. Para trocar, pare ~0,25 s sobre outra.
           const it = this._itemAt();
           const ok = it && !it.cancel && !it.disabled;
-          if (!this.drag.skillId) { if (ok) this.drag.skillId = it.skillId; }
+          if (!this.drag.skillId) { if (ok) { this.drag.skillId = it.skillId; G.SFX && G.SFX.play('uiSkill'); } }
           else if (ok && it.skillId !== this.drag.skillId) {
             if (this.drag.dwell !== it.skillId) { this.drag.dwell = it.skillId; this.drag.dwellAt = this.p.time; }
             else if (this.p.time - this.drag.dwellAt > 250) this.drag.skillId = it.skillId;
@@ -204,6 +204,7 @@
       c.style.cursor = this.drag ? 'grabbing' : (h.kind === 'empty' ? 'default' : 'pointer');
     }
     _select(uid) {
+      G.SFX && G.SFX.play('uiSelect');
       this.sel = { uid, skillId: null, openAt: this.p.time };
       this._applyHighlights();
     }
@@ -217,6 +218,7 @@
         if (it.disabled) return;
         if (!this.needsTarget(it.skillId)) { this._commit(sel.uid, it.skillId, sel.uid); return; }
         sel.skillId = it.skillId; // modo clique: agora clique no alvo
+        G.SFX && G.SFX.play('uiSkill');
         return;
       }
       if (pr.kind === 'badge' && sel && sel.skillId) { const id = this.p.pick(this.mouse.sx, this.mouse.sy); if (id) pr = { kind: this.battle.unit(id).side === 'ally' ? 'ally' : 'enemy', id }; }
@@ -248,6 +250,7 @@
     }
     _commit(uid, skillId, targetId) {
       this.hover.item = null;
+      G.SFX && G.SFX.play('uiConnect');
       this.cb.commit(uid, skillId, targetId);
       this.connectAt[uid] = this.p.time;
       this.sel = null;
@@ -261,6 +264,7 @@
     }
     _retractDrag(d = this.drag) {
       if (!d) return;
+      G.SFX && G.SFX.play('uiCancel');
       const v = this.p.vis[d.uid];
       this.retracts.push({ x0: v.x, y0: v.y - 80, x1: this.mouse.x, y1: this.mouse.y, kind: d.skillId ? SKILLS[d.skillId].kind : 'attack', start: this.p.time });
     }
@@ -703,6 +707,15 @@
       case 'support': L([0, -0.8, 0, 0.8]); L([-0.8, 0, 0.8, 0]); ctx.beginPath(); ctx.arc(0, 0, 0.95 * s, 0, 7); ctx.globalAlpha *= 0.5; ctx.stroke(); break;
       case 'dodge': L([-0.85, -0.45, 0.2, -0.45]); L([-0.65, 0, 0.45, 0]); L([-0.85, 0.45, 0.2, 0.45]); L([0.35, -0.7, 0.85, 0, 0.35, 0.7], false); break;
       case 'cancel': L([-0.6, -0.6, 0.6, 0.6]); L([0.6, -0.6, -0.6, 0.6]); break;
+      case 'spear': L([-0.85, 0.85, 0.45, -0.45]); L([0.3, -0.75, 0.85, -0.85, 0.75, -0.3], true, true); break;
+      case 'sweep': ctx.beginPath(); ctx.arc(0, 0.35 * s, 0.85 * s, -2.8, -0.35); ctx.stroke(); L([0.55, -0.35, 0.95, -0.55, 0.85, -0.1], true, true); break;
+      case 'pierce': L([-0.9, 0, 0.5, 0]); L([0.4, -0.3, 0.95, 0, 0.4, 0.3], true, true); L([-0.9, -0.4, -0.5, -0.4]); L([-0.9, 0.4, -0.5, 0.4]); break;
+      case 'fist': ctx.beginPath(); ctx.roundRect(-0.55 * s, -0.5 * s, 1.0 * s, 0.9 * s, 0.25 * s); ctx.fill(); L([-0.85, -0.2, -0.6, -0.2]); L([-0.9, 0.15, -0.6, 0.15]); break;
+      case 'flurry': for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc((-0.5 + i * 0.5) * s, (i % 2 ? 0.25 : -0.25) * s, 0.26 * s, 0, 7); ctx.fill(); } break;
+      case 'upper': L([0, 0.9, 0, -0.5]); L([-0.45, -0.1, 0, -0.85, 0.45, -0.1], false); ctx.beginPath(); ctx.arc(0, 0.55 * s, 0.25 * s, 0, 7); ctx.fill(); break;
+      case 'arrow': L([-0.85, 0.85, 0.55, -0.55]); L([0.25, -0.75, 0.85, -0.85, 0.75, -0.25], true, true); L([-0.85, 0.85, -0.85, 0.45]); L([-0.85, 0.85, -0.45, 0.85]); break;
+      case 'arrow2': L([-0.85, 0.5, 0.45, -0.8]); L([-0.5, 0.85, 0.8, -0.45]); L([0.3, -0.95, 0.6, -0.95, 0.55, -0.65], true, true); L([0.65, -0.6, 0.95, -0.6, 0.9, -0.3], true, true); break;
+      case 'arrowp': L([-0.9, 0.9, 0.55, -0.55]); L([0.2, -0.85, 0.95, -0.95, 0.85, -0.2], true, true); ctx.beginPath(); ctx.arc(0.65 * s, -0.65 * s, 0.25 * s, 0, 7); ctx.stroke(); break;
       case 'combo': L([-0.8, 0.7, 0.35, -0.45]); L([0.8, 0.7, -0.35, -0.45]); ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 - Math.PI / 2, r = (i % 2 ? 0.14 : 0.36) * s; ctx.lineTo(Math.cos(a) * r, -0.62 * s + Math.sin(a) * r); } ctx.closePath(); ctx.fill(); break;
       default: ctx.beginPath(); ctx.arc(0, 0, 0.5 * s, 0, 7); ctx.fill();
     }

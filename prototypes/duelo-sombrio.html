@@ -105,6 +105,37 @@ body.resolving #panel { opacity:.6; }
 #stage { touch-action:none; }
 @media (max-width: 900px) { #panel { flex-wrap:wrap; } .bar-hint { flex-basis:100%; } }
 
+/* formação de equipe */
+.team { position:fixed; inset:0; z-index:8; display:none; align-items:center; justify-content:center; padding:14px;
+  background: radial-gradient(ellipse at 50% 30%, #2a1830 0%, #0c0910 70%); }
+.team.show { display:flex; }
+.team-box { width:min(1100px,100%); max-height:100%; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+.team-box h1 { margin:0; color:var(--gold); letter-spacing:3px; font-size:26px; }
+.team-main { display:flex; gap:14px; flex-wrap:wrap; }
+.roster { flex:1 1 520px; display:grid; grid-template-columns:repeat(3, minmax(140px,1fr)); gap:10px; }
+.rcard { position:relative; background:#1d1522; border:1px solid var(--line); border-radius:12px; padding:8px; cursor:pointer; display:flex; flex-direction:column; gap:4px; transition:transform .12s, border-color .12s; }
+.rcard:hover { transform:translateY(-2px); border-color:#6a5530; }
+.rcard.focus { border-color:var(--ally); box-shadow:0 0 0 1px var(--ally); }
+.rcard.picked { border-color:var(--gold); box-shadow:0 0 14px rgba(216,180,90,.35); }
+.rcard canvas { width:100%; height:auto; border-radius:8px; display:block; }
+.rcard b { font-size:15px; } .rcard small { font-size:12px; }
+.rcard .tagpick { position:absolute; top:10px; right:10px; background:var(--gold); color:#1a1208; font-weight:900; border-radius:10px; padding:1px 8px; font-size:12px; }
+.bars { display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--muted); }
+.bar { display:flex; align-items:center; gap:6px; } .bar i { flex:1; height:5px; background:#000; border-radius:3px; overflow:hidden; } .bar i::after { content:''; display:block; height:100%; width:var(--v); background:var(--c,#7fd0ff); }
+.detail { flex:1 1 300px; background:#16101b; border:1px solid var(--line); border-radius:12px; padding:12px; font-size:13px; display:flex; flex-direction:column; gap:8px; }
+.detail h2 { margin:0; color:#ffe9b0; } .detail .sk { display:flex; gap:8px; align-items:flex-start; padding:5px 0; border-top:1px dashed var(--line); }
+.detail .sk em { font-style:normal; color:#ffd36a; font-size:12px; white-space:nowrap; }
+.team-foot { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.slots { flex:1; display:flex; gap:8px; }
+.slot { flex:1; min-width:90px; height:56px; border:1px dashed #5a4a60; border-radius:10px; display:flex; align-items:center; gap:8px; padding:4px 8px; color:var(--muted); font-size:12px; cursor:pointer; }
+.slot.full { border-style:solid; border-color:var(--gold); color:var(--text); background:#21182a; }
+.slot canvas { width:40px; height:48px; border-radius:6px; }
+#btn-start { margin:0; padding:12px 22px; }
+.pop { position:fixed; top:46px; right:12px; z-index:9; display:none; flex-direction:column; gap:8px; background:#16101b; border:1px solid var(--line); border-radius:10px; padding:10px 14px; font-size:13px; }
+.pop.show { display:flex; } .pop label { display:flex; flex-direction:column; gap:3px; } .pop .chk { flex-direction:row; align-items:center; gap:6px; }
+.end .row { display:flex; gap:10px; justify-content:center; }
+@media (max-width: 700px) { .roster { grid-template-columns:repeat(2, 1fr); } }
+
 </style>
 </head>
 <body>
@@ -116,12 +147,33 @@ body.resolving #panel { opacity:.6; }
       <button data-speed="1">1×</button>
       <button data-speed="2.2">2×</button>
       <button id="btn-skip" title="Pular animações (Espaço)">Pular ⏭</button>
+      <button id="btn-team" title="Trocar equipe">👥</button>
+      <button id="btn-audio" title="Áudio">🔊</button>
       <button id="btn-help">?</button>
       <button id="btn-restart">↻</button>
     </div>
   </header>
   <main id="arena"><canvas id="stage"></canvas><div id="overlay"></div></main>
   <section id="panel"></section>
+  <div id="audio-pop" class="pop">
+    <label>Volume geral <input type="range" id="vol-master" min="0" max="1" step="0.05"></label>
+    <label>Efeitos <input type="range" id="vol-sfx" min="0" max="1" step="0.05"></label>
+    <label class="chk"><input type="checkbox" id="vol-mute"> Silenciar</label>
+  </div>
+  <div id="team" class="team">
+    <div class="team-box">
+      <h1>Formação da equipe</h1>
+      <p class="muted">Escolha <b>três</b> combatentes. Clique para ver detalhes; clique de novo (ou no espaço da equipe) para adicionar ou remover.</p>
+      <div class="team-main">
+        <div id="roster" class="roster"></div>
+        <div id="detail" class="detail"></div>
+      </div>
+      <div class="team-foot">
+        <div id="slots" class="slots"></div>
+        <button id="btn-start" class="confirm">Iniciar batalha ▶</button>
+      </div>
+    </div>
+  </div>
   <div id="help">
     <div class="box">
       <h2>Como jogar</h2>
@@ -129,10 +181,126 @@ body.resolving #panel { opacity:.6; }
       <p><b>Leitura:</b> linhas vermelhas tracejadas = intenções inimigas. Correntes = suas ações (vermelha com ponta = ataque, verde = suporte, azul com escudo = proteção). O selo no meio da corrente mostra o Clash (Favorável / Equilibrado / Desfavorável); passe o mouse para ver as forças. Em interceptações, clique no selo para ligar/desligar.</p>
       <p><b>Clash:</b> cada lado rola <b>Força + (0 a 3)</b>; o maior interrompe o outro e acerta seu dano. Empate anula os dois. Interceptar exige velocidade (+ alcance do Cavaleiro) ≥ a do golpe inimigo.</p>
       <p><b>Defesas</b> agem antes de tudo: Postura de Escudo, Proteção (o Cavaleiro recebe os golpes no lugar de um aliado), Aparar (1º golpe físico), Passo Etéreo (esquiva). Enfraquecimento (−2 força) e Suporte (+2) afetam só o que vem depois deles.</p>
+      <p><b>Equipe:</b> 👥 volta à formação (6 combatentes, escolha 3). 🔊 ajusta o áudio.</p>
       <p><b>Controles:</b> 1×/2×, Pular (ou Espaço), Enter executa a rodada. Os resultados já estão decididos antes da animação.</p>
       <p class="muted">Clique para fechar.</p>
     </div>
   </div>
+  <script>
+// =====================================================================
+// AUDIO MANAGER — efeitos sintetizados com Web Audio API (sem arquivos
+// externos: nada de licença a verificar). Cada som varia levemente de
+// tom/intensidade para golpes seguidos não soarem idênticos.
+// Só começa a tocar depois da primeira interação do usuário.
+// =====================================================================
+(function (G) {
+  'use strict';
+  const STORE = 'duelo-audio';
+
+  class AudioManager {
+    constructor() {
+      this.ctx = null; this.unlocked = false;
+      this.settings = { master: 0.7, sfx: 0.8, muted: false };
+      try { Object.assign(this.settings, JSON.parse(localStorage.getItem(STORE) || '{}')); } catch (e) { /* sem storage */ }
+      this._last = {};
+      const unlock = () => this.unlock();
+      window.addEventListener('pointerdown', unlock, { once: false });
+      window.addEventListener('keydown', unlock, { once: false });
+    }
+    unlock() {
+      if (this.unlocked && this.ctx && this.ctx.state === 'running') return;
+      try {
+        this.ctx = this.ctx || new (window.AudioContext || window.webkitAudioContext)();
+        this.out = this.out || this.ctx.createGain();
+        if (!this.out._connected) {
+          // compressor suave evita picos quando vários sons coincidem
+          const comp = this.ctx.createDynamicsCompressor();
+          comp.threshold.value = -16; comp.ratio.value = 4;
+          this.out.connect(comp); comp.connect(this.ctx.destination); this.out._connected = true;
+          this.noise = this._noiseBuffer();
+        }
+        this.ctx.resume();
+        this.unlocked = true;
+        this._applyVolume();
+      } catch (e) { this.unlocked = false; }
+    }
+    set(key, value) {
+      this.settings[key] = value;
+      try { localStorage.setItem(STORE, JSON.stringify(this.settings)); } catch (e) { /* ok */ }
+      this._applyVolume();
+    }
+    _applyVolume() { if (this.out) this.out.gain.value = this.settings.muted ? 0 : this.settings.master * this.settings.sfx; }
+    _noiseBuffer() {
+      const len = this.ctx.sampleRate * 1.0, buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      return buf;
+    }
+
+    // ---------------------------------------------------- primitivas
+    _env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+    _noise(t, dur, { type = 'bandpass', f0 = 1200, f1 = f0, q = 1, peak = 0.4, a = 0.005 } = {}) {
+      const c = this.ctx, src = c.createBufferSource(), flt = c.createBiquadFilter(), g = c.createGain();
+      src.buffer = this.noise; flt.type = type; flt.Q.value = q;
+      flt.frequency.setValueAtTime(f0, t); flt.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+      this._env(g, t, a, peak, dur);
+      src.connect(flt); flt.connect(g); g.connect(this.out);
+      src.start(t, Math.random() * 0.5); src.stop(t + a + dur + 0.05);
+    }
+    _tone(t, dur, { type = 'sine', f0 = 440, f1 = f0, peak = 0.3, a = 0.004 } = {}) {
+      const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+      o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+      this._env(g, t, a, peak, dur);
+      o.connect(g); g.connect(this.out); o.start(t); o.stop(t + a + dur + 0.05);
+    }
+
+    // ---------------------------------------------------- catálogo
+    play(name, { vol = 1, pitch = 1 } = {}) {
+      if (!this.unlocked || !this.ctx || this.settings.muted) return;
+      // evita empilhar o mesmo som no mesmo instante
+      const now = this.ctx.currentTime;
+      if (this._last[name] && now - this._last[name] < 0.03) return;
+      this._last[name] = now;
+      const v = vol * (0.85 + Math.random() * 0.3), p = pitch * (0.92 + Math.random() * 0.16), t = now + 0.005;
+      const N = (dur, o) => this._noise(t, dur, Object.assign({}, o, { peak: (o.peak || 0.4) * v, f0: (o.f0 || 1200) * p, f1: (o.f1 || o.f0 || 1200) * p }));
+      const T = (dur, o, dt = 0) => this._tone(t + dt, dur, Object.assign({}, o, { peak: (o.peak || 0.3) * v, f0: (o.f0 || 440) * p, f1: (o.f1 || o.f0 || 440) * p }));
+      switch (name) {
+        case 'swish': N(0.16, { f0: 900, f1: 3200, q: 1.4, peak: 0.25, a: 0.03 }); break;              // movimento de lâmina
+        case 'slash': N(0.12, { f0: 2600, f1: 900, q: 0.9, peak: 0.4 }); T(0.12, { type: 'triangle', f0: 180, f1: 90, peak: 0.25 }); break;
+        case 'shield': T(0.2, { type: 'sine', f0: 110, f1: 55, peak: 0.55 }); N(0.08, { type: 'lowpass', f0: 900, peak: 0.35 }); break;
+        case 'punch': T(0.1, { type: 'sine', f0: 150, f1: 60, peak: 0.5 }); N(0.05, { type: 'lowpass', f0: 1400, peak: 0.3 }); break;
+        case 'thrust': N(0.1, { f0: 1600, f1: 4200, q: 2, peak: 0.25, a: 0.01 }); T(0.08, { type: 'triangle', f0: 240, f1: 120, peak: 0.2 }, 0.06); break;
+        case 'heavy': T(0.35, { type: 'sine', f0: 80, f1: 38, peak: 0.6 }); N(0.2, { type: 'lowpass', f0: 600, f1: 200, peak: 0.4 }); break;
+        case 'clash':  // choque metálico: parciais inarmônicas
+          [1, 2.76, 5.4, 8.9].forEach((m, i) => T(0.5 - i * 0.08, { type: 'sine', f0: 520 * m, peak: 0.16 / (i + 1) }));
+          N(0.08, { type: 'highpass', f0: 3000, peak: 0.35 }); break;
+        case 'clashWin': T(0.18, { type: 'triangle', f0: 523, peak: 0.16 }); T(0.26, { type: 'triangle', f0: 784, peak: 0.16 }, 0.08); break;
+        case 'clashLose': T(0.3, { type: 'triangle', f0: 330, f1: 220, peak: 0.16 }); break;
+        case 'block': T(0.14, { type: 'square', f0: 140, f1: 90, peak: 0.12 }); N(0.06, { type: 'bandpass', f0: 2200, q: 3, peak: 0.3 }); break;
+        case 'dodge': N(0.22, { f0: 500, f1: 1800, q: 0.8, peak: 0.18, a: 0.04 }); break;
+        case 'parry': [1, 2.4, 4.1].forEach((m, i) => T(0.6, { type: 'sine', f0: 1250 * m, peak: 0.14 / (i + 1) })); N(0.05, { type: 'highpass', f0: 4000, peak: 0.3 }); break;
+        case 'magicCharge': T(0.5, { type: 'sine', f0: 300, f1: 900, peak: 0.12, a: 0.15 }); T(0.5, { type: 'sine', f0: 305, f1: 910, peak: 0.08, a: 0.15 }); break;
+        case 'magicCast': T(0.22, { type: 'sawtooth', f0: 900, f1: 300, peak: 0.08 }); N(0.2, { f0: 2000, f1: 600, q: 4, peak: 0.15 }); break;
+        case 'magicHit': T(0.35, { type: 'sine', f0: 200, f1: 60, peak: 0.4 }); N(0.3, { type: 'lowpass', f0: 2400, f1: 300, peak: 0.35 }); break;
+        case 'whoosh': N(0.3, { f0: 400, f1: 1600, q: 1.2, peak: 0.12, a: 0.08 }); break;          // projétil em voo
+        case 'bowDraw': T(0.35, { type: 'sawtooth', f0: 70, f1: 110, peak: 0.05, a: 0.1 }); N(0.35, { f0: 600, f1: 900, q: 6, peak: 0.06, a: 0.1 }); break;
+        case 'bowRelease': T(0.25, { type: 'triangle', f0: 220, f1: 180, peak: 0.25 }); N(0.06, { type: 'highpass', f0: 2500, peak: 0.2 }); break;
+        case 'arrowHit': N(0.05, { type: 'bandpass', f0: 1800, q: 2, peak: 0.35 }); T(0.08, { type: 'sine', f0: 260, f1: 120, peak: 0.3 }); break;
+        case 'thud': T(0.3, { type: 'sine', f0: 70, f1: 40, peak: 0.55 }); N(0.25, { type: 'lowpass', f0: 500, f1: 150, peak: 0.35 }); break; // queda
+        case 'defeat': T(0.6, { type: 'triangle', f0: 220, f1: 110, peak: 0.15 }); break;
+        // interface
+        case 'uiSelect': T(0.07, { type: 'triangle', f0: 660, peak: 0.1 }); break;
+        case 'uiSkill': T(0.08, { type: 'triangle', f0: 880, peak: 0.09 }); break;
+        case 'uiConnect': T(0.08, { type: 'triangle', f0: 660, peak: 0.1 }); T(0.12, { type: 'triangle', f0: 990, peak: 0.1 }, 0.06); N(0.05, { type: 'highpass', f0: 5000, peak: 0.08 }); break;
+        case 'uiCancel': T(0.12, { type: 'triangle', f0: 440, f1: 300, peak: 0.08 }); break;
+        case 'uiConfirm': [523, 659, 784].forEach((f, i) => T(0.18, { type: 'triangle', f0: f, peak: 0.09 }, i * 0.06)); break;
+      }
+    }
+  }
+
+  G.SFX = new AudioManager();
+})(window);
+
+</script>
   <script>
 // =====================================================================
 // DADOS DE BALANCEAMENTO — edite aqui sem tocar no sistema de combate.
@@ -190,6 +358,34 @@ body.resolving #panel { opacity:.6; }
       desc: 'Pouco dano, mas o alvo perde 2 de força nos Clashes até o fim da próxima rodada. Age cedo.' },
     m_support: { name: 'Suporte', icon: 'support', kind: 'support', tags: ['support'],
       desc: 'Um aliado ganha +2 de força na próxima habilidade ofensiva. Age cedo.' },
+    // --- Lanceiro (alcance e controle de distância)
+    l_thrust: { name: 'Estocada', icon: 'spear', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'],
+      hits: [{ share: 1, motion: 'thrust', react: 'final' }], desc: 'Estocada rápida de longo alcance. Boa força de Clash.' },
+    l_sweep: { name: 'Varredura', icon: 'sweep', impact: 'push', kind: 'attack', force: 6, dmg: 9, tags: ['melee'],
+      hits: [{ share: 1, motion: 'sweep', react: 'final' }], desc: 'Arco amplo com a haste: empurra o alvo para longe.' },
+    l_pierce: { name: 'Investida Perfurante', icon: 'pierce', impact: 'stagger', kind: 'attack', force: 5, dmg: 14, tags: ['melee'], cooldown: 2, windup: 1.3,
+      hits: [{ share: 1, motion: 'lunge', react: 'final' }], desc: 'Avança e perfura com força. Dano alto, força de Clash moderada.' },
+    l_parry: { name: 'Guarda da Lança', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [],
+      desc: 'Apara o primeiro golpe físico com a haste e contra-ataca.' },
+    // --- Lutador (pressão e múltiplos impactos)
+    f_jab: { name: 'Soco Direto', icon: 'fist', kind: 'attack', force: 7, dmg: 6, tags: ['melee', 'fast'],
+      hits: [{ share: 1, motion: 'punch', react: 'final' }], desc: 'Soco rápido e simples.' },
+    f_flurry: { name: 'Sequência de Golpes', icon: 'flurry', kind: 'attack', force: 6, dmg: 12, tags: ['melee'],
+      hits: [{ share: 0.3, motion: 'punch', react: 'light' }, { share: 0.3, motion: 'punch2', react: 'light' }, { share: 0.4, motion: 'punch', react: 'final' }],
+      desc: 'Três socos seguidos (um único Clash). O dano é dividido entre os impactos.' },
+    f_upper: { name: 'Golpe Ascendente', icon: 'upper', impact: 'knockdown', kind: 'attack', force: 5, dmg: 12, tags: ['melee'], cooldown: 2, windup: 1.3,
+      hits: [{ share: 1, motion: 'upper', react: 'final' }], desc: 'De baixo para cima: pode derrubar o alvo.' },
+    f_dodge: { name: 'Esquiva Lateral', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
+      desc: 'Esquiva ágil de cada golpe recebido nesta rodada (chance alta).' },
+    // --- Arqueira (precisão à distância)
+    a_shot: { name: 'Flecha Precisa', icon: 'arrow', kind: 'attack', force: 8, dmg: 7, tags: ['ranged'],
+      hits: [{ share: 1, motion: 'arrow', react: 'final' }], desc: 'Flecha certeira: boa força de Clash, dano moderado.' },
+    a_double: { name: 'Disparo Duplo', icon: 'arrow2', kind: 'attack', force: 6, dmg: 10, tags: ['ranged'],
+      hits: [{ share: 0.5, motion: 'arrow', react: 'light' }, { share: 0.5, motion: 'arrow', react: 'final' }], desc: 'Duas flechas em sequência; o dano é dividido.' },
+    a_pierce: { name: 'Flecha Perfurante', icon: 'arrowp', impact: 'stagger', kind: 'attack', force: 5, dmg: 14, tags: ['ranged'], cooldown: 2, windup: 1.6,
+      hits: [{ share: 1, motion: 'arrowp', react: 'final' }], desc: 'Tensiona o arco ao máximo: dano alto, preparação longa.' },
+    a_evade: { name: 'Recuo Ágil', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
+      desc: 'Salta para trás tentando esquivar de cada golpe.' },
     m_dodge: { name: 'Passo Etéreo', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
       desc: 'Tenta esquivar de cada golpe recebido nesta rodada.' },
 
@@ -240,18 +436,37 @@ body.resolving #panel { opacity:.6; }
 
   // interceptReach: bônus de velocidade só para interceptar ataques contra aliados
   const UNITS = {
-    knight: { name: 'Cavaleiro', role: 'Defensor', side: 'ally', art: 'knight',
+    knight: { name: 'Cavaleiro', role: 'Defensor', side: 'ally', art: 'knight', formation: 0,
+      style: 'Linha de frente: resiste, bloqueia e protege os aliados.',
       hp: 62, spd: 3, interceptReach: 4, blockPower: 0.6,
       skills: ['k_basic', 'k_shield', 'k_heavy', 'k_guard', 'k_protect'],
       trait: 'Intercepta ataques mesmo sendo lento (+4 de alcance). Bloqueio de 60%.' },
-    swordsman: { name: 'Espadachim', role: 'Duelista', side: 'ally', art: 'swordsman',
+    swordsman: { name: 'Espadachim', role: 'Duelista', side: 'ally', art: 'swordsman', formation: 1,
+      style: 'Duelos rápidos e precisos; vence Clashes com Golpe Preciso.',
       hp: 44, spd: 8, interceptReach: 0, dodgeSkill: 0.10, parrySkill: 0.10,
       skills: ['s_basic', 's_precise', 's_risky', 's_parry'],
       trait: 'Muito rápido: age cedo e intercepta golpes mais lentos.' },
-    mage: { name: 'Mago', role: 'Conjurador', side: 'ally', art: 'mage',
+    mage: { name: 'Mago', role: 'Conjurador', side: 'ally', art: 'mage', formation: 2,
+      style: 'Magia à distância e preparação: enfraquece inimigos e apoia aliados.',
       hp: 34, spd: 5, interceptReach: 0,
       skills: ['m_bolt', 'm_blast', 'm_weaken', 'm_support', 'm_dodge'],
       trait: 'Frágil. Enfraquecimento e Suporte agem cedo e preparam os Clashes dos aliados.' },
+
+    lancer: { name: 'Lanceiro', role: 'Alcance', side: 'ally', art: 'lancer', formation: 1,
+      hp: 50, spd: 7, interceptReach: 2, parrySkill: 0.05,
+      skills: ['l_thrust', 'l_sweep', 'l_pierce', 'l_parry'],
+      style: 'Disciplinado: mantém o inimigo na ponta da lança e controla a distância.',
+      trait: 'Alcance longo (+2 para interceptar). Apara com a haste.' },
+    brawler: { name: 'Lutador', role: 'Pressão', side: 'ally', art: 'brawler', formation: 0,
+      hp: 48, spd: 9, interceptReach: 0, dodgeSkill: 0.20,
+      skills: ['f_jab', 'f_flurry', 'f_upper', 'f_dodge'],
+      style: 'Punhos rápidos e pressão constante: muitos impactos e reações no alvo.',
+      trait: 'O mais rápido. Especialista em esquiva.' },
+    archer: { name: 'Arqueira', role: 'Precisão', side: 'ally', art: 'archer', formation: 2,
+      hp: 36, spd: 7, interceptReach: 0, dodgeSkill: 0.15,
+      skills: ['a_shot', 'a_double', 'a_pierce', 'a_evade'],
+      style: 'Ataca de longe com flechas físicas (podem ser aparadas). Frágil de perto.',
+      trait: 'Ataques à distância. Esquiva e reposiciona.' },
 
     brute: { name: 'Brutamontes', role: 'Força bruta', side: 'enemy', art: 'brute',
       hp: 56, spd: 2, blockPower: 0.5, skills: ['b_smash', 'b_bash', 'b_guard'],
@@ -264,11 +479,12 @@ body.resolving #panel { opacity:.6; }
       ai: { prefers: 'threat', defendBelow: 0.30 } },
   };
 
-  const PARTY = ['knight', 'swordsman', 'mage'];
+  const PARTY = ['knight', 'swordsman', 'mage']; // equipe padrão
+  const ROSTER = ['knight', 'swordsman', 'mage', 'lancer', 'brawler', 'archer']; // jogáveis
   const FOES = ['brute', 'duelist', 'conjurer'];
-  const AI_THREAT = { mage: 0.6, swordsman: 0.4, knight: 0.0 };
+  const AI_THREAT = { mage: 0.6, archer: 0.6, swordsman: 0.4, lancer: 0.3, brawler: 0.35, knight: 0.0 };
 
-  Object.assign(G, { CONFIG, REACTIONS, STATUS, SKILLS, COMBOS, AI_COMBO_CHANCE, UNITS, PARTY, FOES, AI_THREAT });
+  Object.assign(G, { CONFIG, REACTIONS, STATUS, SKILLS, COMBOS, AI_COMBO_CHANCE, UNITS, PARTY, ROSTER, FOES, AI_THREAT });
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -299,13 +515,14 @@ body.resolving #panel { opacity:.6; }
   const members = act => [act.actorId, ...(act.partners || [])];
 
   class Battle {
-    constructor(seed) {
+    // party: ids dos 3 aliados escolhidos na formação (ordem = posição: frente → retaguarda)
+    constructor(seed, party = PARTY) {
       this.seed = seed;
       this.rand = makeRng(seed);
       this.round = 1;
       this.units = [];
       this.intents = [];
-      PARTY.forEach((k, i) => this.units.push(this._makeUnit(k, 'ally', i)));
+      party.forEach((k, i) => this.units.push(this._makeUnit(k, 'ally', i)));
       FOES.forEach((k, i) => this.units.push(this._makeUnit(k, 'enemy', i)));
     }
     _makeUnit(key, side, slot) {
@@ -326,7 +543,8 @@ body.resolving #panel { opacity:.6; }
     combosFor(uid) {
       return Object.keys(G.COMBOS).filter(id => {
         const c = G.COMBOS[id];
-        return c.side === 'ally' && c.members.includes(uid) && c.members.every(m => this.unit(m).hp > 0) &&
+        // só existe se os dois membros estiverem na equipe e vivos
+        return c.side === 'ally' && c.members.includes(uid) && c.members.every(m => this.unit(m) && this.unit(m).hp > 0) &&
           this.skillReady(this.unit(c.members[0]), id);
       });
     }
@@ -592,6 +810,7 @@ body.resolving #panel { opacity:.6; }
       const LV = ['light', 'medium', 'heavy', 'extreme'];
       const r = dmg / def.maxHp, c = CONFIG.impact;
       let lv = r >= c.heavy ? 2 : r >= c.medium ? 1 : 0;
+      if (sk.impact === 'push') lv = Math.max(lv, 1);
       if (sk.impact === 'stagger') lv = Math.max(lv, 2);
       if (sk.impact === 'knockdown') lv = 3;
       if (blocked) lv = Math.max(0, lv - 1);
@@ -760,6 +979,11 @@ body.resolving #panel { opacity:.6; }
     knight: { x: 445, y: 580 }, swordsman: { x: 315, y: 618 }, mage: { x: 185, y: 560 },
     brute: { x: 835, y: 580 }, duelist: { x: 965, y: 618 }, conjurer: { x: 1095, y: 560 },
   };
+  // Posições de formação dos aliados por posição na equipe (0 = frente, 2 = retaguarda)
+  const ALLY_SLOTS = [{ x: 445, y: 580 }, { x: 315, y: 618 }, { x: 185, y: 560 }];
+  const BG_M = { x: 520, y: 320 }; // o cenário se estende além da arena (sem bordas pretas)
+  const isRanged = sk => sk.tags.includes('magic') || sk.tags.includes('ranged');
+  const SFX = (n, o) => G.SFX && G.SFX.play(n, o);
   // Área de combate (mundo) e regras de espaçamento
   const ARENA = { minX: 90, maxX: 1190, minY: 545, maxY: 640 };
     const FRONT = { ally: 600, enemy: 690 }; // linha de frente usada no reagrupamento entre rodadas
@@ -771,8 +995,12 @@ body.resolving #panel { opacity:.6; }
     brute:     { dash: 1.40, ease: 'inOut', reach: 88, knock: 0.55, width: 124 },
     duelist:   { dash: 0.75, ease: 'out',   reach: 84, knock: 1.00, width: 84 },
     conjurer:  { dash: 1.10, ease: 'inOut', reach: 70, knock: 1.10, width: 88 },
+    lancer:    { dash: 0.90, ease: 'out',   reach: 128, knock: 0.90, width: 86 },
+    brawler:   { dash: 0.60, ease: 'out',   reach: 60, knock: 0.95, width: 80 },
+    archer:    { dash: 0.90, ease: 'inOut', reach: 70, knock: 1.10, width: 80 },
   };
   const LEVELS = ['light', 'medium', 'heavy', 'extreme'];
+  const Z_MIN = 0.72; // menor zoom permitido (o cenário cobre essa área)
   const STANCE_STATE = { block: 'BLOCKING', parry: 'PARRYING', dodge: 'DODGING' };
   const ease = {
     lin: t => t,
@@ -798,7 +1026,7 @@ body.resolving #panel { opacity:.6; }
       this.shake = 0; this.spot = null; this.time = 0;
       this.threatened = null; this.nums = []; this.showLabels = true; this.highlight = null;
       this.bg = this._buildBackground();
-      this.fog = Array.from({ length: 14 }, (_, i) => ({ x: Math.random() * W * 1.4 - 100, y: GROUND - 40 + Math.random() * 120, r: 80 + Math.random() * 120, v: 0.004 + Math.random() * 0.01 }));
+      this.fog = Array.from({ length: 20 }, (_, i) => ({ x: Math.random() * (W + BG_M.x * 2) - BG_M.x, y: GROUND - 40 + Math.random() * 120, r: 80 + Math.random() * 120, v: 0.004 + Math.random() * 0.01 }));
       this._last = performance.now();
       this._resize();
       new ResizeObserver(() => this._resize()).observe(canvas.parentElement);
@@ -809,13 +1037,14 @@ body.resolving #panel { opacity:.6; }
     reset(battle) {
       this.vis = {};
       battle.units.forEach((u, i) => {
-        const h = HOME[u.id];
+        const h = u.side === 'ally' ? ALLY_SLOTS[u.slot] : HOME[u.id];
         this.vis[u.id] = { id: u.id, art: u.def.art, name: u.name, side: u.side,
           face: u.side === 'ally' ? 1 : -1, home: h, x: h.x, y: h.y,
           lean: 0, arm: 0, guard: 0, cast: 0, crouch: 0, flash: 0, alpha: 1, hop: 0,
           barrier: 0, ready: 0, dead: u.hp <= 0, hp: u.hp, dispHp: u.hp, maxHp: u.maxHp,
           statuses: { ...u.statuses }, phase: i * 1.7, trail: [], stance: null,
-          state: u.hp > 0 ? 'IDLE' : 'DEFEATED', tilt: 0, kneel: 0, busy: null };
+          state: u.hp > 0 ? 'IDLE' : 'DEFEATED', tilt: 0, kneel: 0, busy: null,
+          formation: u.def.formation != null ? u.def.formation : u.slot, wound: 0, ambT: 1500 + i * 700 };
       });
       this.tweens = []; this.waits = []; this.particles = []; this.texts = []; this.fx = [];
       this.banner = null; this.caption = null; this.spot = null;
@@ -913,11 +1142,35 @@ body.resolving #panel { opacity:.6; }
         if (f.t >= f.dur) this.fx.splice(i, 1);
       }
       if (this.banner) { this.banner.t += dt; if (this.banner.t > this.banner.dur) this.banner = null; }
-      for (const f of this.fog) { f.x += f.v * real; if (f.x > W + 250) f.x = -250; }
+      for (const f of this.fog) { f.x += f.v * real; if (f.x > W + BG_M.x) f.x = -BG_M.x; }
+      if (this.ambient && this.vis && !this.skipping) this._ambientTick(real);
+      // condição física: muda suavemente conforme a vida
+      for (const id in (this.vis || {})) {
+        const v = this.vis[id], r = v.hp / v.maxHp;
+        v.wound = lerp(v.wound, clamp((0.5 - r) / 0.35, 0, 1), 1 - Math.exp(-real * 0.002));
+      }
     }
 
     // ------------------------------------------------------------ câmera
-    overview() { this.follow = null; this.camT = { x: W / 2, y: this.viewCY || H / 2, z: 1 }; this.spot = null; }
+    // tamanho do mundo visível com zoom 1 (depende da proporção da tela)
+    get viewW() { return this.canvas.clientWidth / this.scale; }
+    get viewH() { return this.canvas.clientHeight / this.scale; }
+    // plano geral: garante que a arena inteira cabe, mesmo em telas estreitas
+    overview() {
+      this.follow = null; this.spot = null;
+      const z = Math.min(1, (this.viewW || W) / (ARENA.maxX - ARENA.minX + 170));
+      this.camT = this._clampCam({ x: W / 2, y: (this.viewCY || H / 2) + (1 - z) * 60, z });
+    }
+    _clampCam(c) {
+      const hw = this.viewW / 2 / c.z, hh = this.viewH / 2 / c.z;
+      // 40 px de folga para o tremor de câmera nunca revelar a borda do cenário
+      return { x: clamp(c.x, -BG_M.x + 40 + hw, W + BG_M.x - 40 - hw), y: clamp(c.y, -BG_M.y + 40 + hh, H + BG_M.y - 40 - hh), z: c.z };
+    }
+    // Atacante e alvo cabem juntos na tela? (senão, a câmera acompanha o projétil)
+    canFrame(vs) {
+      const xs = vs.map(v => v.x);
+      return this.viewW / (Math.max(...xs) - Math.min(...xs) + 240) >= Z_MIN;
+    }
     // A câmera passa a ACOMPANHAR os personagens focados (inclusive quando são empurrados),
     // e vai direto de um confronto ao próximo, sem voltar ao plano geral.
     focusOn(vs, extraZoom = 0) {
@@ -932,11 +1185,12 @@ body.resolving #panel { opacity:.6; }
       const xs = vs.map(v => v.x), ys = vs.map(v => v.y - 60);
       const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
       const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-      const span = Math.max(...xs) - Math.min(...xs) + 160; // margem para armas e recuos
-      const z = clamp(1.85 - span / 1000, 1.05, 1.5) + extraZoom;
-      // mantém o enquadramento dentro do cenário
-      const hw = W / 2 / z, hh = H / 2 / z;
-      this.camT = { x: clamp(cx, hw, W - hw), y: clamp(cy, hh * 0.6, H - hh), z };
+      const span = Math.max(...xs) - Math.min(...xs) + 240; // margem para armas, projéteis e recuos
+      const spanY = Math.max(...ys) - Math.min(...ys) + 300;
+      // zoom desejado, limitado pelo que REALMENTE cabe na tela (nunca corta o alvo)
+      const fit = Math.min(this.viewW / span, this.viewH / spanY);
+      const z = clamp(Math.min(clamp(1.85 - span / 1000, 1.05, 1.5) + extraZoom, fit), Z_MIN, 1.6);
+      this.camT = this._clampCam({ x: cx, y: cy + (1 - Math.min(z, 1)) * 40, z });
     }
     toScreen(wx, wy) {
       const x = (wx - this.cam.x) * this.cam.z + W / 2, y = (wy - this.cam.y) * this.cam.z + this.viewCY;
@@ -975,7 +1229,14 @@ body.resolving #panel { opacity:.6; }
     }
     addFx(f) { if (!this.skipping) this.fx.push(Object.assign({ t: 0 }, f)); }
     showBanner(text, color, dur = 900, sub = '') { if (!this.skipping) this.banner = { text, color, t: 0, dur, sub }; }
-    hurtShake(amount) { if (!this.skipping) this.shake = Math.max(this.shake, amount); }
+    // tremor pequeno e direcional (na direção do golpe); golpes leves quase não tremem
+    hurtShake(amount, dir = 0) {
+      if (this.skipping || amount < 3) return;
+      if (amount >= this.shake) this.shakeDir = dir;
+      this.shake = Math.max(this.shake, amount);
+    }
+    // luz breve no impacto (sem esconder personagens)
+    flashAt(x, y, color, r = 70) { this.addFx({ kind: 'flash', dur: 160, x, y, color, r }); }
 
     // ============================================================ ESTADOS VISUAIS
     // Cada personagem tem seu próprio estado visual e pode estar numa
@@ -1039,11 +1300,44 @@ body.resolving #panel { opacity:.6; }
       return best;
     }
 
+    // ------------------------------------------------------------ MOVIMENTO AMBIENTE
+    // Pequenos passos com propósito: voltar para a "faixa" preferida da formação,
+    // recuar se um inimigo está perto demais, ajustar distância de um aliado.
+    // Nunca durante ações, quedas, nem com o personagem selecionado/arrastado.
+    _ambientTick(dt) {
+      const ui = this.ui, busyIds = new Set();
+      if (ui && ui.sel) busyIds.add(ui.sel.uid);
+      if (ui && ui.drag) return; // não mexe nada enquanto o jogador arrasta uma corrente
+      for (const id in this.vis) {
+        const v = this.vis[id];
+        if (v.dead || v.busy || busyIds.has(id) || !['IDLE', 'BLOCKING', 'PARRYING', 'DODGING'].includes(v.state)) continue;
+        v.ambT -= dt;
+        if (v.ambT > 0) continue;
+        v.ambT = 2600 + Math.random() * 4200;
+        const foe = this._nearestFoe(v);
+        const sideDir = v.side === 'ally' ? 1 : -1;
+        const pref = v.side === 'ally' ? [560, 420, 270][v.formation] : [740, 880, 1040][v.formation];
+        let dx = clamp((pref - v.x) * 0.3, -26, 26) + (Math.random() - 0.5) * 18;
+        if (foe && Math.abs(foe.x - v.x) < 170) dx = -sideDir * 26;               // inimigo perto: recua
+        if (Math.abs(dx) < 6) { this.tween(v, { lean: (Math.random() - 0.5) * 0.06 }, 600, 'inOut'); continue; } // só ajusta postura
+        // respeita o espaço dos outros
+        const nx = clamp(v.x + dx, ARENA.minX, ARENA.maxX);
+        const crowded = Object.values(this.vis).some(o => o !== v && !o.dead && Math.abs(o.y - v.y) < 46 && Math.abs(o.x - nx) < (MOVE[o.art].width + MOVE[v.art].width) / 2);
+        if (crowded) continue;
+        this.setState(v, 'REPOSITIONING');
+        const dur = 420 + Math.abs(dx) * 10;
+        this.tween(v, { x: nx }, dur, 'inOut').then(() => { if (v.state === 'REPOSITIONING') this.setState(v, v.stance ? STANCE_STATE[v.stance] : 'IDLE'); if (foe) this.faceTo(v, foe); });
+        this.tween(v, { hop: 3 }, dur / 4, 'out').then(() => this.tween(v, { hop: 0 }, dur / 4, 'in')).then(() => this.tween(v, { hop: 2 }, dur / 4, 'out')).then(() => this.tween(v, { hop: 0 }, dur / 4, 'in'));
+      }
+    }
+
     // ------------------------------------------------------------ REAÇÕES FÍSICAS
     // level: light | medium | heavy | extreme  — dir: +1/-1 (para onde é empurrado)
     // Retorna rápido (depois do impacto); a recuperação continua em segundo plano.
     react(v, level, dir, killed) {
       const P = MOVE[v.art];
+      if (killed || level === 'heavy' || level === 'extreme') this._lastVictim = v;
+      if (level === 'extreme' || killed) SFX('heavy');
       if (killed) return this.routine(v, () => this._fall(v, dir, true));
       if (level === 'light') {
         return this.routine(v, async () => {
@@ -1091,7 +1385,9 @@ body.resolving #panel { opacity:.6; }
       await this.tween(v, { hop: 46 * P.knock, tilt: -0.9 }, 200, 'out');
       await this.tween(v, { hop: 0, tilt: -1.45, crouch: 0, lean: 0, arm: 0.6, kneel: 0 }, 200, 'in');
       this.dust(v, 14);
-      this.hurtShake(defeated ? 8 : 6);
+      SFX('thud', { vol: 0.8 });
+      if (defeated) SFX('defeat', { vol: 0.6 });
+      this.hurtShake(defeated ? 8 : 6, dir);
       await this.tween(v, { hop: 8 }, 90, 'out'); await this.tween(v, { hop: 0 }, 110, 'in');
       if (defeated) {
         v.dead = true;
@@ -1108,11 +1404,12 @@ body.resolving #panel { opacity:.6; }
     }
 
     // Golpe/finalização da arma depois de atacar, sem voltar à formação.
-    followThrough(v) {
+    followThrough(v, effort = false) {
       return this.routine(v, async () => {
         this.setState(v, 'ATTACKING');
         await this.wait(120);
-        await this.tween(v, { arm: 0.35, lean: 0.05, crouch: 0.04, cast: 0 }, 260, 'out');
+        await this.tween(v, { arm: 0.35, lean: effort ? 0.18 : 0.05, crouch: effort ? 0.12 : 0.04, cast: 0 }, effort ? 380 : 260, 'out');
+        if (effort) await this.wait(160);
         await this.tween(v, this._stancePose(v), 300, 'inOut');
         this.setState(v, v.stance ? STANCE_STATE[v.stance] : 'IDLE');
       });
@@ -1146,8 +1443,12 @@ body.resolving #panel { opacity:.6; }
         } else {
           this.focusOn([A, T], -0.2);
           this.faceTo(A, T);
-          this.tween(A, { ready: 1, arm: magic ? -0.4 : -1.0, cast: magic ? 0.7 : 0, lean: -0.08 }, 240);
-          if (magic) this.sparks(A.x + A.face * 26, A.y - 110, '#c86bff', 10, 0.2, -0.0004);
+          // posturas controladas: o brutamontes ergue a arma devagar, o duelista se posiciona,
+          // o conjurador concentra energia (sem tremores)
+          const prep = { brute: [{ ready: 1, arm: -1.25, lean: -0.12, crouch: 0.08 }, 700], duelist: [{ ready: 1, arm: -0.7, lean: 0.12, crouch: 0.05 }, 420], conjurer: [{ ready: 1, arm: -0.5, cast: 0.8, lean: -0.05 }, 560] }[A.art]
+            || [{ ready: 1, arm: magic ? -0.4 : -1.0, cast: magic ? 0.7 : 0, lean: -0.08 }, 360];
+          this.tween(A, prep[0], prep[1], 'inOut');
+          if (magic) { this.sparks(A.x + A.face * 26, A.y - 110, '#c86bff', 6, 0.12, -0.0004); SFX('magicCharge', { vol: 0.5 }); }
           this.caption = `${A.name} prepara ${sk.name} contra ${T.name}`;
         }
         await this.wait(560);
@@ -1170,6 +1471,9 @@ body.resolving #panel { opacity:.6; }
       for (let i = 0; i < events.length; i++) {
         const ev = events[i];
         this._eventIndex = i;
+        // não corta a reação forte anterior: espera um pouco ela terminar
+        if (this._lastVictim && this._lastVictim.busy) await Promise.race([this._lastVictim.busy, this.wait(650)]);
+        this._lastVictim = null;
         if (ev.type === 'clash') await this.playClash(ev);
         else if (ev.type === 'attack') await this.playConfrontation(ev);
         else if (ev.type === 'stances') await this.playStances(ev);
@@ -1281,8 +1585,7 @@ body.resolving #panel { opacity:.6; }
       this.focusOn([A, T], -0.15);
       this.setState(A, 'PREPARING');
       await this.tween(A, { cast: 1, arm: -0.5 }, 220);
-      this.addFx({ kind: 'proj', dur: 340, x0: A.x + A.face * 30, y0: A.y - 115, x1: T.x, y1: T.y - 80, color: '#7fe0a0' });
-      await this.wait(340);
+      await this._fireProjectile(A, T, 'support');
       this.addFx({ kind: 'ring', dur: 400, x: T.x, y: T.y - 70, color: '#7fe0a0', r: 60 });
       this.sparks(T.x, T.y - 70, '#7fe0a0', 14, 0.25, -0.0004);
       this.float(T.x, T.y - 165, `+${G.CONFIG.support.amount} FORÇA`, '#7fe0a0', 22);
@@ -1308,7 +1611,7 @@ body.resolving #panel { opacity:.6; }
       return out;
     }
     _steps(sk) {
-      return sk.hits || [{ by: 0, share: 1, motion: sk.tags.includes('magic') ? 'proj' : (sk.tags.includes('heavy') ? 'over' : 'h'), react: 'final' }];
+      return sk.hits || [{ by: 0, share: 1, motion: sk.tags.includes('magic') ? 'proj' : sk.tags.includes('ranged') ? 'arrow' : (sk.tags.includes('heavy') ? 'over' : 'h'), react: 'final' }];
     }
     // Leva os parceiros de uma combinação para perto, sem ocupar o lugar do líder.
     _bringPartners(partners, lead, tx, ty) {
@@ -1323,21 +1626,56 @@ body.resolving #panel { opacity:.6; }
         this.tween(p, { lean: -0.15, arm: -1.2 }, 140);
       }));
     }
+    // ============================================================ CAMERA DIRECTOR (projéteis)
+    // A: quem dispara; L: alvo. Se os dois cabem na tela → enquadramento compartilhado.
+    // Senão: mostra o disparo, acompanha o projétil e chega no alvo ANTES do impacto.
+    // Retorna no instante do contato (o dano só aparece depois disso).
+    async _fireProjectile(A, L, kind) {
+      const dir = L.x >= A.x ? 1 : -1;
+      const arrow = kind === 'arrow' || kind === 'arrowp';
+      const sx = A.x + dir * 30, sy = A.y - (arrow ? 96 : 115);
+      const tx = L.x - dir * 16, ty = L.y - 72;
+      const dist = Math.abs(tx - sx);
+      const dur = clamp(190 + dist * 0.3, 230, 560) * (arrow ? (kind === 'arrowp' ? 0.75 : 0.85) : 1);
+      const shared = this.canFrame([A, L]);
+      const proj = { id: '__proj', x: sx, y: sy + 60 };
+      if (shared) this.focusOn([A, L]);
+      else this.focusOn([A, proj], 0.05);
+      const color = kind === 'support' ? '#7fe0a0' : arrow ? '#e8dcc0' : (A.side === 'ally' ? '#8fd3ff' : '#c86bff');
+      this.addFx({ kind: arrow ? 'arrow' : 'proj', dur, x0: sx, y0: sy, x1: tx, y1: ty, color, heavy: kind === 'arrowp', arc: arrow ? 10 : 26 * (this._eventIndex % 2 ? 1 : -1) });
+      SFX(arrow ? 'whoosh' : 'magicCast', { vol: 0.6 });
+      this.tween(proj, { x: tx, y: ty + 60 }, dur, 'in');
+      if (!shared) {
+        await this.wait(dur * 0.4);
+        this.focusOn([proj, L], 0.08);       // passa a priorizar o alvo
+        await this.wait(dur * 0.6);
+        this.focusOn([L], 0.12);             // impacto e reação com o defensor visível
+      } else await this.wait(dur);
+      return dir;
+    }
+
     // Um golpe individual (cosmético: varia por "motion"; não muda nada da lógica).
-    async _strikeMotion(A, L, motion, others = []) {
+    async _strikeMotion(A, L, motion, others = [], prepped = false) {
       const dir = L.x >= A.x ? 1 : -1;
       this.faceTo(A, L);
       this.setState(A, 'ATTACKING');
       if (motion === 'proj') {
-        const up = this.time % 2 < 1 ? 1 : -1; // pequena variação no arco do lançamento
-        await this.tween(A, { cast: 1, arm: -0.6 + up * 0.15 }, 90);
+        if (!prepped) { SFX('magicCharge', { vol: 0.4 }); await this.tween(A, { cast: 1, arm: -0.6 }, 110); }
         this.tween(A, { arm: 0.3, lean: 0.08 }, 90);
-        this.addFx({ kind: 'proj', dur: 240, x0: A.x + A.face * 30, y0: A.y - 115, x1: L.x - dir * 18, y1: L.y - 70, color: A.side === 'ally' ? '#8fd3ff' : '#c86bff', arc: 22 * up });
-        await this.wait(240);
+        await this._fireProjectile(A, L, 'magic');
+        return dir;
+      }
+      if (motion === 'arrow' || motion === 'arrowp') {
+        // prepara o arco, puxa a corda, mira, solta e sente o recuo
+        if (!prepped) { SFX('bowDraw', { vol: 0.6 }); await this.tween(A, { cast: 1, lean: -0.06, arm: -0.1 }, motion === 'arrowp' ? 420 : 200, 'out'); if (motion === 'arrowp') await this.wait(120); }
+        SFX('bowRelease');
+        this.tween(A, { cast: 0, lean: -0.14 }, 70, 'out').then(() => this.tween(A, { lean: 0 }, 220, 'inOut'));
+        await this._fireProjectile(A, L, motion);
         return dir;
       }
       // abre espaço: outro atacante no ponto de golpe dá um passo atrás (coreografia)
-      const standX = L.x - dir * MOVE[A.art].reach;
+      const reach = MOVE[A.art].reach * (motion === 'punch' || motion === 'punch2' || motion === 'upper' ? 1 : 1);
+      const standX = L.x - dir * reach;
       let standY = A.y;
       for (const o of others) {
         if (o === A || o.dead || Math.abs(o.x - standX) > 60) continue;
@@ -1346,21 +1684,65 @@ body.resolving #panel { opacity:.6; }
       }
       if (Math.abs(A.x - standX) > 18 || Math.abs(A.y - standY) > 10) {
         A.dashing = true;
-        await this.moveTo(A, standX, standY, 130 * MOVE[A.art].dash, 'in');
+        await this.moveTo(A, standX, standY, (motion === 'lunge' ? 100 : 130) * MOVE[A.art].dash, 'in');
         A.dashing = false;
+      }
+      const tipX = A.x + dir * reach, hy = L.y - 72;
+      switch (motion) {
+        case 'thrust': case 'lunge': {
+          // estocada: recolhe, projeta o corpo e a ponta da lança (rastro linear)
+          // nivela a lança (arm ≈ 1.3 = horizontal), recolhe e projeta
+          await this.tween(A, { arm: 1.0, lean: -0.1 }, motion === 'lunge' ? 70 : 90, 'out');
+          this.tween(A, { arm: 1.3, lean: 0.3, x: A.x + dir * (motion === 'lunge' ? 26 : 14) }, 60, 'in');
+          await this.wait(40);
+          this.addFx({ kind: 'thrust', dur: 220, x0: A.x + dir * 40, y0: A.y - 82, x1: L.x - dir * 6, y1: hy, color: motion === 'lunge' ? '#ffe9b0' : '#e8f2ff', w: motion === 'lunge' ? 9 : 6 });
+          SFX('thrust', { vol: motion === 'lunge' ? 1 : 0.8 });
+          return dir;
+        }
+        case 'sweep':
+          await this.tween(A, { arm: -1.4, lean: -0.15 }, 140, 'out');
+          this.tween(A, { arm: 1.0, lean: 0.2 }, 110, 'in');
+          SFX('swish', { pitch: 0.8 });
+          await this.wait(70);
+          this.addFx({ kind: 'slash', dur: 300, x: L.x - dir * 50, y: hy + 6, dir, heavy: true, rot: 0.25, r: 115, color: '#e8f2ff' });
+          return dir;
+        case 'punch': case 'punch2': {
+          // passos curtos, ombro e soco rápido
+          this.tween(A, { x: A.x + dir * 8, lean: 0.12 }, 50, 'out');
+          await this.tween(A, { arm: -0.3 }, 45, 'out');
+          this.tween(A, { arm: 1.0, lean: 0.22 }, 50, 'in');
+          await this.wait(35);
+          this.addFx({ kind: 'punch', dur: 180, x: L.x - dir * 24, y: hy + (motion === 'punch2' ? 14 : -6), dir, color: '#fff0d6' });
+          this.tween(A, { arm: 0.2, lean: 0.05 }, 110, 'out');
+          return dir;
+        }
+        case 'upper':
+          await this.tween(A, { crouch: 0.22, arm: -0.7, lean: -0.05 }, 140, 'out');
+          this.tween(A, { crouch: 0, arm: 1.3, lean: -0.15, hop: 14 }, 90, 'in').then(() => this.tween(A, { hop: 0 }, 150, 'in'));
+          await this.wait(60);
+          this.addFx({ kind: 'slash', dur: 260, x: L.x - dir * 20, y: hy + 10, dir, heavy: true, rot: -1.25, r: 60, color: '#ffe9b0' });
+          return dir;
       }
       const heavy = motion === 'over';
       await this.tween(A, { arm: heavy ? -1.7 : -1.2, lean: heavy ? -0.2 : 0.05 }, heavy ? 120 : 60, 'out');
       this.tween(A, { arm: 1.3, lean: 0.25 }, 70, 'in');
+      SFX('swish', { vol: 0.7, pitch: heavy ? 0.75 : 1 });
       await this.wait(45);
       if (motion === 'bash') {
         this.tween(A, { x: A.x + dir * 20, guard: 1 }, 80, 'out');
-        this.addFx({ kind: 'ring', dur: 260, x: L.x - dir * 28, y: L.y - 72, color: '#cfe3ff', r: 40 });
+        this.addFx({ kind: 'ring', dur: 260, x: L.x - dir * 28, y: hy, color: '#cfe3ff', r: 40 });
       } else {
         const rot = motion === 'd' ? 0.55 : motion === 'over' ? -0.85 : 0;
         this.addFx({ kind: 'slash', dur: 240, x: L.x - dir * 30, y: L.y - 70, dir, heavy, rot, flip: motion === 'h2', color: '#fff3d6' });
       }
       return dir;
+    }
+    // som do contato conforme o tipo de golpe
+    _hitSound(motion, blocked, last, heavy) {
+      if (blocked) return SFX('block');
+      const m = { proj: 'magicHit', arrow: 'arrowHit', arrowp: 'arrowHit', bash: 'shield', punch: 'punch', punch2: 'punch', upper: 'punch' }[motion] || 'slash';
+      SFX(m, { vol: last ? 1 : 0.75 });
+      if (heavy && last) SFX('heavy', { vol: 0.7 });
     }
     // Executa a sequência de golpes de uma habilidade (ou combinação) já vencida/acertada.
     // total/hpBefore/hpAfter vêm da lógica: a soma dos impactos é exatamente o dano real.
@@ -1373,18 +1755,26 @@ body.resolving #panel { opacity:.6; }
         const st = steps[i], last = i === steps.length - 1;
         let A = attackers[st.by] || attackers[0];
         if (!A || A.dead) A = attackers.find(a => a && !a.dead) || attackers[0];
+        const ranged = ['proj', 'arrow', 'arrowp'].includes(st.motion);
         if (attackers.length > 1) this.focusOn([...attackers.filter(a => !a.dead), L], 0.05);
+        else if (!ranged) this.focusOn([A, L], 0.05);
         let dir = L.x >= A.x ? 1 : -1;
-        if (i > 0 || !opts.firstDone) dir = await this._strikeMotion(A, L, st.motion, attackers);
+        if (i > 0 || !opts.firstDone) dir = await this._strikeMotion(A, L, st.motion, attackers, i === 0 && opts.prepped);
+        // contato: só agora o dano aparece
         hp = last ? hit.hpAfter : Math.max(hit.hpAfter, hp - dmgs[i]);
         L.hp = hp;
         L.flash = 1;
-        this.sparks(L.x - dir * 18, L.y - 72, opts.blocked ? '#cfe3ff' : (st.motion === 'proj' ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ff7a5a'), last ? 16 : 9, 0.5);
+        const lvHere = st.react === 'final' ? finalLv : st.react;
+        const strong = last && (lvHere === 'heavy' || lvHere === 'extreme' || hit.killed);
+        this._hitSound(st.motion, opts.blocked, last, strong);
+        this.sparks(L.x - dir * 18, L.y - 72, opts.blocked ? '#cfe3ff' : (st.motion === 'proj' ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ff7a5a'), last ? 16 : 8, 0.5);
+        if (st.motion === 'proj' || strong) this.flashAt(L.x - dir * 18, L.y - 72, st.motion === 'proj' ? (A.side === 'ally' ? '#8fd3ff' : '#c86bff') : '#ffe2b0', strong ? 90 : 60);
         const big = last && (hit.killed || steps.length === 1);
         this.float(L.x + (i % 2 ? 14 : -14), L.y - 128 - i * 10, String(dmgs[i]), dmgColor, big ? (hit.killed ? 46 : 32) : 24, big ? 1400 : 900);
-        this.hitStop(last ? 70 : 40);
-        this.hurtShake(2 + dmgs[i] * 0.3);
-        lv = st.react === 'final' ? finalLv : st.react;
+        // hit-stop: quase nada nos golpes intermediários, mais forte no golpe final pesado
+        this.hitStop(last ? (strong ? 110 : 65) : 22);
+        this.hurtShake(last ? 2 + dmgs[i] * 0.35 : 0, dir);
+        lv = lvHere;
         if (opts.blocked) lv = LEVELS[Math.max(0, LEVELS.indexOf(lv) - 1)];
         if (!last) {
           // reação intermediária sincronizada com o contato (sem travar a sequência)
@@ -1392,7 +1782,7 @@ body.resolving #panel { opacity:.6; }
           this.tween(L, { x: clamp(L.x + dir * push * MOVE[L.art].knock, ARENA.minX, ARENA.maxX), lean: lv === 'light' ? -0.25 : -0.4 }, 90, 'out')
             .then(() => this.tween(L, { lean: -0.1 }, 120));
           if (lv !== 'light') this.dust(L, 4);
-          await this.wait(70);
+          await this.wait(ranged ? 40 : 70);
         } else if (opts.blocked) {
           const slide = lv === 'heavy' || lv === 'extreme' ? 60 : lv === 'medium' ? 35 : 18;
           this.routine(L, async () => {
@@ -1405,7 +1795,8 @@ body.resolving #panel { opacity:.6; }
         } else this.react(L, lv, dir, hit.killed);
       }
       if (steps.length > 1) this.float(L.x, L.y - 205, `Total ${hit.damage}`, '#ffe9b0', 18, 1200);
-      for (const a of attackers) if (a && !a.dead) this.followThrough(a);
+      // depois de golpes fortes o atacante mostra o esforço (recuperação mais lenta)
+      for (const a of attackers) if (a && !a.dead) this.followThrough(a, finalLv === 'extreme' || finalLv === 'heavy');
       return lv;
     }
 
@@ -1413,7 +1804,7 @@ body.resolving #panel { opacity:.6; }
     async playClash(ev) {
       const A = this.vis[ev.a.actorId], B = this.vis[ev.b.actorId];
       const skA = G.SKILLS[ev.a.skillId], skB = G.SKILLS[ev.b.skillId];
-      const magA = skA.tags.includes('magic'), magB = skB.tags.includes('magic');
+      const magA = isRanged(skA), magB = isRanged(skB);
       const T = ev.intercept ? this.vis[ev.originalTargetId] : null;
       const pA = (ev.a.partners || []).map(id => this.vis[id]), pB = (ev.b.partners || []).map(id => this.vis[id]);
       const margin = ev.winner ? Math.abs(ev.a.total - ev.b.total) : 0;
@@ -1453,7 +1844,9 @@ body.resolving #panel { opacity:.6; }
         const dir = v === A ? (P.x >= A.x ? 1 : -1) : (P.x >= B.x ? 1 : -1);
         if (!melee(v)) {
           this.tween(v, { arm: 0.3, lean: 0.08 }, 120);
-          this.addFx({ kind: 'proj', dur: 300, x0: v.x + v.face * 30, y0: v.y - 115, x1: P.x, y1: P.y - 75, color: v.side === 'ally' ? '#8fd3ff' : '#c86bff' });
+          const arrow = (v === A ? skA : skB).tags.includes('ranged');
+          if (arrow) { SFX('bowRelease'); this.tween(v, { cast: 0 }, 70); } else SFX('magicCast', { vol: 0.6 });
+          this.addFx({ kind: arrow ? 'arrow' : 'proj', dur: 300, x0: v.x + v.face * 30, y0: v.y - (arrow ? 96 : 115), x1: P.x, y1: P.y - 75, color: arrow ? '#e8dcc0' : (v.side === 'ally' ? '#8fd3ff' : '#c86bff') });
           go.push(this.wait(300));
         } else {
           this.setState(v, 'APPROACHING');
@@ -1476,6 +1869,8 @@ body.resolving #panel { opacity:.6; }
       this.addFx({ kind: 'star', dur: 380, x: P.x, y: hy, color: '#fff2a8' });
       this.sparks(P.x, hy, '#ffe28a', ev.close ? 28 : 16, 0.6);
       this.hurtShake(ev.close ? 7 : 4);
+      SFX('clash', { vol: ev.close ? 1 : 0.8 });
+      this.flashAt(P.x, hy, '#fff2a8', 80);
       if (ev.close) this.slowMo(0.5, 650);
       const struggle = ev.close ? 520 : 260;
       const t0 = this.time;
@@ -1501,6 +1896,7 @@ body.resolving #panel { opacity:.6; }
       if (!ev.winner) {
         // empate: as forças se anulam e os dois são repelidos
         this.float(P.x, P.y - 240, 'EMPATE', '#e8dccb', 30);
+        SFX('block');
         this.tween(nA, { a: 0 }, 300); this.tween(nB, { a: 0 }, 300);
         this.sparks(P.x, hy, '#ffe28a', 14, 0.5);
         this.react(A, 'medium', A.x < P.x ? -1 : 1);
@@ -1513,6 +1909,7 @@ body.resolving #panel { opacity:.6; }
         pL.forEach(p => this.react(p, 'light', p.x < P.x ? -1 : 1)); // a combinação perdida é interrompida
         const dirL = L.x >= W.x ? 1 : -1;
         nW.color = '#ffe08a';
+        SFX(W.side === 'ally' ? 'clashWin' : 'clashLose', { vol: 0.8 });
         this.tween(nW, { s: 1.45 }, 160, 'back');
         this.tween(nL, { a: 0, dy: 30 }, 260, 'in');
         // 7. intensidade visual pela margem (não muda o dano)
@@ -1548,7 +1945,8 @@ body.resolving #panel { opacity:.6; }
       const A = this.vis[c.attackerId], T = this.vis[c.targetId], D = this.vis[c.defenderId];
       const P = c.protectorId ? this.vis[c.protectorId] : null;
       const partners = (c.partners || []).map(id => this.vis[id]);
-      const magic = sk.tags.includes('magic'), heavy = sk.tags.includes('heavy'), fast = sk.tags.includes('fast');
+      const magic = isRanged(sk), heavy = sk.tags.includes('heavy'), fast = sk.tags.includes('fast');
+      const arrow = sk.tags.includes('ranged');
       this.caption = `${[A, ...partners].map(v => v.name).join(' + ')}  ·  ${sk.name}  →  ${T.name}`;
       if (sk.combo) this.showBanner('ATAQUE COMBINADO', '#ffd36a', 900, [A, ...partners].map(v => v.name).join(' + '));
 
@@ -1558,7 +1956,13 @@ body.resolving #panel { opacity:.6; }
 
       // antecipação
       this.setState(A, 'PREPARING');
-      if (magic) {
+      if (arrow) {
+        // prepara o arco e puxa a corda (mais tempo para a Flecha Perfurante)
+        SFX('bowDraw', { vol: 0.6 });
+        await this.tween(A, { cast: 1, lean: -0.06, arm: -0.1 }, 230 * (sk.windup || 1), 'out');
+        await this.wait(80 * (sk.windup || 1));
+      } else if (magic) {
+        SFX('magicCharge', { vol: 0.5 });
         this.tween(A, { cast: 1, lean: -0.1, arm: -0.5 }, 260);
         for (let i = 0; i < 3; i++) { this.sparks(A.x + A.face * 26, A.y - 112, '#9ad8ff', 6, 0.18, -0.0005); await this.wait(90); }
       } else {
@@ -1589,11 +1993,19 @@ body.resolving #panel { opacity:.6; }
 
       // avanço / projétil + reação do defensor
       const dirD = D.x >= A.x ? 1 : -1;
+      let fired = true;
       if (magic) {
         this.tween(A, { arm: 0.3, lean: 0.08 }, 120);
-        this.addFx({ kind: 'proj', dur: 380, x0: A.x + A.face * 30, y0: A.y - 115, x1: D.x - dirD * 20, y1: D.y - 70, color: A.side === 'ally' ? '#8fd3ff' : '#c86bff' });
-        this._react(c, D, A, 260);
-        await this.wait(380);
+        if (['dodged', 'parried'].includes(c.outcome)) {
+          // o projétil chega e é evitado: dispara aqui (câmera acompanha até o alvo)
+          this._react(c, D, A, 200);
+          if (arrow) { SFX('bowRelease'); this.tween(A, { cast: 0 }, 70); }
+          await this._fireProjectile(A, D, arrow ? 'arrow' : 'magic');
+        } else {
+          // quem acerta dispara dentro da sequência (cada impacto no seu contato)
+          fired = false;
+          if (c.reaction === 'block') this._react(c, D, A, 120);
+        }
       } else {
         this.setState(A, 'APPROACHING');
         A.dashing = true;
@@ -1606,10 +2018,13 @@ body.resolving #panel { opacity:.6; }
         this.setState(A, 'ATTACKING');
         this.tween(A, { arm: 1.3 }, fast ? 70 : 100, 'in');
         await this.wait(fast ? 45 : 70);
-        this.addFx({ kind: 'slash', dur: 260, x: D.x - dirD * 30, y: D.y - 70, dir: dirD, heavy, color: c.outcome === 'dodged' ? 'rgba(255,255,255,0.5)' : '#fff3d6' });
+        // primeiro golpe: usa o movimento da habilidade (estocada, soco, corte...)
+        const m0 = this._steps(sk)[0].motion;
+        if (['thrust', 'lunge', 'punch', 'punch2', 'upper', 'sweep'].includes(m0)) { await this._strikeMotion(A, D, m0, [A, ...partners]); }
+        else { SFX('swish', { vol: 0.7 }); this.addFx({ kind: 'slash', dur: 260, x: D.x - dirD * 30, y: D.y - 70, dir: dirD, heavy, color: c.outcome === 'dodged' ? 'rgba(255,255,255,0.5)' : '#fff3d6' }); }
       }
 
-      await this._impact(c, A, D, magic, dirD, [A, ...partners]);
+      await this._impact(c, A, D, magic, dirD, [A, ...partners], fired);
 
       this._applySnapshot(c.after, false);
       if (c.applied) {
@@ -1641,13 +2056,14 @@ body.resolving #panel { opacity:.6; }
       }
     }
 
-    async _impact(c, A, D, magic, dir, attackers = [A]) {
+    async _impact(c, A, D, magic, dir, attackers = [A], fired = true) {
       const hx = D.x - dir * 18, hy = D.y - 72;
       const dmgColor = D.side === 'ally' ? '#ff6a5a' : '#ffe08a';
       const showDamage = (v, n, big) => this.float(v.x + (Math.random() * 20 - 10), v.y - 130, String(n), dmgColor, big ? 46 : 32, big ? 1500 : 1100);
 
       switch (c.outcome) {
         case 'dodged':
+          SFX('dodge');
           this.float(D.x, D.y - 140, 'ESQUIVA', '#cfe9ff', 26);
           this.sparks(D.x, D.y - 40, 'rgba(220,230,255,0.6)', 8, 0.25, 0);
           await this.wait(220);
@@ -1655,6 +2071,7 @@ body.resolving #panel { opacity:.6; }
         case 'parried': {
           // aparo: personagens ficam próximos no choque
           this.tween(D, { arm: 1.1 }, 60, 'in');
+          SFX('parry');
           this.hitStop(120);
           this.addFx({ kind: 'star', dur: 420, x: hx, y: hy, color: '#fff2a8' });
           this.sparks(hx, hy, '#ffe28a', 26, 0.7);
@@ -1673,6 +2090,7 @@ body.resolving #panel { opacity:.6; }
           this.tween(D, { arm: 1.2 }, 80, 'in');
           await this.wait(60);
           this.addFx({ kind: 'slash', dur: 240, x: A.x + dir * 10, y: A.y - 70, dir: -dir, heavy: false, color: '#fff3d6' });
+          SFX('slash');
           A.flash = 1;
           this.sparks(A.x, A.y - 70, '#ff8a6a', 14, 0.5);
           const cd = c.counter;
@@ -1689,7 +2107,7 @@ body.resolving #panel { opacity:.6; }
         case 'blocked': {
           this.addFx({ kind: 'ring', dur: 260, x: hx + D.face * 12, y: hy, color: '#cfe3ff', r: 36 });
           this.float(D.x, D.y - 165, 'BLOQUEIO', '#9fd0ff', 18);
-          await this._sequence(attackers, D, c.skill, c, c.impact || 'light', { firstDone: true, blocked: true });
+          await this._sequence(attackers, D, c.skill, c, c.impact || 'light', { firstDone: fired, prepped: true, blocked: true });
           if (c.killed) await this._decisive(D, true);
           await this.wait(180);
           return;
@@ -1698,7 +2116,7 @@ body.resolving #panel { opacity:.6; }
           if (c.outcome === 'parryFail') this.float(D.x, D.y - 165, 'APARO FALHOU', '#ff8a6a', 18);
           else if (c.outcome === 'dodgeFail') this.float(D.x, D.y - 165, 'ESQUIVA FALHOU', '#ff8a6a', 18);
           if (magic) this.addFx({ kind: 'ring', dur: 360, x: hx, y: hy, color: A.side === 'ally' ? '#8fd3ff' : '#c86bff', r: 50 });
-          const lv = await this._sequence(attackers, D, c.skill, c, c.impact || 'light', { firstDone: true });
+          const lv = await this._sequence(attackers, D, c.skill, c, c.impact || 'light', { firstDone: fired, prepped: true });
           if (c.killed || lv === 'extreme') await this._decisive(D, c.killed);
           await this.wait(lv === 'light' ? 180 : 280);
         }
@@ -1718,52 +2136,89 @@ body.resolving #panel { opacity:.6; }
     }
 
     // ============================================================ DESENHO
+    // Arena de pedra em ruínas, em 4 camadas maiores que a área de combate.
     _buildBackground() {
-      const c = document.createElement('canvas'); c.width = W; c.height = H;
-      const g = c.getContext('2d');
-      const sky = g.createLinearGradient(0, 0, 0, GROUND);
-      sky.addColorStop(0, '#0d0a18'); sky.addColorStop(0.6, '#2a1830'); sky.addColorStop(1, '#4a2a35');
-      g.fillStyle = sky; g.fillRect(0, 0, W, H);
-      // lua
-      const moon = g.createRadialGradient(930, 150, 10, 930, 150, 160);
-      moon.addColorStop(0, 'rgba(255,230,210,0.95)'); moon.addColorStop(0.25, 'rgba(255,200,180,0.35)'); moon.addColorStop(1, 'rgba(255,200,180,0)');
-      g.fillStyle = moon; g.fillRect(700, 0, 460, 360);
-      g.fillStyle = '#f3dccb'; g.beginPath(); g.arc(930, 150, 44, 0, 7); g.fill();
-      // ruínas distantes
+      const BW = W + BG_M.x * 2, BH = H + BG_M.y * 2, X = BG_M.x, Y = BG_M.y;
+      const mk = () => { const c = document.createElement('canvas'); c.width = BW; c.height = BH; return [c, c.getContext('2d')]; };
       const rnd = G.makeRng(7);
-      g.fillStyle = '#1c1224';
-      for (let i = 0; i < 16; i++) {
+      // céu
+      const [sky, g0] = mk();
+      const sg = g0.createLinearGradient(0, 0, 0, Y + GROUND);
+      sg.addColorStop(0, '#07060f'); sg.addColorStop(0.45, '#1c1228'); sg.addColorStop(0.8, '#3a2234'); sg.addColorStop(1, '#4e2c36');
+      g0.fillStyle = sg; g0.fillRect(0, 0, BW, BH);
+      for (let i = 0; i < 160; i++) { g0.fillStyle = `rgba(255,240,230,${0.15 + rnd() * 0.5})`; g0.fillRect(rnd() * BW, rnd() * (Y + 300), 1.5, 1.5); }
+      const mx = X + 930, my = Y + 150;
+      const moon = g0.createRadialGradient(mx, my, 10, mx, my, 200);
+      moon.addColorStop(0, 'rgba(255,230,210,0.9)'); moon.addColorStop(0.22, 'rgba(255,200,180,0.3)'); moon.addColorStop(1, 'rgba(255,200,180,0)');
+      g0.fillStyle = moon; g0.fillRect(mx - 220, my - 220, 440, 440);
+      g0.fillStyle = '#f3dccb'; g0.beginPath(); g0.arc(mx, my, 44, 0, 7); g0.fill();
+      g0.fillStyle = 'rgba(70,50,80,0.35)';
+      for (let i = 0; i < 7; i++) { g0.beginPath(); g0.ellipse(rnd() * BW, Y + 60 + rnd() * 200, 160 + rnd() * 200, 18 + rnd() * 14, 0, 0, 7); g0.fill(); }
+      // montanhas e ruínas distantes
+      const [far, g1] = mk();
+      g1.fillStyle = '#20162a';
+      g1.beginPath(); g1.moveTo(0, Y + GROUND);
+      for (let x = 0; x <= BW; x += 60) g1.lineTo(x, Y + GROUND - 150 - Math.sin(x * 0.004) * 70 - rnd() * 50);
+      g1.lineTo(BW, BH); g1.lineTo(0, BH); g1.fill();
+      g1.fillStyle = '#1a1222';
+      for (let i = 0; i < 26; i++) {
         const x = i * 90 - 20 + rnd() * 40, h = 90 + rnd() * 170, w = 26 + rnd() * 30;
-        g.fillRect(x, GROUND - 60 - h, w, h + 60);
-        if (rnd() < 0.5) { g.beginPath(); g.moveTo(x - 6, GROUND - 60 - h); g.lineTo(x + w / 2, GROUND - 100 - h); g.lineTo(x + w + 6, GROUND - 60 - h); g.fill(); }
-        if (rnd() < 0.4) { g.fillStyle = 'rgba(255,170,90,0.35)'; g.fillRect(x + w / 2 - 3, GROUND - 40 - h * 0.6, 6, 10); g.fillStyle = '#1c1224'; }
+        g1.fillRect(x, Y + GROUND - 60 - h, w, h + 60);
+        if (rnd() < 0.5) { g1.beginPath(); g1.moveTo(x - 6, Y + GROUND - 60 - h); g1.lineTo(x + w / 2, Y + GROUND - 100 - h); g1.lineTo(x + w + 6, Y + GROUND - 60 - h); g1.fill(); }
+        if (rnd() < 0.35) { g1.fillStyle = 'rgba(255,170,90,0.3)'; g1.fillRect(x + w / 2 - 3, Y + GROUND - 40 - h * 0.6, 6, 10); g1.fillStyle = '#1a1222'; }
       }
-      // arco em ruínas mais próximo
-      g.fillStyle = '#150d1b';
-      g.fillRect(40, GROUND - 250, 40, 250); g.fillRect(1200, GROUND - 280, 44, 280);
-      // chão
-      const gr = g.createLinearGradient(0, GROUND - 40, 0, H);
-      gr.addColorStop(0, '#2b1f2a'); gr.addColorStop(1, '#0e0a10');
-      g.fillStyle = gr; g.fillRect(0, GROUND - 40, W, H);
-      g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = 2;
-      for (let i = 0; i < 9; i++) { const y = GROUND - 20 + i * i * 2.4; g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
-      for (let i = -12; i < 26; i++) { g.beginPath(); g.moveTo(W / 2 + i * 40, GROUND - 40); g.lineTo(W / 2 + i * 120, H); g.stroke(); }
-      return c;
+      // plano intermediário: colunas e muros quebrados (fora da área central)
+      const [mid, g2] = mk();
+      const column = (x, h, broken) => {
+        g2.fillStyle = '#251a2c'; g2.fillRect(x, Y + GROUND - 40 - h, 46, h);
+        g2.fillStyle = '#2f2236'; g2.fillRect(x + 6, Y + GROUND - 40 - h, 8, h);
+        g2.fillStyle = '#1b1320'; g2.fillRect(x - 8, Y + GROUND - 52, 62, 14); g2.fillRect(x - 6, Y + GROUND - 40 - h - 10, 58, 12);
+        if (broken) { g2.fillStyle = '#251a2c'; g2.beginPath(); g2.moveTo(x, Y + GROUND - 40 - h); g2.lineTo(x + 20, Y + GROUND - 70 - h); g2.lineTo(x + 46, Y + GROUND - 48 - h); g2.fill(); }
+      };
+      [[X - 420, 300, 0], [X - 250, 220, 1], [X + 30, 260, 1], [X + 1190, 280, 0], [X + 1380, 200, 1], [X + 1560, 320, 0]].forEach(c => column(...c));
+      g2.fillStyle = '#21172a';
+      [[X - 160, 120], [X + 1290, 90]].forEach(([x, h]) => { g2.beginPath(); g2.moveTo(x, Y + GROUND - 40); g2.lineTo(x, Y + GROUND - 40 - h); g2.lineTo(x + 40, Y + GROUND - 40 - h + 20); g2.lineTo(x + 80, Y + GROUND - 40 - h - 10); g2.lineTo(x + 130, Y + GROUND - 40 - h + 30); g2.lineTo(x + 140, Y + GROUND - 40); g2.fill(); });
+      // braseiros (luz quente discreta)
+      [[X + 60, 0], [X + 1180, 0]].forEach(([x]) => {
+        const gl = g2.createRadialGradient(x, Y + GROUND - 120, 2, x, Y + GROUND - 120, 90);
+        gl.addColorStop(0, 'rgba(255,160,80,0.35)'); gl.addColorStop(1, 'rgba(255,160,80,0)');
+        g2.fillStyle = gl; g2.fillRect(x - 90, Y + GROUND - 210, 180, 180);
+        g2.fillStyle = '#ffb05a'; g2.beginPath(); g2.ellipse(x, Y + GROUND - 118, 6, 10, 0, 0, 7); g2.fill();
+        g2.fillStyle = '#1b1320'; g2.fillRect(x - 10, Y + GROUND - 108, 20, 68);
+      });
+      // chão da arena (primeiro plano): pedra com rachaduras e pedrinhas
+      const [floor, g3] = mk();
+      const fg = g3.createLinearGradient(0, Y + GROUND - 40, 0, BH);
+      fg.addColorStop(0, '#2e2230'); fg.addColorStop(0.5, '#1d1520'); fg.addColorStop(1, '#0f0b12');
+      g3.fillStyle = fg; g3.fillRect(0, Y + GROUND - 40, BW, BH);
+      g3.strokeStyle = 'rgba(255,255,255,0.045)'; g3.lineWidth = 2;
+      for (let i = 0; i < 12; i++) { const y = Y + GROUND - 20 + i * i * 2.6; g3.beginPath(); g3.moveTo(0, y); g3.lineTo(BW, y); g3.stroke(); }
+      for (let i = -24; i < 40; i++) { g3.beginPath(); g3.moveTo(X + W / 2 + i * 40, Y + GROUND - 40); g3.lineTo(X + W / 2 + i * 120, BH); g3.stroke(); }
+      g3.strokeStyle = 'rgba(0,0,0,0.35)'; g3.lineWidth = 1.5;
+      for (let i = 0; i < 40; i++) { let x = rnd() * BW, y = Y + GROUND - 20 + rnd() * 220; g3.beginPath(); g3.moveTo(x, y); for (let k = 0; k < 4; k++) { x += 8 + rnd() * 16; y += (rnd() - 0.5) * 10; g3.lineTo(x, y); } g3.stroke(); }
+      for (let i = 0; i < 70; i++) { g3.fillStyle = `rgba(${90 + rnd() * 40},${70 + rnd() * 30},${90 + rnd() * 30},0.5)`; g3.beginPath(); g3.ellipse(rnd() * BW, Y + GROUND - 10 + rnd() * 240, 2 + rnd() * 5, 1.5 + rnd() * 2.5, 0, 0, 7); g3.fill(); }
+      return { sky, far, mid, floor };
     }
 
     _draw() {
       const ctx = this.ctx;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = '#07050a'; ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.fillStyle = '#1a1220'; ctx.fillRect(0, 0, this.canvas.width, this.canvas.height); // mesmo tom do cenário
       const s = this.scale * this.dpr;
       ctx.setTransform(s, 0, 0, s, this.offX * this.dpr, this.offY * this.dpr);
       // mundo
       ctx.save();
       const sh = this.shake;
-      ctx.translate(W / 2 + (Math.random() - 0.5) * sh, this.viewCY + (Math.random() - 0.5) * sh);
+      const sd = this.shakeDir || 0, jx = (Math.random() - 0.5) * sh * (sd ? 0.5 : 1) + sd * sh * 0.5 * Math.sin(this.time * 0.09);
+      ctx.translate(W / 2 + jx, this.viewCY + (Math.random() - 0.5) * sh * 0.6);
       ctx.scale(this.cam.z, this.cam.z);
       ctx.translate(-this.cam.x, -this.cam.y);
-      ctx.drawImage(this.bg, 0, 0);
+      // parallax discreto: céu/ruínas distantes andam menos que o chão
+      const ox = this.cam.x - W / 2, oy = this.cam.y - H / 2;
+      ctx.drawImage(this.bg.sky, -BG_M.x + ox * 0.85, -BG_M.y + oy * 0.85);
+      ctx.drawImage(this.bg.far, -BG_M.x + ox * 0.45, -BG_M.y + oy * 0.3);
+      ctx.drawImage(this.bg.mid, -BG_M.x + ox * 0.15, -BG_M.y);
+      ctx.drawImage(this.bg.floor, -BG_M.x, -BG_M.y);
       for (const f of this.fog) {
         const gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
         gr.addColorStop(0, 'rgba(140,110,160,0.08)'); gr.addColorStop(1, 'rgba(140,110,160,0)');
@@ -1798,8 +2253,6 @@ body.resolving #panel { opacity:.6; }
       const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95);
       vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(0,0,0,${focusing ? 0.7 : 0.5})`);
       ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
-      this._bars = lerp(this._bars || 0, focusing ? 1 : 0, 0.08);
-      if (this._bars > 0.01) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, 46 * this._bars); ctx.fillRect(0, H - 46 * this._bars, W, 46 * this._bars); }
       if (this.screenFlash > 0) { ctx.fillStyle = `rgba(255,245,235,${this.screenFlash})`; ctx.fillRect(0, 0, W, H); }
       if (this.caption) {
         ctx.font = '600 20px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
@@ -1885,9 +2338,41 @@ body.resolving #panel { opacity:.6; }
           ctx.translate(f.x, f.y); ctx.scale(f.dir, f.flip ? -1 : 1); ctx.rotate(f.rot || 0);
           ctx.globalAlpha = 1 - p;
           ctx.strokeStyle = f.color; ctx.lineWidth = (f.heavy ? 16 : 9) * (1 - p * 0.6); ctx.lineCap = 'round';
-          const r = f.heavy ? 85 : 65, a0 = -1.9, a1 = -1.9 + 2.6 * Math.min(1, p * 2.5);
+          const r = f.r || (f.heavy ? 85 : 65), a0 = -1.9, a1 = -1.9 + 2.6 * Math.min(1, p * 2.5);
+          // rastro da lâmina: faixa mais larga e translúcida atrás do arco
+          ctx.save(); ctx.globalAlpha *= 0.35; ctx.lineWidth = (f.heavy ? 30 : 18) * (1 - p); ctx.strokeStyle = f.color;
+          ctx.beginPath(); ctx.arc(-20, 0, r - 6, Math.max(a0, a1 - 1.2), a1); ctx.stroke(); ctx.restore();
           ctx.beginPath(); ctx.arc(-20, 0, r, a0, a1); ctx.stroke();
           ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.arc(-20, 0, r + 6, a0 + 0.2, a1); ctx.stroke();
+        } else if (f.kind === 'thrust') {
+          // estocada: rastro linear com brilho concentrado na ponta
+          const e = ease.out(Math.min(1, p * 2.2));
+          const xe = lerp(f.x0, f.x1, e), ye = lerp(f.y0, f.y1, e);
+          ctx.globalAlpha = 1 - p; ctx.lineCap = 'round';
+          ctx.strokeStyle = f.color; ctx.lineWidth = f.w * (1 - p * 0.7);
+          ctx.beginPath(); ctx.moveTo(lerp(f.x0, xe, 0.4), lerp(f.y0, ye, 0.4)); ctx.lineTo(xe, ye); ctx.stroke();
+          ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(xe, ye, f.w * 0.9 * (1 - p), 0, 7); ctx.fill();
+        } else if (f.kind === 'punch') {
+          ctx.translate(f.x, f.y); ctx.scale(f.dir, 1);
+          ctx.globalAlpha = 1 - p; ctx.strokeStyle = f.color; ctx.lineWidth = 4 * (1 - p); ctx.lineCap = 'round';
+          for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(-34 + p * 10, i * 9); ctx.lineTo(-12 + p * 10, i * 7); ctx.stroke(); }
+          ctx.beginPath(); ctx.arc(0, 0, 10 + p * 22, 0, 7); ctx.stroke();
+        } else if (f.kind === 'arrow') {
+          const e = ease.in(p);
+          const x = lerp(f.x0, f.x1, e), y = lerp(f.y0, f.y1, e) - Math.sin(p * Math.PI) * (f.arc || 0);
+          const ang = Math.atan2(f.y1 - f.y0, f.x1 - f.x0);
+          ctx.globalAlpha = 0.5; ctx.strokeStyle = 'rgba(255,240,210,0.6)'; ctx.lineWidth = f.heavy ? 3 : 2;
+          ctx.beginPath(); ctx.moveTo(lerp(f.x0, x, 0.55), lerp(f.y0, y, 0.55)); ctx.lineTo(x, y); ctx.stroke();   // rastro
+          ctx.globalAlpha = 1; ctx.translate(x, y); ctx.rotate(ang);
+          ctx.strokeStyle = '#d9c39a'; ctx.lineWidth = f.heavy ? 3.5 : 2.5; ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(6, 0); ctx.stroke();
+          ctx.fillStyle = f.heavy ? '#ffe9b0' : '#e8eef5'; ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(4, -4); ctx.lineTo(4, 4); ctx.fill();
+          ctx.fillStyle = '#c84a4a'; ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(-38, -5); ctx.lineTo(-24, 0); ctx.lineTo(-38, 5); ctx.fill();
+          if (f.heavy) { ctx.shadowColor = '#ffe9b0'; ctx.shadowBlur = 14; ctx.fillRect(2, -1, 10, 2); }
+        } else if (f.kind === 'flash') {
+          ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55 * (1 - p);
+          const gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
+          gr.addColorStop(0, f.color); gr.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = gr; ctx.fillRect(f.x - f.r, f.y - f.r, f.r * 2, f.r * 2);
         } else if (f.kind === 'ring') {
           ctx.globalAlpha = 1 - p; ctx.strokeStyle = f.color; ctx.lineWidth = 6 * (1 - p) + 1;
           ctx.beginPath(); ctx.ellipse(f.x, f.y, f.r * (0.3 + p), f.r * (0.3 + p) * 1.1, 0, 0, 7); ctx.stroke();
@@ -1937,13 +2422,14 @@ body.resolving #panel { opacity:.6; }
       const idle = down ? 0 : Math.sin(t * 0.004 + v.phase);
       // animações secundárias contextuais
       let ctxLean = 0, ctxCrouch = 0;
-      if (v.state === 'PREPARING') ctxLean = Math.sin(t * 0.03) * 0.015;               // tensão antes do golpe
+      if (v.state === 'PREPARING') ctxLean = Math.sin(t * 0.0035 + v.phase) * 0.012;   // respiração tensa, lenta
       else if (v.state === 'STAGGERING' || v.state === 'GETTING_UP') ctxLean = Math.sin(t * 0.012) * 0.04;
       else if (v.state === 'IDLE' && v.threat) ctxCrouch = 0.04;                          // ameaçado: abaixa a guarda
       ctx.translate(0, -v.hop);
       ctx.scale(v.face, 1);
-      ctx.rotate(v.lean * 0.6 + v.tilt + ctxLean);
-      ctx.scale(1 + (v.crouch + ctxCrouch) * 0.5, 1 - v.crouch - ctxCrouch);
+      const wv = down ? 0 : v.wound;
+      ctx.rotate(v.lean * 0.6 + v.tilt + ctxLean + wv * 0.11 + (wv > 0.6 ? Math.sin(t * 0.0021 + v.phase) * 0.03 * wv : 0));
+      ctx.scale(1 + (v.crouch + ctxCrouch + wv * 0.05) * 0.5, 1 - v.crouch - ctxCrouch - wv * 0.05);
       const filters = [];
       if (v.flash > 0.05) filters.push(`brightness(${1 + v.flash * 1.1})`);
       if (dim) filters.push('brightness(0.45)');
@@ -1951,7 +2437,12 @@ body.resolving #panel { opacity:.6; }
       ctx.filter = filters.length ? filters.join(' ') : 'none';
       ctx.globalAlpha = v.alpha;
       const threatGuard = v.threat && v.state === 'IDLE' ? 0.45 : 0;
-      const pose = { idle, t, arm: v.arm + (down ? 0 : idle * 0.05) + (v.ready ? Math.sin(t * 0.01) * 0.05 : 0), guard: Math.max(v.guard, threatGuard), cast: v.cast + (v.ready ? 0.2 * Math.sin(t * 0.01) : 0) };
+      // condição física: ferido (25–50%) e crítico (<25%) — curva, respira mais forte, arma pesa
+      const w = down ? 0 : v.wound;
+      const breath = Math.sin(t * (0.004 + w * 0.004) + v.phase);
+      const pose = { idle: breath * (1 + w * 1.4), t, wound: w,
+        arm: v.arm + (down ? 0 : breath * 0.05) + w * 0.3 + (v.ready ? Math.sin(t * 0.0035 + v.phase) * 0.04 : 0),
+        guard: Math.max(v.guard, threatGuard) * (1 - w * 0.25), cast: v.cast * (1 - w * 0.2) + (v.ready ? 0.12 * Math.sin(t * 0.004) : 0) };
       ART[v.art](ctx, pose);
       // apoio da mão no chão durante o desequilíbrio
       if (v.kneel > 0.4 && !v.dead) { ctx.fillStyle = '#d9c3a8'; ctx.beginPath(); ctx.arc(30, -6, 6, 0, 7); ctx.fill(); }
@@ -2000,7 +2491,7 @@ body.resolving #panel { opacity:.6; }
       ctx.fillStyle = '#9fe3ff'; ctx.fillRect(4, -112 + b, 12, 2);
       ctx.fillStyle = '#b8322f'; ctx.beginPath(); ctx.moveTo(-4, -128 + b); ctx.quadraticCurveTo(-24, -150 + b, -30, -118 + b); ctx.quadraticCurveTo(-16, -132 + b, -4, -124 + b); ctx.fill();
       // escudo (frente)
-      const gx = 24 + p.guard * 16, gy = -70 + b - p.guard * 8;
+      const gx = 24 + p.guard * 16, gy = -70 + b - p.guard * 8 + (p.wound || 0) * 22;
       ctx.save(); ctx.translate(gx, gy); ctx.rotate(-0.08 + p.guard * 0.12);
       ctx.fillStyle = '#2f5d9b'; ctx.beginPath(); ctx.moveTo(-20, -32); ctx.lineTo(20, -32); ctx.lineTo(20, 8); ctx.quadraticCurveTo(10, 30, 0, 38); ctx.quadraticCurveTo(-10, 30, -20, 8); ctx.closePath(); ctx.fill();
       ctx.strokeStyle = '#d8b45a'; ctx.lineWidth = 4; ctx.stroke();
@@ -2121,6 +2612,81 @@ body.resolving #panel { opacity:.6; }
       ctx.fillStyle = '#d99bff'; ctx.beginPath(); ctx.arc(30, -6, r, 0, 7); ctx.fill();
       ctx.restore();
     },
+  };
+
+  Object.assign(ART, {
+    // Lanceiro: elmo com crista, tabardo verde, lança longa projetada à FRENTE do corpo
+    lancer(ctx, p) {
+      const b = p.idle * 1.8;
+      ctx.fillStyle = '#2a2f26'; poly(ctx, [-8, -50, 2, -50, -14, 0, -26, 0]); poly(ctx, [2, -50, 12, -50, 22, 0, 10, 0]);
+      ctx.fillStyle = '#5c6b5a'; rr(ctx, -15, -100 + b, 30, 56, 8);
+      ctx.fillStyle = '#3f6b4f'; poly(ctx, [-13, -96 + b, 13, -96 + b, 10, -40, -10, -40]);
+      ctx.fillStyle = '#d8b45a'; ctx.fillRect(-2, -96 + b, 4, 56);
+      ctx.fillStyle = '#8a96a8'; rr(ctx, -12, -128 + b, 26, 28, 9);
+      ctx.fillStyle = '#1a1e26'; ctx.fillRect(2, -116 + b, 12, 4);
+      ctx.fillStyle = '#3f6b4f'; ctx.beginPath(); ctx.moveTo(-6, -128 + b); ctx.quadraticCurveTo(-4, -146 + b, 10, -140 + b); ctx.lineTo(4, -126 + b); ctx.fill();
+      // lança: segura com as duas mãos na frente do tronco; p.arm gira a haste
+      ctx.save(); ctx.translate(8, -78 + b); ctx.rotate(-0.78 + p.arm * 0.6);
+      ctx.strokeStyle = '#7a5532'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-34, 0); ctx.lineTo(118, 0); ctx.stroke();
+      ctx.fillStyle = '#e8eef5'; poly(ctx, [118, -6, 146, 0, 118, 6, 112, 0]);
+      ctx.fillStyle = '#b8322f'; poly(ctx, [110, -3, 104, 8, 100, -2]);
+      ctx.fillStyle = '#e0c9a8'; ctx.beginPath(); ctx.arc(-6, 0, 5, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(22, 0, 5, 0, 7); ctx.fill();
+      ctx.restore();
+    },
+    // Lutador: sem arma, faixas nas mãos, guarda alta; p.arm estende o soco da frente
+    brawler(ctx, p) {
+      const b = p.idle * 2.2, bounce = Math.abs(Math.sin(p.t * 0.006)) * 2;
+      ctx.fillStyle = '#26202a'; poly(ctx, [-8, -46, 2, -46, -16, 0, -27, 0]); poly(ctx, [2, -46, 12, -46, 22, 0, 10, 0]);
+      ctx.fillStyle = '#6a2a2a'; ctx.fillRect(-14, -50 - bounce, 28, 8);
+      ctx.fillStyle = '#c98f6a'; poly(ctx, [-17, -98 + b, 17, -98 + b, 12, -48, -12, -48]);
+      ctx.fillStyle = '#2a2430'; poly(ctx, [-17, -98 + b, -6, -98 + b, -8, -50, -14, -50]);
+      ctx.fillStyle = '#c98f6a'; ctx.beginPath(); ctx.arc(3, -112 + b, 12, 0, 7); ctx.fill();
+      ctx.fillStyle = '#2a1a14'; ctx.beginPath(); ctx.arc(1, -117 + b, 12, Math.PI * 1.0, Math.PI * 1.95); ctx.fill();
+      ctx.fillStyle = '#c0382f'; ctx.fillRect(-10, -120 + b, 24, 4); poly(ctx, [-10, -120 + b, -24, -114 + b + Math.sin(p.t * 0.008) * 3, -10, -116 + b]);
+      ctx.fillStyle = '#1a1210'; ctx.fillRect(8, -114 + b, 4, 2);
+      // braço de trás (guarda) e braço da frente (soco)
+      const ext = Math.max(0, p.arm) * 30, back = Math.min(0, p.arm) * 10;
+      ctx.strokeStyle = '#b57e5c'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-6, -92 + b); ctx.lineTo(8, -100 + b); ctx.stroke();
+      ctx.fillStyle = '#efe4d2'; ctx.beginPath(); ctx.arc(10, -102 + b, 6.5, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#c98f6a'; ctx.beginPath(); ctx.moveTo(10, -92 + b); ctx.lineTo(22 + ext + back, -98 + b - ext * 0.1); ctx.stroke();
+      ctx.fillStyle = '#f4ead8'; ctx.beginPath(); ctx.arc(24 + ext + back, -99 + b - ext * 0.1, 7.5, 0, 7); ctx.fill();
+    },
+    // Arqueira: capuz, capa curta; p.cast = quanto a corda está puxada
+    archer(ctx, p) {
+      const b = p.idle * 2;
+      ctx.fillStyle = '#243a2e'; ctx.beginPath(); ctx.moveTo(-8, -98 + b); ctx.quadraticCurveTo(-34, -60, -26 + Math.sin(p.t * 0.004) * 3, -30); ctx.lineTo(-4, -46); ctx.fill();
+      ctx.fillStyle = '#2a2420'; poly(ctx, [-6, -48, 3, -48, -12, 0, -22, 0]); poly(ctx, [1, -48, 10, -48, 20, 0, 9, 0]);
+      ctx.fillStyle = '#4a6a3a'; poly(ctx, [-12, -98 + b, 12, -98 + b, 9, -46, -9, -46]);
+      ctx.fillStyle = '#6b4a2e'; ctx.fillRect(-10, -60, 20, 4);
+      ctx.fillStyle = '#7a5532'; rr(ctx, -16, -100 + b, 7, 34, 3); // aljava
+      ctx.fillStyle = '#e8dcc0'; ctx.fillRect(-15, -108 + b, 2, 9); ctx.fillRect(-12, -106 + b, 2, 7);
+      ctx.fillStyle = '#e6c4a0'; ctx.beginPath(); ctx.arc(2, -112 + b, 10, 0, 7); ctx.fill();
+      ctx.fillStyle = '#2f4a3a'; ctx.beginPath(); ctx.moveTo(-12, -110 + b); ctx.quadraticCurveTo(-8, -134 + b, 6, -128 + b); ctx.quadraticCurveTo(16, -122 + b, 12, -110 + b); ctx.quadraticCurveTo(2, -118 + b, -12, -110 + b); ctx.fill();
+      ctx.fillStyle = '#1a1210'; ctx.fillRect(6, -113 + b, 3, 2);
+      // arco à frente; corda puxada até o peito conforme p.cast
+      const draw = clamp(p.cast, 0, 1), bx = 26, by = -86 + b;
+      ctx.strokeStyle = '#7a5532'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(bx - 30, by, 40, -0.95, 0.95); ctx.stroke();
+      const top = { x: bx - 30 + Math.cos(-0.95) * 40, y: by + Math.sin(-0.95) * 40 }, bot = { x: bx - 30 + Math.cos(0.95) * 40, y: by + Math.sin(0.95) * 40 };
+      const pull = { x: (top.x + bot.x) / 2 - draw * 26, y: by };
+      ctx.strokeStyle = 'rgba(240,235,220,0.9)'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(top.x, top.y); ctx.lineTo(pull.x, pull.y); ctx.lineTo(bot.x, bot.y); ctx.stroke();
+      if (draw > 0.15) { ctx.strokeStyle = '#d9c39a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(pull.x, by); ctx.lineTo(bx + 14, by); ctx.stroke(); ctx.fillStyle = '#e8eef5'; poly(ctx, [bx + 20, by, bx + 12, by - 3, bx + 12, by + 3]); }
+      ctx.strokeStyle = '#e6c4a0'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(4, -92 + b); ctx.lineTo(bx + 8, by); ctx.stroke();            // braço do arco
+      ctx.beginPath(); ctx.moveTo(-2, -92 + b); ctx.lineTo(pull.x, pull.y); ctx.stroke();       // braço da corda
+    },
+  });
+
+  // Retrato para a tela de formação (usa a mesma arte do combate)
+  G.drawPortrait = function (canvas, art, opts = {}) {
+    const g = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
+    g.clearRect(0, 0, w, h);
+    const bgc = g.createRadialGradient(w / 2, h * 0.55, 4, w / 2, h * 0.55, w * 0.7);
+    bgc.addColorStop(0, opts.glow || '#3a2a44'); bgc.addColorStop(1, '#140e18');
+    g.fillStyle = bgc; g.fillRect(0, 0, w, h);
+    g.save(); g.translate(w / 2 - 8, h * 0.98); g.scale(h / 170, h / 170);
+    ART[art](g, { idle: 0, t: performance.now(), arm: 0, guard: 0, cast: art === 'archer' ? 0.6 : 0, wound: 0 });
+    g.restore();
   };
 
   G.Presenter = Presenter;
@@ -2277,7 +2843,7 @@ body.resolving #panel { opacity:.6; }
           // círculos a caminho do alvo não troca. Para trocar, pare ~0,25 s sobre outra.
           const it = this._itemAt();
           const ok = it && !it.cancel && !it.disabled;
-          if (!this.drag.skillId) { if (ok) this.drag.skillId = it.skillId; }
+          if (!this.drag.skillId) { if (ok) { this.drag.skillId = it.skillId; G.SFX && G.SFX.play('uiSkill'); } }
           else if (ok && it.skillId !== this.drag.skillId) {
             if (this.drag.dwell !== it.skillId) { this.drag.dwell = it.skillId; this.drag.dwellAt = this.p.time; }
             else if (this.p.time - this.drag.dwellAt > 250) this.drag.skillId = it.skillId;
@@ -2335,6 +2901,7 @@ body.resolving #panel { opacity:.6; }
       c.style.cursor = this.drag ? 'grabbing' : (h.kind === 'empty' ? 'default' : 'pointer');
     }
     _select(uid) {
+      G.SFX && G.SFX.play('uiSelect');
       this.sel = { uid, skillId: null, openAt: this.p.time };
       this._applyHighlights();
     }
@@ -2348,6 +2915,7 @@ body.resolving #panel { opacity:.6; }
         if (it.disabled) return;
         if (!this.needsTarget(it.skillId)) { this._commit(sel.uid, it.skillId, sel.uid); return; }
         sel.skillId = it.skillId; // modo clique: agora clique no alvo
+        G.SFX && G.SFX.play('uiSkill');
         return;
       }
       if (pr.kind === 'badge' && sel && sel.skillId) { const id = this.p.pick(this.mouse.sx, this.mouse.sy); if (id) pr = { kind: this.battle.unit(id).side === 'ally' ? 'ally' : 'enemy', id }; }
@@ -2379,6 +2947,7 @@ body.resolving #panel { opacity:.6; }
     }
     _commit(uid, skillId, targetId) {
       this.hover.item = null;
+      G.SFX && G.SFX.play('uiConnect');
       this.cb.commit(uid, skillId, targetId);
       this.connectAt[uid] = this.p.time;
       this.sel = null;
@@ -2392,6 +2961,7 @@ body.resolving #panel { opacity:.6; }
     }
     _retractDrag(d = this.drag) {
       if (!d) return;
+      G.SFX && G.SFX.play('uiCancel');
       const v = this.p.vis[d.uid];
       this.retracts.push({ x0: v.x, y0: v.y - 80, x1: this.mouse.x, y1: this.mouse.y, kind: d.skillId ? SKILLS[d.skillId].kind : 'attack', start: this.p.time });
     }
@@ -2834,6 +3404,15 @@ body.resolving #panel { opacity:.6; }
       case 'support': L([0, -0.8, 0, 0.8]); L([-0.8, 0, 0.8, 0]); ctx.beginPath(); ctx.arc(0, 0, 0.95 * s, 0, 7); ctx.globalAlpha *= 0.5; ctx.stroke(); break;
       case 'dodge': L([-0.85, -0.45, 0.2, -0.45]); L([-0.65, 0, 0.45, 0]); L([-0.85, 0.45, 0.2, 0.45]); L([0.35, -0.7, 0.85, 0, 0.35, 0.7], false); break;
       case 'cancel': L([-0.6, -0.6, 0.6, 0.6]); L([0.6, -0.6, -0.6, 0.6]); break;
+      case 'spear': L([-0.85, 0.85, 0.45, -0.45]); L([0.3, -0.75, 0.85, -0.85, 0.75, -0.3], true, true); break;
+      case 'sweep': ctx.beginPath(); ctx.arc(0, 0.35 * s, 0.85 * s, -2.8, -0.35); ctx.stroke(); L([0.55, -0.35, 0.95, -0.55, 0.85, -0.1], true, true); break;
+      case 'pierce': L([-0.9, 0, 0.5, 0]); L([0.4, -0.3, 0.95, 0, 0.4, 0.3], true, true); L([-0.9, -0.4, -0.5, -0.4]); L([-0.9, 0.4, -0.5, 0.4]); break;
+      case 'fist': ctx.beginPath(); ctx.roundRect(-0.55 * s, -0.5 * s, 1.0 * s, 0.9 * s, 0.25 * s); ctx.fill(); L([-0.85, -0.2, -0.6, -0.2]); L([-0.9, 0.15, -0.6, 0.15]); break;
+      case 'flurry': for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc((-0.5 + i * 0.5) * s, (i % 2 ? 0.25 : -0.25) * s, 0.26 * s, 0, 7); ctx.fill(); } break;
+      case 'upper': L([0, 0.9, 0, -0.5]); L([-0.45, -0.1, 0, -0.85, 0.45, -0.1], false); ctx.beginPath(); ctx.arc(0, 0.55 * s, 0.25 * s, 0, 7); ctx.fill(); break;
+      case 'arrow': L([-0.85, 0.85, 0.55, -0.55]); L([0.25, -0.75, 0.85, -0.85, 0.75, -0.25], true, true); L([-0.85, 0.85, -0.85, 0.45]); L([-0.85, 0.85, -0.45, 0.85]); break;
+      case 'arrow2': L([-0.85, 0.5, 0.45, -0.8]); L([-0.5, 0.85, 0.8, -0.45]); L([0.3, -0.95, 0.6, -0.95, 0.55, -0.65], true, true); L([0.65, -0.6, 0.95, -0.6, 0.9, -0.3], true, true); break;
+      case 'arrowp': L([-0.9, 0.9, 0.55, -0.55]); L([0.2, -0.85, 0.95, -0.95, 0.85, -0.2], true, true); ctx.beginPath(); ctx.arc(0.65 * s, -0.65 * s, 0.25 * s, 0, 7); ctx.stroke(); break;
       case 'combo': L([-0.8, 0.7, 0.35, -0.45]); L([0.8, 0.7, -0.35, -0.45]); ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 - Math.PI / 2, r = (i % 2 ? 0.14 : 0.36) * s; ctx.lineTo(Math.cos(a) * r, -0.62 * s + Math.sin(a) * r); } ctx.closePath(); ctx.fill(); break;
       default: ctx.beginPath(); ctx.arc(0, 0, 0.5 * s, 0, 7); ctx.fill();
     }
@@ -2893,14 +3472,68 @@ body.resolving #panel { opacity:.6; }
     },
     defenseNote: {},
 
-    renderEnd(result, onRestart) {
+    renderEnd(result, onRestart, onTeam) {
       const o = $('#overlay');
-      o.innerHTML = `<div class="end ${result}"><h1>${result === 'victory' ? 'VITÓRIA' : 'DERROTA'}</h1><p>${result === 'victory' ? 'Os três inimigos caíram.' : 'Seu grupo foi derrotado.'}</p></div>`;
-      const b = document.createElement('button'); b.className = 'confirm'; b.textContent = 'Reiniciar batalha ↻';
+      o.innerHTML = `<div class="end ${result}"><h1>${result === 'victory' ? 'VITÓRIA' : 'DERROTA'}</h1><p>${result === 'victory' ? 'Os três inimigos caíram.' : 'Seu grupo foi derrotado.'}</p><div class="row"></div></div>`;
+      const row = o.querySelector('.row');
+      const b = document.createElement('button'); b.className = 'confirm'; b.textContent = 'Lutar de novo (mesma equipe) ↻';
       b.onclick = onRestart;
-      o.firstChild.appendChild(b);
+      const t = document.createElement('button'); t.className = 'confirm'; t.textContent = 'Trocar equipe 👥';
+      t.onclick = onTeam;
+      row.append(b, t);
       o.classList.add('show');
     },
+
+    // ------------------------------------------------------------ FORMAÇÃO DA EQUIPE
+    // state: { team: [ids], focus: id }; cb: { toggle(id), focus(id), start() }
+    renderTeam(state, cb) {
+      const roster = $('#roster'), U = G.UNITS;
+      const stat = (id, k) => U[id][k] || 0;
+      const max = k => Math.max(...G.ROSTER.map(id => stat(id, k)));
+      // "resistência" resumida: vida + bloqueio/esquiva
+      const res = id => Math.round(stat(id, 'hp') * (1 + (U[id].blockPower || 0) * 0.6 + (U[id].dodgeSkill || 0)));
+      const maxRes = Math.max(...G.ROSTER.map(res));
+      roster.innerHTML = '';
+      for (const id of G.ROSTER) {
+        const u = U[id], picked = state.team.includes(id);
+        const card = document.createElement('div');
+        card.className = 'rcard' + (picked ? ' picked' : '') + (state.focus === id ? ' focus' : '');
+        card.innerHTML = `${picked ? `<span class="tagpick">${state.team.indexOf(id) + 1}</span>` : ''}<canvas width="180" height="150"></canvas>
+          <b>${u.name}</b><small>${u.role}</small>
+          <div class="bars">
+            <div class="bar">Vida <i style="--v:${stat(id, 'hp') / max('hp') * 100}%;--c:#5fd08a"></i></div>
+            <div class="bar">Vel. <i style="--v:${stat(id, 'spd') / max('spd') * 100}%;--c:#7fd0ff"></i></div>
+            <div class="bar">Resist. <i style="--v:${res(id) / maxRes * 100}%;--c:#d8b45a"></i></div>
+          </div>`;
+        G.drawPortrait(card.querySelector('canvas'), u.art, { glow: picked ? '#4a3a20' : '#3a2a44' });
+        card.onclick = () => (state.focus === id ? cb.toggle(id) : cb.focus(id));
+        card.ondblclick = () => cb.toggle(id);
+        roster.appendChild(card);
+      }
+      // detalhes do personagem em foco
+      const f = U[state.focus];
+      const defense = f.skills.map(k => G.SKILLS[k]).find(sk => sk.kind !== 'attack');
+      $('#detail').innerHTML = f ? `<h2>${f.name} <small>${f.role}</small></h2><p class="muted">${f.style || ''}</p>
+        <div class="muted">Vida <b>${f.hp}</b> · Velocidade <b>${f.spd}</b>${f.blockPower ? ` · Bloqueio ${Math.round(f.blockPower * 100)}%` : ''}${f.dodgeSkill ? ` · Esquiva +${Math.round(f.dodgeSkill * 100)}%` : ''}</div>
+        ${f.skills.map(k => G.SKILLS[k]).filter(sk => sk.kind === 'attack').map(sk => `<div class="sk"><em>F${sk.force} · D${sk.dmg}${sk.hits && sk.hits.length > 1 ? ` · ${sk.hits.length} golpes` : ''}</em><span><b>${sk.name}</b> — ${sk.desc}</span></div>`).join('')}
+        ${defense ? `<div class="sk"><em>Defesa</em><span><b>${defense.name}</b> — ${defense.desc}</span></div>` : ''}
+        <div class="muted">${f.trait}</div>
+        <button class="confirm" id="btn-toggle">${state.team.includes(state.focus) ? 'Remover da equipe' : state.team.length >= 3 ? 'Equipe cheia (remova alguém)' : 'Adicionar à equipe'}</button>` : '';
+      const tb = $('#btn-toggle');
+      if (tb) { tb.disabled = !state.team.includes(state.focus) && state.team.length >= 3; tb.onclick = () => cb.toggle(state.focus); }
+      // três espaços da equipe (frente → retaguarda definida pela especialidade)
+      const slots = $('#slots'); slots.innerHTML = '';
+      for (let i = 0; i < 3; i++) {
+        const id = state.team[i], el = document.createElement('div');
+        el.className = 'slot' + (id ? ' full' : '');
+        el.innerHTML = id ? `<canvas width="40" height="48"></canvas><span><b>${U[id].name}</b><br><small>clique para remover</small></span>` : `Espaço ${i + 1}`;
+        if (id) { G.drawPortrait(el.querySelector('canvas'), U[id].art); el.onclick = () => cb.toggle(id); }
+        slots.appendChild(el);
+      }
+      $('#btn-start').disabled = state.team.length !== 3;
+      $('#btn-start').onclick = cb.start;
+    },
+    showTeam(on) { $('#team').classList.toggle('show', on); },
     hideEnd() { $('#overlay').classList.remove('show'); $('#overlay').innerHTML = ''; },
   };
 
@@ -2956,6 +3589,44 @@ body.resolving #panel { opacity:.6; }
     for (const m of (sk && sk.combo ? sk.members : [lead, uid])) delete view.choices[m];
   }
 
+  // ------------------------------------------------------------ formação da equipe
+  let team = loadTeam();
+  function loadTeam() {
+    try { const t = JSON.parse(localStorage.getItem('duelo-team') || 'null'); if (Array.isArray(t) && t.length === 3 && t.every(id => G.ROSTER.includes(id))) return t; } catch (e) { /* ok */ }
+    return G.PARTY.slice();
+  }
+  const teamState = { team: team.slice(), focus: team[0] };
+  const teamCb = {
+    focus(id) { teamState.focus = id; G.SFX.play('uiSelect'); UI.renderTeam(teamState, teamCb); },
+    toggle(id) {
+      const i = teamState.team.indexOf(id);
+      if (i >= 0) teamState.team.splice(i, 1);                 // remover
+      else if (teamState.team.length < 3) teamState.team.push(id); // sem duplicatas, máximo 3
+      teamState.focus = id;
+      G.SFX.play(i >= 0 ? 'uiCancel' : 'uiConnect');
+      UI.renderTeam(teamState, teamCb);
+    },
+    start() {
+      if (teamState.team.length !== 3) return;
+      // ordem em campo: frente → retaguarda pela especialidade (Cavaleiro/Lutador na frente, Mago/Arqueira atrás)
+      team = teamState.team.slice().sort((a, b) => (G.UNITS[a].formation || 0) - (G.UNITS[b].formation || 0));
+      try { localStorage.setItem('duelo-team', JSON.stringify(teamState.team)); } catch (e) { /* ok */ }
+      G.SFX.play('uiConfirm');
+      UI.showTeam(false);
+      start();
+    },
+  };
+  function openTeam() {
+    gen++;
+    presenter.skip(); presenter.skipping = false; presenter.ambient = false;
+    planner.setEnabled(false);
+    UI.hideEnd();
+    teamState.team = team.slice(); teamState.focus = teamState.team[0] || G.ROSTER[0];
+    fsm.state = 'TEAM';
+    UI.renderTeam(teamState, teamCb);
+    UI.showTeam(true);
+  }
+
   const Phase = { INTENTS: 'INTENTS', PLAN: 'PLAN', RESOLVE: 'RESOLVE', END: 'END' };
   const fsm = { state: null, go(s, data) { this.state = s; enter[s](data); } };
 
@@ -2980,6 +3651,7 @@ body.resolving #panel { opacity:.6; }
     },
 
     PLAN() {
+      presenter.ambient = true; // pequenos reposicionamentos naturais durante o planejamento
       planner.setEnabled(true);
       refreshPlan();
     },
@@ -2987,6 +3659,8 @@ body.resolving #panel { opacity:.6; }
     async RESOLVE() {
       const g = gen;
       planner.setEnabled(false);
+      presenter.ambient = false;
+      G.SFX.play('uiConfirm');
       UI.setTop(battle, 'Execução da rodada', true);
       UI.renderWaiting('Confrontos em andamento…  <small>(Espaço pula)</small>');
       presenter.threatened = null;
@@ -3004,9 +3678,10 @@ body.resolving #panel { opacity:.6; }
     },
 
     END(result) {
+      presenter.ambient = false;
       UI.setTop(battle, result === 'victory' ? 'Vitória' : 'Derrota', false);
       UI.renderWaiting('');
-      UI.renderEnd(result, start);
+      UI.renderEnd(result, start, openTeam);
     },
   };
 
@@ -3046,13 +3721,25 @@ body.resolving #panel { opacity:.6; }
     UI.hideEnd();
     // ?seed=123 repete a mesma batalha (útil para testes)
     const fixed = +new URLSearchParams(location.search).get('seed');
-    battle = new Battle(fixed || ((Date.now() ^ (Math.random() * 1e9)) >>> 0));
+    team = team.slice().sort((a, b) => (G.UNITS[a].formation || 0) - (G.UNITS[b].formation || 0));
+    battle = new Battle(fixed || ((Date.now() ^ (Math.random() * 1e9)) >>> 0), team);
     presenter.reset(battle);
     fsm.go(Phase.INTENTS);
   }
+  // ------------------------------------------------------------ áudio (volume geral, efeitos, silenciar)
+  const A = G.SFX.settings;
+  document.getElementById('vol-master').value = A.master; document.getElementById('vol-sfx').value = A.sfx; document.getElementById('vol-mute').checked = A.muted;
+  document.getElementById('vol-master').oninput = e => G.SFX.set('master', +e.target.value);
+  document.getElementById('vol-sfx').oninput = e => { G.SFX.set('sfx', +e.target.value); G.SFX.play('uiSkill'); };
+  document.getElementById('vol-mute').onchange = e => { G.SFX.set('muted', e.target.checked); document.getElementById('btn-audio').textContent = e.target.checked ? '🔇' : '🔊'; };
+  document.getElementById('btn-audio').textContent = A.muted ? '🔇' : '🔊';
+  document.getElementById('btn-audio').onclick = () => document.getElementById('audio-pop').classList.toggle('show');
+  document.getElementById('btn-team').onclick = () => { if (fsm.state === 'TEAM' || confirm('Voltar para a formação de equipe? A batalha atual será encerrada.')) openTeam(); };
+
   UI.setSpeed(1);
-  start();
-  G.debug = { get battle() { return battle; }, presenter, planner, fsm, get view() { return view; } };
+  // ?seed=… vai direto para a batalha (testes); senão começa pela formação
+  if (new URLSearchParams(location.search).get('seed')) start(); else { battle = new Battle(1, team); presenter.reset(battle); openTeam(); }
+  G.debug = { get battle() { return battle; }, presenter, planner, fsm, get view() { return view; }, teamCb, teamState };
 })(window);
 
 </script>

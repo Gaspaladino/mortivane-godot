@@ -54,6 +54,34 @@
       desc: 'Pouco dano, mas o alvo perde 2 de força nos Clashes até o fim da próxima rodada. Age cedo.' },
     m_support: { name: 'Suporte', icon: 'support', kind: 'support', tags: ['support'],
       desc: 'Um aliado ganha +2 de força na próxima habilidade ofensiva. Age cedo.' },
+    // --- Lanceiro (alcance e controle de distância)
+    l_thrust: { name: 'Estocada', icon: 'spear', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'],
+      hits: [{ share: 1, motion: 'thrust', react: 'final' }], desc: 'Estocada rápida de longo alcance. Boa força de Clash.' },
+    l_sweep: { name: 'Varredura', icon: 'sweep', impact: 'push', kind: 'attack', force: 6, dmg: 9, tags: ['melee'],
+      hits: [{ share: 1, motion: 'sweep', react: 'final' }], desc: 'Arco amplo com a haste: empurra o alvo para longe.' },
+    l_pierce: { name: 'Investida Perfurante', icon: 'pierce', impact: 'stagger', kind: 'attack', force: 5, dmg: 14, tags: ['melee'], cooldown: 2, windup: 1.3,
+      hits: [{ share: 1, motion: 'lunge', react: 'final' }], desc: 'Avança e perfura com força. Dano alto, força de Clash moderada.' },
+    l_parry: { name: 'Guarda da Lança', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [],
+      desc: 'Apara o primeiro golpe físico com a haste e contra-ataca.' },
+    // --- Lutador (pressão e múltiplos impactos)
+    f_jab: { name: 'Soco Direto', icon: 'fist', kind: 'attack', force: 7, dmg: 6, tags: ['melee', 'fast'],
+      hits: [{ share: 1, motion: 'punch', react: 'final' }], desc: 'Soco rápido e simples.' },
+    f_flurry: { name: 'Sequência de Golpes', icon: 'flurry', kind: 'attack', force: 6, dmg: 12, tags: ['melee'],
+      hits: [{ share: 0.3, motion: 'punch', react: 'light' }, { share: 0.3, motion: 'punch2', react: 'light' }, { share: 0.4, motion: 'punch', react: 'final' }],
+      desc: 'Três socos seguidos (um único Clash). O dano é dividido entre os impactos.' },
+    f_upper: { name: 'Golpe Ascendente', icon: 'upper', impact: 'knockdown', kind: 'attack', force: 5, dmg: 12, tags: ['melee'], cooldown: 2, windup: 1.3,
+      hits: [{ share: 1, motion: 'upper', react: 'final' }], desc: 'De baixo para cima: pode derrubar o alvo.' },
+    f_dodge: { name: 'Esquiva Lateral', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
+      desc: 'Esquiva ágil de cada golpe recebido nesta rodada (chance alta).' },
+    // --- Arqueira (precisão à distância)
+    a_shot: { name: 'Flecha Precisa', icon: 'arrow', kind: 'attack', force: 8, dmg: 7, tags: ['ranged'],
+      hits: [{ share: 1, motion: 'arrow', react: 'final' }], desc: 'Flecha certeira: boa força de Clash, dano moderado.' },
+    a_double: { name: 'Disparo Duplo', icon: 'arrow2', kind: 'attack', force: 6, dmg: 10, tags: ['ranged'],
+      hits: [{ share: 0.5, motion: 'arrow', react: 'light' }, { share: 0.5, motion: 'arrow', react: 'final' }], desc: 'Duas flechas em sequência; o dano é dividido.' },
+    a_pierce: { name: 'Flecha Perfurante', icon: 'arrowp', impact: 'stagger', kind: 'attack', force: 5, dmg: 14, tags: ['ranged'], cooldown: 2, windup: 1.6,
+      hits: [{ share: 1, motion: 'arrowp', react: 'final' }], desc: 'Tensiona o arco ao máximo: dano alto, preparação longa.' },
+    a_evade: { name: 'Recuo Ágil', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
+      desc: 'Salta para trás tentando esquivar de cada golpe.' },
     m_dodge: { name: 'Passo Etéreo', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
       desc: 'Tenta esquivar de cada golpe recebido nesta rodada.' },
 
@@ -104,18 +132,37 @@
 
   // interceptReach: bônus de velocidade só para interceptar ataques contra aliados
   const UNITS = {
-    knight: { name: 'Cavaleiro', role: 'Defensor', side: 'ally', art: 'knight',
+    knight: { name: 'Cavaleiro', role: 'Defensor', side: 'ally', art: 'knight', formation: 0,
+      style: 'Linha de frente: resiste, bloqueia e protege os aliados.',
       hp: 62, spd: 3, interceptReach: 4, blockPower: 0.6,
       skills: ['k_basic', 'k_shield', 'k_heavy', 'k_guard', 'k_protect'],
       trait: 'Intercepta ataques mesmo sendo lento (+4 de alcance). Bloqueio de 60%.' },
-    swordsman: { name: 'Espadachim', role: 'Duelista', side: 'ally', art: 'swordsman',
+    swordsman: { name: 'Espadachim', role: 'Duelista', side: 'ally', art: 'swordsman', formation: 1,
+      style: 'Duelos rápidos e precisos; vence Clashes com Golpe Preciso.',
       hp: 44, spd: 8, interceptReach: 0, dodgeSkill: 0.10, parrySkill: 0.10,
       skills: ['s_basic', 's_precise', 's_risky', 's_parry'],
       trait: 'Muito rápido: age cedo e intercepta golpes mais lentos.' },
-    mage: { name: 'Mago', role: 'Conjurador', side: 'ally', art: 'mage',
+    mage: { name: 'Mago', role: 'Conjurador', side: 'ally', art: 'mage', formation: 2,
+      style: 'Magia à distância e preparação: enfraquece inimigos e apoia aliados.',
       hp: 34, spd: 5, interceptReach: 0,
       skills: ['m_bolt', 'm_blast', 'm_weaken', 'm_support', 'm_dodge'],
       trait: 'Frágil. Enfraquecimento e Suporte agem cedo e preparam os Clashes dos aliados.' },
+
+    lancer: { name: 'Lanceiro', role: 'Alcance', side: 'ally', art: 'lancer', formation: 1,
+      hp: 50, spd: 7, interceptReach: 2, parrySkill: 0.05,
+      skills: ['l_thrust', 'l_sweep', 'l_pierce', 'l_parry'],
+      style: 'Disciplinado: mantém o inimigo na ponta da lança e controla a distância.',
+      trait: 'Alcance longo (+2 para interceptar). Apara com a haste.' },
+    brawler: { name: 'Lutador', role: 'Pressão', side: 'ally', art: 'brawler', formation: 0,
+      hp: 48, spd: 9, interceptReach: 0, dodgeSkill: 0.20,
+      skills: ['f_jab', 'f_flurry', 'f_upper', 'f_dodge'],
+      style: 'Punhos rápidos e pressão constante: muitos impactos e reações no alvo.',
+      trait: 'O mais rápido. Especialista em esquiva.' },
+    archer: { name: 'Arqueira', role: 'Precisão', side: 'ally', art: 'archer', formation: 2,
+      hp: 36, spd: 7, interceptReach: 0, dodgeSkill: 0.15,
+      skills: ['a_shot', 'a_double', 'a_pierce', 'a_evade'],
+      style: 'Ataca de longe com flechas físicas (podem ser aparadas). Frágil de perto.',
+      trait: 'Ataques à distância. Esquiva e reposiciona.' },
 
     brute: { name: 'Brutamontes', role: 'Força bruta', side: 'enemy', art: 'brute',
       hp: 56, spd: 2, blockPower: 0.5, skills: ['b_smash', 'b_bash', 'b_guard'],
@@ -128,9 +175,10 @@
       ai: { prefers: 'threat', defendBelow: 0.30 } },
   };
 
-  const PARTY = ['knight', 'swordsman', 'mage'];
+  const PARTY = ['knight', 'swordsman', 'mage']; // equipe padrão
+  const ROSTER = ['knight', 'swordsman', 'mage', 'lancer', 'brawler', 'archer']; // jogáveis
   const FOES = ['brute', 'duelist', 'conjurer'];
-  const AI_THREAT = { mage: 0.6, swordsman: 0.4, knight: 0.0 };
+  const AI_THREAT = { mage: 0.6, archer: 0.6, swordsman: 0.4, lancer: 0.3, brawler: 0.35, knight: 0.0 };
 
-  Object.assign(G, { CONFIG, REACTIONS, STATUS, SKILLS, COMBOS, AI_COMBO_CHANCE, UNITS, PARTY, FOES, AI_THREAT });
+  Object.assign(G, { CONFIG, REACTIONS, STATUS, SKILLS, COMBOS, AI_COMBO_CHANCE, UNITS, PARTY, ROSTER, FOES, AI_THREAT });
 })(typeof window !== 'undefined' ? window : globalThis);

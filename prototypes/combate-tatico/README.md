@@ -2,6 +2,29 @@
 
 Protótipo jogável e independente do projeto Godot. Basta abrir `index.html` no navegador; não precisa de servidor nem de build.
 
+## Formação da equipe
+Antes da batalha, escolha 3 dos 6 combatentes: Cavaleiro, Espadachim, Mago, **Lanceiro**, **Lutador** e **Arqueira**. Cada card tem retrato e barras de vida, velocidade e resistência; clique para ver os detalhes (habilidades com força, dano e número de golpes, a defesa e o estilo). Não dá para repetir personagem e o botão Iniciar só libera com 3 escolhidos. A posição em campo segue a especialidade: Cavaleiro e Lutador na frente, Mago e Arqueira atrás. No fim da batalha dá para lutar de novo com a mesma equipe ou trocar; o botão 👥 também volta à formação, e a última equipe fica salva.
+
+| Novo | Papel | Habilidades | Defesa |
+|---|---|---|---|
+| Lanceiro | alcance e controle (alcance de golpe 128, +2 para interceptar) | Estocada (F8 D7, rápida) · Varredura (F6 D9, empurra) · Investida Perfurante (F5 D14, desequilibra) | Guarda da Lança (aparo) |
+| Lutador | pressão e múltiplos impactos (o mais rápido) | Soco Direto (F7 D6) · Sequência de Golpes (F6 D12 em 3 socos) · Golpe Ascendente (F5 D12, derruba) | Esquiva Lateral |
+| Arqueira | precisão à distância (flechas físicas, que podem ser aparadas) | Flecha Precisa (F8 D7) · Disparo Duplo (F6 D10 em 2 flechas) · Flecha Perfurante (F5 D14, preparação longa) | Recuo Ágil (esquiva) |
+
+## Apresentação e game feel
+- **Câmera em ataques à distância:** o enquadramento usa o tamanho real visível da tela. Se atacante e alvo cabem juntos, aparecem juntos (o zoom se ajusta). Se não cabem, a câmera mostra o disparo, acompanha o projétil e chega ao alvo antes do impacto. O dano só aparece no contato. Um teste automático em telas de 900×700 e 1400×860 confirmou que todos os impactos aconteceram na tela.
+- **Arena:** 4 camadas maiores que a área de combate (céu, montanhas e ruínas, colunas e braseiros, chão rachado) com parallax discreto. As faixas pretas de cinema foram removidas e a câmera tem limites que nunca revelam a borda.
+- **Movimento ambiente:** durante o planejamento, cada personagem dá pequenos passos de vez em quando, com propósito: volta à sua faixa da formação, recua se um inimigo está perto demais ou só ajusta a postura. Não acontece com o personagem selecionado, durante um arrasto, numa queda ou numa ação.
+- **Condição física:** muda suavemente com a vida. Acima de 50% é normal; entre 25% e 50% a respiração fica mais forte e o tronco curva; abaixo de 25% o corpo curva mais, balança e a arma pesa. O Cavaleiro passa a se apoiar no escudo. É só visual.
+- **Preparação inimiga:** posturas lentas e diferentes por classe (o Brutamontes ergue a clava devagar, o Duelista se posiciona, o Conjurador concentra energia), sem tremores.
+- **Efeitos:**
+  - rastros de lâmina e rastro linear de estocada com brilho na ponta;
+  - linhas de velocidade nos socos e flechas com trajetória e rastro;
+  - luz breve no impacto e tremor de câmera direcional;
+  - hit-stop quase nulo nos golpes intermediários e mais forte no golpe final pesado;
+  - recuperação visível após golpes fortes e poeira em quedas e recuos.
+- **Áudio** (`js/audio.js`): todos os efeitos são sintetizados com a Web Audio API (sem arquivos externos, sem licença a verificar), com pequena variação de tom e volume. Há sons de lâmina, escudo, soco, estocada, Clash (e de vitória ou derrota no Clash), bloqueio, esquiva, aparo, magia (preparação, lançamento e impacto), arco (tensionar, disparar, flecha voando e acerto), queda e interface. O botão 🔊 abre volume geral, volume dos efeitos e silenciar. O som só começa depois da primeira interação.
+
 ## Planejamento na arena
 - **Seleção direta:** clique num aliado e as habilidades dele surgem num leque **à frente** dele, abrindo a partir da mão. As três ofensivas formam um arco, com a do meio mais à frente. Defesa, suporte, proteção e combinação ficam num arco externo menor. Perto da borda, o leque vira para o lado que tem espaço e se desloca na vertical para continuar visível.
 - **Correntes:** arraste do personagem até uma habilidade e continue até o alvo, num único gesto. A primeira habilidade tocada é a escolhida; para trocar no meio do gesto, pare cerca de 0,25 s sobre outra. Também funciona só com cliques: personagem → habilidade → alvo. Habilidades de defesa confirmam no próprio círculo.
@@ -59,6 +82,7 @@ Enfraquecimento tira 2 de força do alvo e Suporte dá +2 de força para a próx
 ## Arquitetura
 | Arquivo | Papel |
 |---|---|
+| `js/audio.js` | Efeitos sonoros sintetizados (AudioManager) e volumes. |
 | `js/data.js` | **Balanceamento:** fórmulas (`CONFIG`), personagens, habilidades (com `hits`, `windup` e `impact`), combinações (`COMBOS`), reações e status. Edite aqui. |
 | `js/combat.js` | Lógica pura (`Battle`): intenções, `buildPlan` (valida as ações e liga os Clashes e as interceptações), `previewPlan` (prévia), `resolveRound` (fila de eventos com o resultado completo e um snapshot do estado). Usa RNG com semente. |
 | `js/ai.js` | IA: Brutamontes prefere golpes fortes, Duelista prefere alvos frágeis ou enfraquecidos e Conjurador usa magias e Maldição. Com pouca vida, às vezes eles se defendem. |

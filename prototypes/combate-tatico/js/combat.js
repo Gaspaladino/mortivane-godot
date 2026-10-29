@@ -24,13 +24,14 @@
   const members = act => [act.actorId, ...(act.partners || [])];
 
   class Battle {
-    constructor(seed) {
+    // party: ids dos 3 aliados escolhidos na formação (ordem = posição: frente → retaguarda)
+    constructor(seed, party = PARTY) {
       this.seed = seed;
       this.rand = makeRng(seed);
       this.round = 1;
       this.units = [];
       this.intents = [];
-      PARTY.forEach((k, i) => this.units.push(this._makeUnit(k, 'ally', i)));
+      party.forEach((k, i) => this.units.push(this._makeUnit(k, 'ally', i)));
       FOES.forEach((k, i) => this.units.push(this._makeUnit(k, 'enemy', i)));
     }
     _makeUnit(key, side, slot) {
@@ -51,7 +52,8 @@
     combosFor(uid) {
       return Object.keys(G.COMBOS).filter(id => {
         const c = G.COMBOS[id];
-        return c.side === 'ally' && c.members.includes(uid) && c.members.every(m => this.unit(m).hp > 0) &&
+        // só existe se os dois membros estiverem na equipe e vivos
+        return c.side === 'ally' && c.members.includes(uid) && c.members.every(m => this.unit(m) && this.unit(m).hp > 0) &&
           this.skillReady(this.unit(c.members[0]), id);
       });
     }
@@ -317,6 +319,7 @@
       const LV = ['light', 'medium', 'heavy', 'extreme'];
       const r = dmg / def.maxHp, c = CONFIG.impact;
       let lv = r >= c.heavy ? 2 : r >= c.medium ? 1 : 0;
+      if (sk.impact === 'push') lv = Math.max(lv, 1);
       if (sk.impact === 'stagger') lv = Math.max(lv, 2);
       if (sk.impact === 'knockdown') lv = 3;
       if (blocked) lv = Math.max(0, lv - 1);

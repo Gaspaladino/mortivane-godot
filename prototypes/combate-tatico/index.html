@@ -15,12 +15,33 @@
       <button data-speed="1">1×</button>
       <button data-speed="2.2">2×</button>
       <button id="btn-skip" title="Pular animações (Espaço)">Pular ⏭</button>
+      <button id="btn-team" title="Trocar equipe">👥</button>
+      <button id="btn-audio" title="Áudio">🔊</button>
       <button id="btn-help">?</button>
       <button id="btn-restart">↻</button>
     </div>
   </header>
   <main id="arena"><canvas id="stage"></canvas><div id="overlay"></div></main>
   <section id="panel"></section>
+  <div id="audio-pop" class="pop">
+    <label>Volume geral <input type="range" id="vol-master" min="0" max="1" step="0.05"></label>
+    <label>Efeitos <input type="range" id="vol-sfx" min="0" max="1" step="0.05"></label>
+    <label class="chk"><input type="checkbox" id="vol-mute"> Silenciar</label>
+  </div>
+  <div id="team" class="team">
+    <div class="team-box">
+      <h1>Formação da equipe</h1>
+      <p class="muted">Escolha <b>três</b> combatentes. Clique para ver detalhes; clique de novo (ou no espaço da equipe) para adicionar ou remover.</p>
+      <div class="team-main">
+        <div id="roster" class="roster"></div>
+        <div id="detail" class="detail"></div>
+      </div>
+      <div class="team-foot">
+        <div id="slots" class="slots"></div>
+        <button id="btn-start" class="confirm">Iniciar batalha ▶</button>
+      </div>
+    </div>
+  </div>
   <div id="help">
     <div class="box">
       <h2>Como jogar</h2>
@@ -28,10 +49,12 @@
       <p><b>Leitura:</b> linhas vermelhas tracejadas = intenções inimigas. Correntes = suas ações (vermelha com ponta = ataque, verde = suporte, azul com escudo = proteção). O selo no meio da corrente mostra o Clash (Favorável / Equilibrado / Desfavorável); passe o mouse para ver as forças. Em interceptações, clique no selo para ligar/desligar.</p>
       <p><b>Clash:</b> cada lado rola <b>Força + (0 a 3)</b>; o maior interrompe o outro e acerta seu dano. Empate anula os dois. Interceptar exige velocidade (+ alcance do Cavaleiro) ≥ a do golpe inimigo.</p>
       <p><b>Defesas</b> agem antes de tudo: Postura de Escudo, Proteção (o Cavaleiro recebe os golpes no lugar de um aliado), Aparar (1º golpe físico), Passo Etéreo (esquiva). Enfraquecimento (−2 força) e Suporte (+2) afetam só o que vem depois deles.</p>
+      <p><b>Equipe:</b> 👥 volta à formação (6 combatentes, escolha 3). 🔊 ajusta o áudio.</p>
       <p><b>Controles:</b> 1×/2×, Pular (ou Espaço), Enter executa a rodada. Os resultados já estão decididos antes da animação.</p>
       <p class="muted">Clique para fechar.</p>
     </div>
   </div>
+  <script src="js/audio.js"></script>
   <script src="js/data.js"></script>
   <script src="js/combat.js"></script>
   <script src="js/ai.js"></script>
