@@ -6,7 +6,7 @@
   'use strict';
   const { SKILLS } = G;
   const $ = sel => document.querySelector(sel);
-  const CAT = { favorable: ['Favorável', '#6fd890'], even: ['Equilibrado', '#ffd36a'], unfavorable: ['Desfavorável', '#ff7a6a'] };
+  const CAT = { favorable: ['Favorável', '#6fd890'], even: ['Equilibrado', '#ffd36a'], unfavorable: ['Desfavorável', '#ff7a6a'], certain: ['Vitória garantida', '#7fffb0'], doomed: ['Derrota garantida', '#ff5050'] };
 
   const UI = {
     CAT,
@@ -29,7 +29,8 @@
         else if (ev.type === 'support') { cls = 'o-sup'; txt = `${n(ev.a.actorId)} ✚ ${n(ev.a.targetId)}`; }
         else if (ev.type === 'clash') {
           const ally = ev.a.side === 'ally' ? ev.a : ev.b, foe = ally === ev.a ? ev.b : ev.a;
-          const c = CAT[battle.category(ally === ev.a ? ev.odds.win : ev.odds.lose)];
+          const o = ally === ev.a ? ev.odds : { win: ev.odds.lose, tie: ev.odds.tie, lose: ev.odds.win };
+          const c = CAT[battle.category(o.win, o)];
           cls = 'o-clash'; txt = `⚔ ${who(ally)} × ${who(foe)} <b style="color:${c[1]}">${c[0]}</b>`;
         } else {
           const a = ev.a, sk = SKILLS[a.skillId];
@@ -90,7 +91,7 @@
           <section class="blk attrs">
             <div class="tile"><i>Vida</i><b>${f.hp}</b></div><div class="tile"><i>Postura</i><b>${f.posture}</b></div><div class="tile"><i>Velocidade</i><b>${f.spd}</b></div>
             <div class="tile wide"><i>Ataque</i><span>${f.offense || ''}</span></div><div class="tile wide"><i>Defesa</i><span>${f.defense || ''}</span></div></section>
-          <section class="blk skills"><div class="sh">Habilidades</div><div class="skgrid">${sks.map(([k, sk]) => `<button class="skbtn${state.skill === k ? ' on' : ''}" data-skill="${k}"><canvas width="40" height="40" data-icon="${sk.icon}"></canvas><span>${sk.name}</span><small>${sk.kind === 'attack' ? `F${sk.force} · D${sk.dmg} · P${sk.pressure || 0}` : sk.kind === 'support' ? 'Suporte' : 'Defesa'}</small></button>`).join('')}</div></section>
+          <section class="blk skills"><div class="sh">Habilidades</div><div class="skgrid">${sks.map(([k, sk]) => `<button class="skbtn${state.skill === k ? ' on' : ''}" data-skill="${k}"><canvas width="40" height="40" data-icon="${sk.icon}"></canvas><span>${sk.name}</span><small>${sk.kind === 'attack' ? `F${sk.force}×${sk.beats || 1} · D${sk.dmg} · P${sk.pressure || 0}` : sk.kind === 'support' ? 'Suporte' : 'Defesa'}</small></button>`).join('')}</div></section>
           <section class="blk role"><div class="sh">Papel tático</div>
             <div class="rl"><b>Faz bem</b><span>${f.good || ''}</span></div><div class="rl"><b>Melhor contra</b><span>${f.bestVs || ''}</span></div><div class="rl"><b>Limitações</b><span>${f.limits || ''}</span></div></section>
         </div>`;
@@ -106,7 +107,7 @@
         const fx = [sk.applies === 'weaken' ? 'enfraquece' : '', sk.impact === 'knockdown' ? 'derruba' : sk.impact === 'stagger' ? 'desequilibra' : sk.impact === 'push' ? 'empurra' : '',
           sk.tags.includes('magic') ? 'magia' : sk.tags.includes('ranged') ? 'à distância' : '', sk.postureHeal ? `+${sk.postureHeal} Postura` : '', sk.cooldown ? `recarga ${sk.cooldown - 1}` : ''].filter(Boolean).join(' · ');
         sp.innerHTML = `<div class="spc" style="--acc:${f.accent}"><h3>${sk.name}</h3><p>${sk.desc}</p>
-          <div class="nums">${sk.kind === 'attack' ? `<span><i>Força</i>${sk.force}</span><span><i>Dano</i>${sk.dmg}</span><span><i>Pressão</i>${sk.pressure || 0}</span><span><i>Golpes</i>${(sk.hits || [1]).length}</span>` : `<span><i>Tipo</i>${sk.kind === 'support' ? 'Suporte' : 'Defesa'}</span>`}</div>
+          <div class="nums">${sk.kind === 'attack' ? `<span><i>Força</i>${sk.force}</span><span><i>Dano</i>${sk.dmg}</span><span><i>Pressão</i>${sk.pressure || 0}</span><span><i>Batidas</i>${sk.beats || 1}</span><span><i>Golpes</i>${(sk.hits || [1]).length}</span>` : `<span><i>Tipo</i>${sk.kind === 'support' ? 'Suporte' : 'Defesa'}</span>`}</div>
           ${fx ? `<div class="fx">${fx}</div>` : ''}<div id="pv-slot" class="pv-slot"></div></div>`;
         if (cb.preview) cb.preview.mount(sp.querySelector('#pv-slot'));
       } else sp.innerHTML = `<div class="spc empty"><p>Clique numa habilidade da ficha para ver a descrição completa e a prévia animada.</p></div>`;

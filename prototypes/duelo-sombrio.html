@@ -253,7 +253,7 @@ body.resolving #panel { opacity:.6; }
       <h2>Como jogar</h2>
       <p><b>Planejar na arena:</b> clique num aliado — as habilidades surgem em círculos ao redor dele. <b>Arraste</b> do personagem até uma habilidade e continue até o alvo, ou faça por <b>cliques</b> (personagem → habilidade → alvo). Defesas confirmam direto no círculo. Clique de novo no personagem para trocar; ✕ ou botão direito cancela; Esc desfaz.</p>
       <p><b>Leitura:</b> linhas vermelhas tracejadas = intenções inimigas. Correntes = suas ações (vermelha com ponta = ataque, verde = suporte, azul com escudo = proteção). O selo no meio da corrente mostra o Clash (Favorável / Equilibrado / Desfavorável); passe o mouse para ver as forças. Em interceptações, clique no selo para ligar/desligar.</p>
-      <p><b>Clash:</b> cada lado rola <b>Força + (0 a 3)</b>; o maior interrompe o outro e acerta seu dano. Empate anula os dois. Interceptar exige velocidade (+ alcance do Cavaleiro) ≥ a do golpe inimigo.</p>
+      <p><b>Clash em batidas:</b> cada habilidade tem 1 a 3 batidas; em cada batida soma-se um impulso à força. O Clash dura o maior número de batidas; quem acaba antes segura o valor. Maior força acumulada vence e acerta seu dano; empate anula os dois. Interceptar exige velocidade (+ alcance do Cavaleiro) ≥ a do golpe inimigo.</p>
       <p><b>Defesas</b> agem antes de tudo: Postura de Escudo, Proteção (o Cavaleiro recebe os golpes no lugar de um aliado), Aparar (1º golpe físico), Passo Etéreo (esquiva). Enfraquecimento (−2 força) e Suporte (+2) afetam só o que vem depois deles.</p>
       <p><b>Postura:</b> barra âmbar abaixo da vida. Perder um Clash tira Postura (a Pressão da habilidade vencedora). Em 0 ocorre a <b>Quebra</b>: o personagem perde a próxima ação, depois volta com a Postura cheia e fica protegido contra nova Quebra até agir. Firmar Guarda (+25) e Reforço Arcano (+15) recuperam Postura. ⚡ QUEBRA? indica que o golpe escolhido pode quebrar o alvo se vencer.</p>
       <p><b>Elementos:</b> Vermelho &gt; Amarelo &gt; Roxo &gt; Verde &gt; Azul &gt; Vermelho. Atacar quem você vence dá +20% de dano; atacar quem vence você, −20%. O ciclo fica no canto superior esquerdo (pode esconder em ⚙).</p>
@@ -376,7 +376,16 @@ body.resolving #panel { opacity:.6; }
         case 'chainOpen': for (let i = 0; i < 5; i++) { N(0.03, { type: 'bandpass', f0: 3200 + i * 300, q: 8, peak: 0.16 }); [1, 2.7].forEach(m => T(0.08, { type: 'sine', f0: 1900 * m * (1 + i * 0.04), peak: 0.035 }, i * 0.035)); } break;
         case 'chainLock': T(0.12, { type: 'square', f0: 620, f1: 420, peak: 0.05 }); N(0.04, { type: 'bandpass', f0: 2600, q: 6, peak: 0.18 }); break;
         case 'chainTick': N(0.02, { type: 'bandpass', f0: 3600, q: 10, peak: 0.12 }); break;
-        // raios do Clash
+        // Clash em batidas: tin! clang! … TUM!
+        case 'clashTense': T(0.22, { type: 'sine', f0: 220, f1: 330, peak: 0.08, a: 0.06 }); N(0.2, { f0: 600, f1: 1400, q: 3, peak: 0.06, a: 0.08 }); break;
+        case 'beatTin': [1, 2.9, 5.1].forEach((m, i) => T(0.16, { type: 'sine', f0: 1500 * m, peak: 0.11 / (i + 1) })); N(0.03, { type: 'highpass', f0: 5000, peak: 0.25 }); break;
+        case 'beatClang': [1, 2.4, 3.9].forEach((m, i) => T(0.26, { type: 'triangle', f0: 640 * m, peak: 0.12 / (i + 1) })); N(0.05, { type: 'bandpass', f0: 2400, q: 2, peak: 0.3 }); break;
+        case 'beatThud': T(0.12, { type: 'sine', f0: 170, f1: 70, peak: 0.45 }); N(0.04, { type: 'lowpass', f0: 1600, peak: 0.25 }); break;
+        case 'beatMagic': T(0.18, { type: 'sine', f0: 700, f1: 1100, peak: 0.12 }); N(0.12, { f0: 1800, f1: 900, q: 5, peak: 0.14 }); break;
+        case 'tick': T(0.05, { type: 'square', f0: 2400, peak: 0.04 }); break;
+        case 'leadSwap': T(0.12, { type: 'triangle', f0: 520, f1: 880, peak: 0.1 }); break;
+        case 'clashFinal': T(0.4, { type: 'sine', f0: 90, f1: 42, peak: 0.6 }); N(0.12, { type: 'lowpass', f0: 1200, f1: 300, peak: 0.4 }); [1, 2.7].forEach(m => T(0.35, { type: 'triangle', f0: 420 * m, peak: 0.06 })); break;
+        // raios do Clash (não usados mais)
         case 'zap': N(0.09, { type: 'highpass', f0: 2400, peak: 0.3 }); T(0.08, { type: 'sawtooth', f0: 1400, f1: 300, peak: 0.07 }); break;
         case 'zapCross': N(0.12, { type: 'highpass', f0: 1800, peak: 0.4 }); T(0.14, { type: 'sawtooth', f0: 900, f1: 160, peak: 0.1 }); T(0.2, { type: 'sine', f0: 120, f1: 50, peak: 0.45 }); break;
         case 'clashDecide': T(0.18, { type: 'triangle', f0: 660, peak: 0.12 }); T(0.24, { type: 'triangle', f0: 990, peak: 0.1 }, 0.05); break;
@@ -403,7 +412,10 @@ body.resolving #panel { opacity:.6; }
 
   const CONFIG = {
     clash: {
-      rollMin: 0, rollMax: 3,     // bônus aleatório inteiro, chances iguais
+      // CLASH EM BATIDAS: cada habilidade tem 'beats' (1–3) e 'impulse' (bônus 0..impulse por batida).
+      // Força acumulada = força base + soma dos impulsos; o Clash dura o maior número de batidas.
+      // Habilidade com menos batidas mantém o valor acumulado nas batidas seguintes.
+      rollMin: 0, rollMax: 3,     // (impulso padrão de habilidades sem 'impulse')
       closeMargin: 1,             // diferença <= 1 → Clash "equilibrado" (destaque maior)
       favorable: 0.60,            // chance de vitória >= 60% → Favorável
       unfavorable: 0.35,          // chance de vitória < 35% → Desfavorável
@@ -428,59 +440,59 @@ body.resolving #panel { opacity:.6; }
   // tags: melee | magic | heavy | fast
   const SKILLS = {
     // --- Cavaleiro
-    k_basic: { name: 'Ataque Básico', pressure: 15, icon: 'sword', kind: 'attack', force: 6, dmg: 8, tags: ['melee'],
+    k_basic: { name: 'Ataque Básico', pressure: 15, icon: 'sword', kind: 'attack', beats: 2, impulse: 2, force: 5, dmg: 8, tags: ['melee'],
       desc: 'Golpe de espada equilibrado.' },
-    k_shield: { name: 'Golpe de Escudo', pressure: 10, icon: 'shieldbash', kind: 'attack', force: 8, dmg: 6, tags: ['melee'],
+    k_shield: { name: 'Golpe de Escudo', pressure: 10, icon: 'shieldbash', kind: 'attack', beats: 1, impulse: 3, force: 8, dmg: 6, tags: ['melee'],
       desc: 'Muito confiável em Clashes, pouco dano.' },
-    k_heavy: { name: 'Golpe Pesado', pressure: 35, windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 14, tags: ['melee', 'heavy'], cooldown: 2,
+    k_heavy: { name: 'Golpe Pesado', pressure: 35, windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', beats: 1, impulse: 3, force: 5, dmg: 14, tags: ['melee', 'heavy'], cooldown: 2,
       desc: 'Lento e devastador. Arriscado em Clashes.' },
     k_guard: { name: 'Firmar Guarda', postureHeal: 25, icon: 'shield', kind: 'defense', reaction: 'block', tags: [],
       desc: 'Bloqueia os golpes desta rodada (-60% de dano) e recupera 25 de Postura.' },
     k_protect: { name: 'Proteção', icon: 'protect', kind: 'protect', reaction: 'block', tags: [],
       desc: 'Fica na frente de um aliado: recebe e bloqueia os golpes sem oposição destinados a ele.' },
     // --- Espadachim
-    s_basic: { name: 'Corte Rápido', pressure: 12, hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'light' }], icon: 'slash', kind: 'attack', force: 6, dmg: 7, tags: ['melee', 'fast'],
+    s_basic: { name: 'Corte Rápido', pressure: 12, hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'light' }], icon: 'slash', kind: 'attack', beats: 2, impulse: 2, force: 5, dmg: 7, tags: ['melee', 'fast'],
       desc: 'Corte veloz: age cedo na rodada.' },
-    s_precise: { name: 'Golpe Preciso', pressure: 8, icon: 'precise', kind: 'attack', force: 9, dmg: 6, tags: ['melee'],
+    s_precise: { name: 'Golpe Preciso', pressure: 8, icon: 'precise', kind: 'attack', beats: 1, impulse: 3, force: 9, dmg: 6, tags: ['melee'],
       desc: 'Força alta: vence a maioria dos Clashes.' },
-    s_risky: { name: 'Ataque Arriscado', pressure: 20, hits: [{ share: 0.25, motion: 'h', react: 'light' }, { share: 0.3, motion: 'd', react: 'medium' }, { share: 0.45, motion: 'over', react: 'final' }], icon: 'risky', impact: 'stagger', kind: 'attack', force: 4, dmg: 15, tags: ['melee'], cooldown: 2,
+    s_risky: { name: 'Ataque Arriscado', pressure: 20, hits: [{ share: 0.25, motion: 'h', react: 'light' }, { share: 0.3, motion: 'd', react: 'medium' }, { share: 0.45, motion: 'over', react: 'final' }], icon: 'risky', impact: 'stagger', kind: 'attack', beats: 3, impulse: 2, force: 2, dmg: 15, tags: ['melee'], cooldown: 2,
       desc: 'Força baixa, dano enorme. Ótimo contra quem não vai reagir.' },
     s_parry: { name: 'Aparar', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [],
       desc: 'Tenta aparar o primeiro golpe físico recebido; se der certo, anula e contra-ataca. Não funciona contra magia.' },
     // --- Mago
-    m_bolt: { name: 'Projétil Mágico', pressure: 10, hits: [{ share: 0.5, motion: 'proj', react: 'light' }, { share: 0.5, motion: 'proj', react: 'final' }], icon: 'bolt', kind: 'attack', force: 6, dmg: 7, tags: ['magic'],
+    m_bolt: { name: 'Projétil Mágico', pressure: 10, hits: [{ share: 0.5, motion: 'proj', react: 'light' }, { share: 0.5, motion: 'proj', react: 'final' }], icon: 'bolt', kind: 'attack', beats: 2, impulse: 2, force: 5, dmg: 7, tags: ['magic'],
       desc: 'Ataque à distância.' },
-    m_blast: { name: 'Explosão Arcana', pressure: 20, icon: 'blast', impact: 'knockdown', kind: 'attack', force: 5, dmg: 13, tags: ['magic'], cooldown: 2,
+    m_blast: { name: 'Explosão Arcana', pressure: 20, icon: 'blast', impact: 'knockdown', kind: 'attack', beats: 1, impulse: 3, force: 5, dmg: 13, tags: ['magic'], cooldown: 2,
       desc: 'Magia de dano elevado.' },
-    m_weaken: { name: 'Enfraquecimento', pressure: 12, icon: 'weaken', kind: 'attack', force: 7, dmg: 3, tags: ['magic', 'support'], applies: 'weaken',
+    m_weaken: { name: 'Enfraquecimento', pressure: 12, icon: 'weaken', kind: 'attack', beats: 1, impulse: 3, force: 7, dmg: 3, tags: ['magic', 'support'], applies: 'weaken',
       desc: 'Pouco dano, mas o alvo perde 2 de força nos Clashes até o fim da próxima rodada. Age cedo.' },
     m_support: { name: 'Reforço Arcano', postureHeal: 15, icon: 'support', kind: 'support', tags: ['support'],
       desc: 'Um aliado ganha +2 de força na próxima habilidade ofensiva e recupera 15 de Postura. Age cedo.' },
     // --- Lanceiro (alcance e controle de distância)
-    l_thrust: { name: 'Estocada', pressure: 12, icon: 'spear', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'],
+    l_thrust: { name: 'Estocada', pressure: 12, icon: 'spear', kind: 'attack', beats: 1, impulse: 3, force: 8, dmg: 7, tags: ['melee', 'fast'],
       hits: [{ share: 1, motion: 'thrust', react: 'final' }], desc: 'Estocada rápida de longo alcance. Boa força de Clash.' },
-    l_sweep: { name: 'Varredura', pressure: 30, icon: 'sweep', impact: 'push', kind: 'attack', force: 6, dmg: 9, tags: ['melee'],
+    l_sweep: { name: 'Varredura', pressure: 30, icon: 'sweep', impact: 'push', kind: 'attack', beats: 2, impulse: 2, force: 5, dmg: 9, tags: ['melee'],
       hits: [{ share: 1, motion: 'sweep', react: 'final' }], desc: 'Arco amplo com a haste: empurra o alvo para longe.' },
-    l_pierce: { name: 'Investida Perfurante', pressure: 25, icon: 'pierce', impact: 'stagger', kind: 'attack', force: 5, dmg: 14, tags: ['melee'], cooldown: 2, windup: 1.3,
+    l_pierce: { name: 'Investida Perfurante', pressure: 25, icon: 'pierce', impact: 'stagger', kind: 'attack', beats: 1, impulse: 3, force: 5, dmg: 14, tags: ['melee'], cooldown: 2, windup: 1.3,
       hits: [{ share: 1, motion: 'lunge', react: 'final' }], desc: 'Avança e perfura com força. Dano alto, força de Clash moderada.' },
     l_parry: { name: 'Guarda da Lança', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [],
       desc: 'Apara o primeiro golpe físico com a haste e contra-ataca.' },
     // --- Lutador (pressão e múltiplos impactos)
-    f_jab: { name: 'Soco Direto', pressure: 10, icon: 'fist', kind: 'attack', force: 7, dmg: 6, tags: ['melee', 'fast'],
+    f_jab: { name: 'Soco Direto', pressure: 10, icon: 'fist', kind: 'attack', beats: 1, impulse: 3, force: 7, dmg: 6, tags: ['melee', 'fast'],
       hits: [{ share: 1, motion: 'punch', react: 'final' }], desc: 'Soco rápido e simples.' },
-    f_flurry: { name: 'Sequência de Golpes', pressure: 25, icon: 'flurry', kind: 'attack', force: 6, dmg: 12, tags: ['melee'],
+    f_flurry: { name: 'Sequência de Golpes', pressure: 25, icon: 'flurry', kind: 'attack', beats: 3, impulse: 2, force: 4, dmg: 12, tags: ['melee'],
       hits: [{ share: 0.3, motion: 'punch', react: 'light' }, { share: 0.3, motion: 'punch2', react: 'light' }, { share: 0.4, motion: 'punch', react: 'final' }],
       desc: 'Três socos seguidos (um único Clash). O dano é dividido entre os impactos.' },
-    f_upper: { name: 'Golpe Ascendente', pressure: 35, icon: 'upper', impact: 'knockdown', kind: 'attack', force: 5, dmg: 12, tags: ['melee'], cooldown: 2, windup: 1.3,
+    f_upper: { name: 'Golpe Ascendente', pressure: 35, icon: 'upper', impact: 'knockdown', kind: 'attack', beats: 1, impulse: 3, force: 5, dmg: 12, tags: ['melee'], cooldown: 2, windup: 1.3,
       hits: [{ share: 1, motion: 'upper', react: 'final' }], desc: 'De baixo para cima: pode derrubar o alvo.' },
     f_dodge: { name: 'Esquiva Lateral', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
       desc: 'Esquiva ágil de cada golpe recebido nesta rodada (chance alta).' },
     // --- Arqueira (precisão à distância)
-    a_shot: { name: 'Flecha Precisa', pressure: 10, icon: 'arrow', kind: 'attack', force: 8, dmg: 7, tags: ['ranged'],
+    a_shot: { name: 'Flecha Precisa', pressure: 10, icon: 'arrow', kind: 'attack', beats: 1, impulse: 3, force: 8, dmg: 7, tags: ['ranged'],
       hits: [{ share: 1, motion: 'arrow', react: 'final' }], desc: 'Flecha certeira: boa força de Clash, dano moderado.' },
-    a_double: { name: 'Disparo Duplo', pressure: 15, icon: 'arrow2', kind: 'attack', force: 6, dmg: 10, tags: ['ranged'],
+    a_double: { name: 'Disparo Duplo', pressure: 15, icon: 'arrow2', kind: 'attack', beats: 2, impulse: 2, force: 5, dmg: 10, tags: ['ranged'],
       hits: [{ share: 0.5, motion: 'arrow', react: 'light' }, { share: 0.5, motion: 'arrow', react: 'final' }], desc: 'Duas flechas em sequência; o dano é dividido.' },
-    a_pierce: { name: 'Flecha Perfurante', pressure: 20, icon: 'arrowp', impact: 'stagger', kind: 'attack', force: 5, dmg: 14, tags: ['ranged'], cooldown: 2, windup: 1.6,
+    a_pierce: { name: 'Flecha Perfurante', pressure: 20, icon: 'arrowp', impact: 'stagger', kind: 'attack', beats: 1, impulse: 3, force: 5, dmg: 14, tags: ['ranged'], cooldown: 2, windup: 1.6,
       hits: [{ share: 1, motion: 'arrowp', react: 'final' }], desc: 'Tensiona o arco ao máximo: dano alto, preparação longa.' },
     a_evade: { name: 'Recuo Ágil', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
       desc: 'Salta para trás tentando esquivar de cada golpe.' },
@@ -488,16 +500,16 @@ body.resolving #panel { opacity:.6; }
       desc: 'Tenta esquivar de cada golpe recebido nesta rodada.' },
 
     // --- Brutamontes (prioriza ataques fortes)
-    b_smash: { name: 'Esmagar', pressure: 40, windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 16, tags: ['melee', 'heavy'], cooldown: 2 },
-    b_bash: { name: 'Pancada', pressure: 20, icon: 'hammer', kind: 'attack', force: 8, dmg: 9, tags: ['melee'] },
+    b_smash: { name: 'Esmagar', pressure: 40, windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', beats: 1, impulse: 3, force: 5, dmg: 16, tags: ['melee', 'heavy'], cooldown: 2 },
+    b_bash: { name: 'Pancada', pressure: 20, icon: 'hammer', kind: 'attack', beats: 2, impulse: 2, force: 8, dmg: 9, tags: ['melee'] },
     b_guard: { name: 'Couraça', icon: 'shield', kind: 'defense', reaction: 'block', tags: [] },
     // --- Duelista (prefere alvos vulneráveis)
-    d_flurry: { name: 'Lâmina Veloz', pressure: 15, hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'final' }], icon: 'slash', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'] },
-    d_lunge: { name: 'Investida Feroz', pressure: 25, icon: 'precise', impact: 'stagger', kind: 'attack', force: 6, dmg: 12, tags: ['melee'], cooldown: 2 },
+    d_flurry: { name: 'Lâmina Veloz', pressure: 15, hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'final' }], icon: 'slash', kind: 'attack', beats: 2, impulse: 2, force: 8, dmg: 7, tags: ['melee', 'fast'] },
+    d_lunge: { name: 'Investida Feroz', pressure: 25, icon: 'precise', impact: 'stagger', kind: 'attack', beats: 1, impulse: 3, force: 6, dmg: 12, tags: ['melee'], cooldown: 2 },
     d_parry: { name: 'Contra-guarda', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [] },
     // --- Conjurador (magias e suporte)
-    c_ray: { name: 'Raio Sombrio', pressure: 15, icon: 'bolt', kind: 'attack', force: 7, dmg: 10, tags: ['magic'] },
-    c_curse: { name: 'Maldição', pressure: 10, icon: 'weaken', kind: 'attack', force: 6, dmg: 4, tags: ['magic', 'support'], applies: 'weaken', cooldown: 2 },
+    c_ray: { name: 'Raio Sombrio', pressure: 15, icon: 'bolt', kind: 'attack', beats: 2, impulse: 2, force: 6, dmg: 10, tags: ['magic'] },
+    c_curse: { name: 'Maldição', pressure: 10, icon: 'weaken', kind: 'attack', beats: 1, impulse: 3, force: 6, dmg: 4, tags: ['magic', 'support'], applies: 'weaken', cooldown: 2 },
     c_veil: { name: 'Véu Sombrio', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [] },
   };
 
@@ -507,12 +519,12 @@ body.resolving #panel { opacity:.6; }
   //   by: índice do membro que executa o golpe; share: fração do dano total; react: reação daquele impacto
   const COMBOS = {
     combo_ks: { name: 'Investida Conjunta', pressure: 40, kind: 'attack', icon: 'combo', tags: ['melee'], combo: true,
-      side: 'ally', members: ['knight', 'swordsman'], force: 10, dmg: 15, impact: 'knockdown', cooldown: 3,
+      side: 'ally', members: ['knight', 'swordsman'], beats: 3, impulse: 2, force: 8, dmg: 15, impact: 'knockdown', cooldown: 3,
       desc: 'Cavaleiro + Espadachim: escudo abre a guarda, dois cortes e o golpe final. Gasta a ação dos dois. Força alta e derruba; dano um pouco menor que dois ataques separados.',
       hits: [{ by: 0, share: 0.3, motion: 'bash', react: 'medium' }, { by: 1, share: 0.2, motion: 'h', react: 'light' },
              { by: 1, share: 0.2, motion: 'd', react: 'light' }, { by: 0, share: 0.3, motion: 'over', react: 'final' }] },
     combo_bd: { name: 'Pressão Brutal', pressure: 45, kind: 'attack', icon: 'combo', tags: ['melee'], combo: true,
-      side: 'enemy', members: ['brute', 'duelist'], force: 10, dmg: 17, impact: 'knockdown', cooldown: 3,
+      side: 'enemy', members: ['brute', 'duelist'], beats: 3, impulse: 2, force: 8, dmg: 17, impact: 'knockdown', cooldown: 3,
       hits: [{ by: 0, share: 0.4, motion: 'over', react: 'medium' }, { by: 1, share: 0.15, motion: 'h', react: 'light' },
              { by: 1, share: 0.15, motion: 'h2', react: 'light' }, { by: 0, share: 0.3, motion: 'bash', react: 'final' }] },
   };
@@ -809,17 +821,32 @@ body.resolving #panel { opacity:.6; }
       if (u.statuses.support) { m += CONFIG.support.amount; if (consumeSupport) delete u.statuses.support; }
       return m;
     }
-    // Chances de vitória/empate de A sobre B somando as rolagens possíveis
-    clashOdds(fa, fb) {
-      const { rollMin: lo, rollMax: hi } = CONFIG.clash;
-      let win = 0, tie = 0, n = 0;
-      for (let i = lo; i <= hi; i++) for (let j = lo; j <= hi; j++) {
-        n++; if (fa + i > fb + j) win++; else if (fa + i === fb + j) tie++;
+    // Cadência de uma habilidade no Clash
+    cadence(sk) { return { beats: sk.beats || 1, imp: sk.impulse != null ? sk.impulse : CONFIG.clash.rollMax }; }
+    // Distribuição exata da força final (base + soma de 'beats' impulsos uniformes 0..imp)
+    forceDist(side) {
+      let d = new Map([[side.base, 1]]);
+      for (let i = 0; i < side.beats; i++) {
+        const n = new Map();
+        for (const [v, p] of d) for (let r = 0; r <= side.imp; r++) n.set(v + r, (n.get(v + r) || 0) + p / (side.imp + 1));
+        d = n;
       }
-      return { win: win / n, tie: tie / n, lose: 1 - (win + tie) / n };
+      return d;
     }
-    category(p) {
+    // Chances de vitória/empate/derrota de A sobre B considerando TODOS os impulsos possíveis
+    // (aceita números simples para compatibilidade: tratados como 1 batida 0–3)
+    clashOdds(a, b) {
+      const norm = x => typeof x === 'number' ? { base: x, beats: 1, imp: CONFIG.clash.rollMax } : x;
+      const da = this.forceDist(norm(a)), db = this.forceDist(norm(b));
+      let win = 0, tie = 0;
+      for (const [va, pa] of da) for (const [vb, pb] of db) { if (va > vb) win += pa * pb; else if (va === vb) tie += pa * pb; }
+      return { win, tie, lose: Math.max(0, 1 - win - tie) };
+    }
+    range(side) { return [side.base, side.base + side.beats * side.imp]; }
+    category(p, odds) {
       const c = CONFIG.clash;
+      if (odds && odds.win >= 0.9999) return 'certain';
+      if (odds && odds.lose >= 0.9999) return 'doomed';
       return p >= c.favorable ? 'favorable' : p < c.unfavorable ? 'unfavorable' : 'even';
     }
     // Simula só a parte determinística (modificadores na ordem certa) para a prévia.
@@ -830,14 +857,14 @@ body.resolving #panel { opacity:.6; }
         const sk = SKILLS[act.skillId], m = mods[act.actorId];
         let f = sk.force + (m.weaken ? -CONFIG.weaken.amount : 0) + (m.support ? CONFIG.support.amount : 0);
         m.support = false;
-        return f;
+        return Object.assign({ base: f }, this.cadence(sk));
       };
       const out = [];
       for (const ev of plan.order) {
         if (ev.type === 'clash') {
-          const fa = force(ev.a), fb = force(ev.b);
-          const odds = this.clashOdds(fa, fb);
-          out.push({ ...ev, fa, fb, odds, cat: this.category(odds.win) });
+          const sa = force(ev.a), sb = force(ev.b);
+          const odds = this.clashOdds(sa, sb);
+          out.push({ ...ev, fa: sa.base, fb: sb.base, sa, sb, odds, cat: this.category(odds.win, odds) });
           // um efeito que só acontece se o Clash for vencido não é contado como certo
         } else if (ev.type === 'support') {
           mods[ev.a.targetId].support = true; out.push(ev);
@@ -935,17 +962,28 @@ body.resolving #panel { opacity:.6; }
         return out.filter(Boolean);
       }
       const skA = SKILLS[ev.a.skillId], skB = SKILLS[ev.b.skillId];
+      // CLASH EM BATIDAS: cada batida sorteia um impulso (uma vez) e soma ao acumulado.
+      // Quem tem menos batidas mantém o valor nas seguintes. O registro completo vai para a apresentação.
       const side = (u, act, sk) => {
-        const mod = this.forceMods(u, true);
-        const roll = this._roll();
-        return { actorId: u.id, skillId: act.skillId, partners: act.partners || [], base: sk.force, mod, roll, total: sk.force + mod + roll };
+        const mod = this.forceMods(u, true), cad = this.cadence(sk);
+        return { actorId: u.id, skillId: act.skillId, partners: act.partners || [], base: sk.force, mod, roll: 0,
+          total: sk.force + mod, beats: cad.beats, imp: cad.imp, start: sk.force + mod, steps: [] };
       };
       const sa = side(A, ev.a, skA), sb = side(B, ev.b, skB);
+      const nBeats = Math.max(sa.beats, sb.beats), beatLog = [];
+      for (let i = 0; i < nBeats; i++) {
+        for (const sd of [sa, sb]) {
+          const imp = i < sd.beats ? Math.floor(this.rand() * (sd.imp + 1)) : null; // null = sem batida própria (sustenta)
+          if (imp != null) { sd.total += imp; sd.roll += imp; }
+          sd.steps.push({ imp, total: sd.total });
+        }
+        beatLog.push({ a: sa.total, b: sb.total, lead: sa.total > sb.total ? 'a' : sb.total > sa.total ? 'b' : null });
+      }
       // a: sempre o aliado quando há um (para a apresentação ser previsível)
       const intercept = ev.link.type === 'intercept';
       const enemyAct = A.side === 'enemy' ? ev.a : ev.b;
       const res = { type: 'clash', a: sa, b: sb, intercept, originalTargetId: intercept ? enemyAct.targetId : null,
-        winner: null, hit: null };
+        winner: null, hit: null, beats: beatLog };
       res.close = Math.abs(sa.total - sb.total) <= CONFIG.clash.closeMargin;
       if (sa.total !== sb.total) {
         const [W, L, wAct] = sa.total > sb.total ? [A, B, ev.a] : [B, A, ev.b];
@@ -955,7 +993,7 @@ body.resolving #panel { opacity:.6; }
         res.posture = L.hp > 0 ? this.applyPressure(L, SKILLS[wAct.skillId].pressure) : null;
       }
       this._acted(ev.a); this._acted(ev.b);
-      if (A.side === 'enemy') { const t = res.a; res.a = res.b; res.b = t; } // a = aliado
+      if (A.side === 'enemy') { const t = res.a; res.a = res.b; res.b = t; res.beats = beatLog.map(x => ({ a: x.b, b: x.a, lead: x.lead === 'a' ? 'b' : x.lead === 'b' ? 'a' : null })); } // a = aliado
       res.decisive = !!(res.hit && res.hit.killed);
       res.after = this.snapshot();
       return [res];
@@ -1241,7 +1279,7 @@ body.resolving #panel { opacity:.6; }
       this.banner = null; this.caption = null; this.screenFlash = 0;
       this.cam = { x: W / 2, y: H / 2, z: 1 }; this.camT = { x: W / 2, y: H / 2, z: 1 }; this.viewCY = H / 2;
       this.shake = 0; this.spot = null; this.time = 0;
-      this.threatened = null; this.nums = []; this.xfx = []; this.showLabels = true; this.highlight = null;
+      this.threatened = null; this.nums = []; this.plates = []; this.showLabels = true; this.highlight = null;
       this.bg = this._buildBackground();
       this.fog = Array.from({ length: 20 }, (_, i) => ({ x: Math.random() * (W + BG_M.x * 2) - BG_M.x, y: GROUND - 40 + Math.random() * 120, r: 80 + Math.random() * 120, v: 0.004 + Math.random() * 0.01 }));
       this._last = performance.now();
@@ -1303,7 +1341,7 @@ body.resolving #panel { opacity:.6; }
       for (const tw of this.tweens) { Object.assign(tw.obj, tw.to); tw.res(); }
       for (const w of this.waits) w.res();
       this.tweens = []; this.waits = [];
-      this.particles = []; this.texts = []; this.fx = []; this.banner = null; this.nums = []; this.xfx = [];
+      this.particles = []; this.texts = []; this.fx = []; this.banner = null; this.nums = []; this.plates = [];
       this.slow = 1; this.freeze = 0;
     }
 
@@ -2144,88 +2182,107 @@ body.resolving #panel { opacity:.6; }
       return lv;
     }
 
-    // ============================================================ CLASH: RAIOS EM X
-    // Só APRESENTA o resultado já calculado pela lógica. Curto (~0,75 s) e legível:
-    // raio 1 = lado esquerdo (base + bônus), raio 2 cruza = lado direito; no centro, o valor vencedor.
-    async _clashX(ev, A, B, cx, cy, skA, skB, together) {
-      // o X fica sempre inteiro na tela (mesmo com o Clash na borda da arena)
-      { const half = (skA.tags.includes('ranged') || skB.tags.includes('ranged') ? 190 : 230) / 2 * 0.75 + 60;
-        const tl = this.toWorld(0, 0), br = this.toWorld(this.canvas.clientWidth, this.canvas.clientHeight);
-        cx = clamp(cx, tl.x + half, br.x - half); cy = clamp(cy, tl.y + half + 20, br.y - half); }
+    // ============================================================ CLASH EM BATIDAS
+    // Só REPRODUZ o registro da lógica (ev.a.steps / ev.b.steps / ev.beats): nada é sorteado aqui.
+    // Placas de força acompanham o confronto; cada batida é um choque físico com som e número.
+    async _clashBeats(ev, A, B, P, hy, skA, skB) {
       const left = A.x <= B.x;
-      const L = left ? { s: ev.a, v: A } : { s: ev.b, v: B }, Rr = left ? { s: ev.b, v: B } : { s: ev.a, v: A };
-      const magic = skA.tags.includes('magic') || skB.tags.includes('magic');
-      const ranged = !magic && (skA.tags.includes('ranged') || skB.tags.includes('ranged'));
-      const crit = !!(ev.hit && ev.hit.crit);
-      const sideCol = v => v.side === 'ally' ? '#8fd3ff' : '#ff8a7a';
-      const lab = s => `${s.base}${s.mod ? (s.mod > 0 ? '+' + s.mod : '−' + -s.mod) : ''} +${s.roll}`;
-      const jag = n => Array.from({ length: n + 1 }, (_, i) => (i === 0 || i === n) ? 0 : (Math.random() - 0.5) * (magic ? 10 : 18));
-      const win = ev.winner ? (ev.winner === L.v.id ? 'L' : 'R') : null;
-      const X = { cx, cy, len: ranged ? 190 : 230, b1: 0, b2: 0, cs: 0.3, a: 1, crit, magic, ranged,
-        j1: jag(9), j2: jag(9), colL: sideCol(L.v), colR: sideCol(Rr.v), labL: lab(L.s), labR: lab(Rr.s),
-        totL: L.s.total, totR: Rr.s.total, win, center: 0 };
-      if (this.skipping) return X;
-      this.xfx.push(X);
-      SFX('zap');
-      await this.tween(X, { b1: 1 }, 110, 'out');              // 1º raio
-      await this.wait(60);
-      SFX('zapCross', { vol: ev.close ? 1 : 0.85 });
-      await this.tween(X, { b2: 1 }, 110, 'out');              // 2º raio cruza: forma o X
-      this.hitStop(60);
-      this.flashAt(cx, cy, crit ? '#ffcf6a' : '#fff2c0', 70);
-      this.sparks(cx, cy, crit ? '#ffcf6a' : '#fff2c0', 12, 0.45);
-      SFX('clashDecide');
-      X.center = 1;
-      await this.tween(X, { cs: 1 }, 170, 'back');             // valor decisivo no centro
-      await together;
-      await this.wait(ev.close ? 260 : 170);
-      return X;
+      const mk = (sd, v) => ({ side: v.side, name: v.name, val: sd.start, disp: sd.start, imp: null, impA: 0, impY: 0, lead: 0, win: 0, a: 0, s: 0.6, hold: false, flash: 0 });
+      const pa = mk(ev.a, A), pb = mk(ev.b, B);
+      const PL = left ? pa : pb, PR = left ? pb : pa;
+      // posição: perto do centro do confronto, sempre dentro da tela
+      const tl = this.toWorld(0, 0), br = this.toWorld(this.canvas.clientWidth, this.canvas.clientHeight);
+      const cx = clamp(P.x, tl.x + 130, br.x - 130), cy = clamp(hy - 78, tl.y + 70, br.y - 120);
+      PL.x = cx - 74; PR.x = cx + 74; PL.y = PR.y = cy;
+      const plates = [pa, pb];
+      if (!this.skipping) this.plates.push(...plates);
+      const unarmed = [skA, skB].some(sk => (sk.hits || []).some(h => /punch|upper/.test(h.motion)));
+      const magic = [skA, skB].some(sk => sk.tags.includes('magic') || sk.tags.includes('ranged'));
+      const beatSfx = i => magic ? 'beatMagic' : unarmed ? 'beatThud' : (i % 2 ? 'beatClang' : 'beatTin');
+      SFX('clashTense', { vol: 0.7 });
+      await Promise.all(plates.map(p => this.tween(p, { a: 1, s: 1 }, 120, 'back')));   // ~0,15 s de preparação
+      const dirOf = v => (v === A ? (B.x >= A.x ? 1 : -1) : (A.x >= B.x ? 1 : -1));
+      let lastLead = null;
+      for (let i = 0; i < ev.beats.length; i++) {
+        const last = i === ev.beats.length - 1, bt = ev.beats[i];
+        const sa = ev.a.steps[i], sb = ev.b.steps[i];
+        // 1. puxa / sustenta (quem esgotou as batidas segura a guarda — não fica parado à toa)
+        const moves = [];
+        for (const [v, st] of [[A, sa], [B, sb]]) {
+          const d = dirOf(v);
+          if (st.imp == null) { moves.push(this.tween(v, { crouch: 0.12, guard: 0.8, lean: 0.12 }, 80, 'out')); }
+          else moves.push(this.tween(v, { lean: -0.16, arm: i % 2 ? 0.2 : -1.2, x: v.x - d * 8 }, 75, 'out'));
+        }
+        await Promise.all(moves);
+        // 2. golpe e contato (no instante do choque: som, faísca, micro pausa)
+        for (const [v, st] of [[A, sa], [B, sb]]) { if (st.imp != null) { const d = dirOf(v); this.tween(v, { lean: 0.28, arm: i % 2 ? -0.9 : 1.2, x: v.x + d * 14 }, 60, 'in'); } }
+        await this.wait(55);
+        SFX(beatSfx(i), { vol: last ? 1 : 0.8, pitch: 1 + i * 0.06 });
+        this.hitStop(last ? 55 : 30);
+        if (magic) this.addFx({ kind: 'ring', dur: 260, x: P.x, y: hy, color: '#c8a0ff', r: 34 + i * 8 });
+        else this.addFx({ kind: 'star', dur: 220, x: P.x, y: hy - i * 6, color: '#fff2a8' });
+        this.sparks(P.x, hy, magic ? '#c8a0ff' : '#ffe28a', 8 + i * 3, 0.45);
+        this.hurtShake(last ? 4 : 2, 0);
+        // 3. impulso aparece pequeno e é "absorvido" pelo número principal
+        const upd = [];
+        for (const [pl, st] of [[pa, sa], [pb, sb]]) {
+          pl.hold = st.imp == null;
+          if (st.imp == null) continue;
+          pl.imp = `+${st.imp}`; pl.impA = 1; pl.impY = 0;
+          upd.push(this.tween(pl, { impY: 1 }, 110, 'out').then(() => { pl.impA = 0; pl.val = st.total; return this.tween(pl, { disp: st.total }, 90, 'out'); }));
+        }
+        await this.wait(70);
+        SFX('tick', { vol: 0.6, pitch: 1 + i * 0.08 });
+        await Promise.all(upd);
+        // 4. domínio parcial: quem lidera empurra, o outro perde terreno (sem dano nem Postura)
+        const lead = bt.lead;
+        pa.lead = lead === 'a' ? 1 : 0; pb.lead = lead === 'b' ? 1 : 0;
+        if (lead && lastLead && lead !== lastLead) { SFX('leadSwap', { vol: 0.7 }); (lead === 'a' ? pa : pb).flash = 1; }
+        lastLead = lead || lastLead;
+        if (lead) {
+          const W = lead === 'a' ? A : B, Lz = lead === 'a' ? B : A, d = dirOf(W);
+          this.tween(W, { x: W.x + d * 10, lean: 0.32 }, 90, 'out');
+          this.tween(Lz, { x: clamp(Lz.x + d * 14, ARENA.minX, ARENA.maxX), lean: -0.2 }, 90, 'out');
+        } else { this.tween(A, { lean: 0.22 }, 80); this.tween(B, { lean: 0.22 }, 80); } // armas travadas
+        await this.wait(last ? 120 : 70);
+      }
+      // conclusão: valor final decide (maior soma acumulada)
+      SFX('clashFinal', { vol: ev.close ? 1 : 0.85 });
+      this.flashAt(P.x, hy, '#fff2c0', 70);
+      if (ev.winner) {
+        const pw = ev.winner === A.id ? pa : pb, pl = pw === pa ? pb : pa;
+        pw.win = 1; pl.win = -1;
+        this.tween(pw, { s: 1.25 }, 140, 'back');
+        this.tween(pl, { s: 0.85 }, 140, 'out');
+      } else { pa.win = pb.win = 2; }
+      await this.wait(ev.winner ? 160 : 220);
+      return plates;
     }
-    _drawX(ctx, X) {
-      if (X.a <= 0.01) return;
-      const d = X.len / 2, k = this.pxPerWorld || 1;
-      ctx.save(); ctx.globalAlpha = X.a; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      const bolt = (dir, prog, jg, col) => {
-        // dir: +1 = ↘ (do canto superior esquerdo), −1 = ↙ (do superior direito)
-        const x0 = X.cx - dir * d * 0.75, y0 = X.cy - d * 0.75, x1 = X.cx + dir * d * 0.75, y1 = X.cy + d * 0.75;
-        const nx = -(y1 - y0), ny = x1 - x0, nl = Math.hypot(nx, ny), n = jg.length - 1;
-        const pts = jg.map((o, i) => ({ x: x0 + (x1 - x0) * i / n + nx / nl * o, y: y0 + (y1 - y0) * i / n + ny / nl * o }));
-        const m = Math.max(1, Math.ceil(prog * n));
-        const path = () => { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i <= m; i++) { const f = i === m ? (prog * n - (m - 1)) : 1; ctx.lineTo(pts[i - 1].x + (pts[i].x - pts[i - 1].x) * f, pts[i - 1].y + (pts[i].y - pts[i - 1].y) * f); } };
-        ctx.shadowColor = X.crit ? '#ffcf6a' : X.magic ? '#c8a0ff' : col; ctx.shadowBlur = X.crit ? 22 : 14;
-        ctx.strokeStyle = col; ctx.lineWidth = X.ranged ? 6 : 9; path(); ctx.stroke();
-        ctx.shadowBlur = 0; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = X.ranged ? 2 : 3; path(); ctx.stroke();
-        return pts;
-      };
-      const p1 = X.b1 > 0 ? bolt(1, X.b1, X.j1, X.colL) : null;
-      const p2 = X.b2 > 0 ? bolt(-1, X.b2, X.j2, X.colR) : null;
-      // valores de cada lado, na ponta superior de cada raio
-      const pill = (x, y, text, col, dim) => {
-        ctx.font = '800 17px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
-        const w = ctx.measureText(text).width + 16;
-        ctx.globalAlpha = X.a * (dim ? 0.45 : 1);
-        ctx.fillStyle = 'rgba(10,6,14,0.88)'; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 14, w, 24, 8); ctx.fill();
-        ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke();
-        ctx.fillStyle = col; ctx.fillText(text, x, y + 4);
-        ctx.globalAlpha = X.a;
-      };
-      const loserDim = s => X.center && X.win && X.win !== s;
-      if (p1 && X.labL) pill(p1[0].x - 8, p1[0].y - 14, X.labL, X.colL, loserDim('L'));
-      if (p2 && X.labR) pill(p2[0].x + 8, p2[0].y - 14, X.labR, X.colR, loserDim('R'));
-      // centro do X: valor que decidiu (vencedor em destaque, perdedor discreto)
-      if (X.center) {
-        ctx.translate(X.cx, X.cy); ctx.scale(X.cs, X.cs);
-        const col = X.win === 'L' ? X.colL : X.win === 'R' ? X.colR : '#e8dccb';
-        ctx.fillStyle = 'rgba(10,6,14,0.9)'; ctx.beginPath(); ctx.arc(0, 0, 34, 0, 7); ctx.fill();
-        ctx.strokeStyle = X.crit ? '#ffcf6a' : col; ctx.lineWidth = 3; ctx.stroke();
-        ctx.textAlign = 'center';
-        if (X.win) {
-          const big = X.win === 'L' ? X.totL : X.totR, small = X.win === 'L' ? X.totR : X.totL;
-          ctx.font = '900 34px "Trebuchet MS", sans-serif'; ctx.fillStyle = X.crit ? '#ffcf6a' : '#ffe9b0'; ctx.fillText(String(big), 0, 11);
-          ctx.font = '700 12px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#b8a8a0'; ctx.fillText(`vs ${small}`, 0, 50);
-        } else { ctx.font = '900 22px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#e8dccb'; ctx.fillText(`${X.totL}=${X.totR}`, 0, 8); ctx.font = '700 12px "Trebuchet MS", sans-serif'; ctx.fillText('EMPATE', 0, 50); }
+    _drawPlate(ctx, p) {
+      if (p.a <= 0.01) return;
+      ctx.save(); ctx.globalAlpha = p.a * (p.win === -1 ? 0.55 : 1);
+      ctx.translate(p.x, p.y); ctx.scale(p.s, p.s);
+      const col = p.win === 1 ? '#ffd36a' : p.win === 2 ? '#c8c0b8' : p.side === 'ally' ? '#8fd3ff' : '#ff8a7a';
+      // placa de metal escuro com rebites
+      const g = ctx.createLinearGradient(0, -24, 0, 24); g.addColorStop(0, '#2c2530'); g.addColorStop(1, '#141017');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(-34, -24, 68, 48, 9); ctx.fill();
+      ctx.lineWidth = p.lead || p.win === 1 ? 3 : 1.6; ctx.strokeStyle = col;
+      if (p.lead || p.win === 1 || p.flash > 0.05) { ctx.shadowColor = col; ctx.shadowBlur = 10 + p.flash * 14; }
+      ctx.stroke(); ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.25)'; for (const [rx, ry] of [[-28, -18], [28, -18], [-28, 18], [28, 18]]) { ctx.beginPath(); ctx.arc(rx, ry, 1.6, 0, 7); ctx.fill(); }
+      ctx.textAlign = 'center';
+      ctx.font = '700 9px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#b8a8a0'; ctx.fillText(p.name.toUpperCase(), 0, -30);
+      ctx.font = '900 28px "Trebuchet MS", sans-serif'; ctx.fillStyle = p.win === 1 ? '#ffe9b0' : '#fff1d0';
+      ctx.fillText(String(Math.round(p.disp)), 0, 10);
+      if (p.hold && !p.win) { ctx.font = '700 9px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#9fb0c0'; ctx.fillText('SEGURA', 0, 36); }
+      if (p.win === 2) { ctx.font = '800 10px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#e8dccb'; ctx.fillText('EMPATE', 0, 36); }
+      // impulso: pequeno, sobe da lateral e entra no número
+      if (p.impA > 0.01 && p.imp) {
+        ctx.globalAlpha = p.a * p.impA; ctx.font = '800 15px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#9fe8a8';
+        ctx.fillText(p.imp, 24 - p.impY * 18, -10 + p.impY * 8);
       }
       ctx.restore();
+      p.flash = Math.max(0, p.flash - 0.04);
     }
 
     // ------------------------------------------------------------ CLASH
@@ -2262,7 +2319,7 @@ body.resolving #panel { opacity:.6; }
       if (T) {
         if (!magB) { this.setState(B, 'APPROACHING'); B.dashing = true; this.tween(B, { x: lerp(B.x, P.x, 0.45) }, 260, 'in'); }
         await this.wait(190);
-        this.showBanner('INTERCEPTAÇÃO!', '#7fc4ff', 900, `${A.name} entra na frente de ${T.name}`);
+        this.showBanner('INTERCEPTAÇÃO!', '#7fc4ff', 560, `${A.name} entra na frente de ${T.name}`);
         this.slowMo(0.5, 420);
       } else await this.wait(230);
 
@@ -2291,34 +2348,16 @@ body.resolving #panel { opacity:.6; }
       for (const v of [A, B]) this.setState(v, 'CLASHING');
       this.focusOn([A, B], 0.1);
 
-      // 5. choque das armas + resistência (mais longa se for equilibrado)
+      // 5–6. batidas do Clash (choques sucessivos, força acumulada, sons sincronizados)
       const hy = P.y - (variant === 0 ? 95 : variant === 1 ? 55 : 75);
-      this.hitStop(ev.close ? 150 : 90);
-      this.addFx({ kind: 'star', dur: 380, x: P.x, y: hy, color: '#fff2a8' });
-      this.sparks(P.x, hy, '#ffe28a', ev.close ? 28 : 16, 0.6);
-      this.hurtShake(ev.close ? 7 : 4);
-      SFX('clash', { vol: ev.close ? 1 : 0.8 });
-      this.flashAt(P.x, hy, '#fff2a8', 80);
-      if (ev.close) this.slowMo(0.5, 650);
-      const struggle = ev.close ? 520 : 260;
-      const t0 = this.time;
-      const jitter = async () => {
-        for (let i = 0; i < 6 && !this.skipping; i++) {
-          const s = i % 2 ? 1 : -1;
-          await Promise.all([this.tween(A, { lean: 0.25 + 0.06 * s }, struggle / 6), this.tween(B, { lean: 0.25 - 0.06 * s }, struggle / 6)]);
-          if (i % 2) this.sparks(P.x, hy, '#ffe28a', 3, 0.3);
-        }
-      };
-      const jit = jitter();
-
-      // 6. resolução do Clash: dois raios em X (cada raio = um lado; o centro = valor decisivo)
-      const X = await this._clashX(ev, A, B, P.x, hy - 30, skA, skB, jit);
+      const plates = await this._clashBeats(ev, A, B, P, hy, skA, skB);
+      const fadePlates = (ms) => plates.forEach(p => this.tween(p, { a: 0 }, ms, 'in'));
 
       if (!ev.winner) {
         // empate: as forças se anulam e os dois são repelidos
         this.float(P.x, P.y - 240, 'EMPATE', '#e8dccb', 30);
         SFX('block');
-        this.tween(X, { a: 0 }, 300);
+        fadePlates(320);
         this.sparks(P.x, hy, '#ffe28a', 14, 0.5);
         this.react(A, 'medium', A.x < P.x ? -1 : 1);
         this.react(B, 'medium', B.x < P.x ? -1 : 1);
@@ -2330,7 +2369,7 @@ body.resolving #panel { opacity:.6; }
         pL.forEach(p => this.react(p, 'light', p.x < P.x ? -1 : 1)); // a combinação perdida é interrompida
         const dirL = L.x >= W.x ? 1 : -1;
         SFX(W.side === 'ally' ? 'clashWin' : 'clashLose', { vol: 0.6 });
-        this.tween(X, { a: 0 }, 420, 'in'); // o X sai enquanto o vencedor parte para o golpe
+        fadePlates(420); // as placas saem enquanto o vencedor parte para o golpe
         // 7. intensidade visual pela margem (não muda o dano)
         if (margin <= 2) {
           // por pouco: o vencedor empurra a guarda devagar
@@ -2353,7 +2392,7 @@ body.resolving #panel { opacity:.6; }
         if (h.killed || lv === 'extreme') await this._decisive(L, h.killed);
         await this.wait(lv === 'light' ? 220 : 320);
       }
-      this.xfx = this.xfx.filter(x => x !== X);
+      this.plates = this.plates.filter(p => !plates.includes(p));
       this.caption = null;
     }
 
@@ -2490,8 +2529,6 @@ body.resolving #panel { opacity:.6; }
           // aparo: personagens ficam próximos no choque
           this.tween(D, { arm: 1.1 }, 60, 'in');
           SFX('parry');
-          { const X = { cx: hx, cy: hy, len: 170, b1: 1, b2: 1, cs: 1, a: 1, crit: false, magic: false, ranged: false, j1: [0, 6, -8, 5, 0], j2: [0, -6, 7, -4, 0], colL: '#fff2a8', colR: '#fff2a8', labL: '', labR: '', center: 0 };
-            if (!this.skipping) { this.xfx.push(X); this.tween(X, { a: 0 }, 520, 'in').then(() => { this.xfx = this.xfx.filter(x => x !== X); }); } }
           this.hitStop(120);
           this.addFx({ kind: 'star', dur: 420, x: hx, y: hy, color: '#fff2a8' });
           this.sparks(hx, hy, '#ffe28a', 26, 0.7);
@@ -2653,7 +2690,7 @@ body.resolving #panel { opacity:.6; }
       for (const v of list) this._drawHud(ctx, v);
       if (this.ui) this.ui.drawOver(ctx);
       this._drawNums(ctx);
-      for (const X of this.xfx) this._drawX(ctx, X);
+      for (const pl of this.plates) this._drawPlate(ctx, pl);
       for (const p of this.particles) {
         ctx.globalAlpha = clamp(p.life / 300, 0, 1);
         ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
@@ -3193,8 +3230,8 @@ body.resolving #panel { opacity:.6; }
     combo:   { color: '#e8c060', dark: '#4a3810', link: 'double', label: 'Ataque combinado' },
   };
   const styleOf = sk => sk.combo ? 'combo' : sk.kind;
-  const CAT_COLOR = { favorable: '#6fd890', even: '#ffd36a', unfavorable: '#ff7a6a' };
-  const CAT_NAME = { favorable: 'Favorável', even: 'Equilibrado', unfavorable: 'Desfavorável' };
+  const CAT_COLOR = { favorable: '#6fd890', even: '#ffd36a', unfavorable: '#ff7a6a', certain: '#7fffb0', doomed: '#ff5050' };
+  const CAT_NAME = { favorable: 'Favorável', even: 'Equilibrado', unfavorable: 'Desfavorável', certain: 'Vitória garantida', doomed: 'Derrota garantida' };
 
   class Planner {
     // cb: { battle(), choices(), plan(), preview(), commit(uid, skillId, targetId), cancel(uid), toggleIntercept(uid) }
@@ -3494,14 +3531,16 @@ body.resolving #panel { opacity:.6; }
       if (ev && sk.combo) lines.push({ t: `Custa a ação de ${sk.members.map(m => b.unit(m).name).join(' e ')}`, c: KIND_STYLE.combo.color });
       if (ev) {
         const meFirst = ev.a.id === me.id, other = meFirst ? ev.b : ev.a;
-        const fMe = meFirst ? ev.fa : ev.fb, fOt = meFirst ? ev.fb : ev.fa;
+        const sMe = meFirst ? ev.sa : ev.sb, sOt = meFirst ? ev.sb : ev.sa;
         const p = meFirst ? ev.odds.win : ev.odds.lose;
-        const cat = b.category(p);
+        const myOdds = meFirst ? ev.odds : { win: ev.odds.lose, tie: ev.odds.tie, lose: ev.odds.win };
+        const cat = b.category(p, myOdds);
+        const cad = sd => { const [lo, hi] = b.range(sd); return `${sd.base} · ${sd.beats} batida${sd.beats > 1 ? 's' : ''} (+0–${sd.imp}) → ${lo}–${hi}`; };
         lines.push({ t: ev.link.type === 'intercept' ? `⚔ INTERCEPTAÇÃO (protege ${b.unit(this.battle.intents.find(i => i.id === other.id).targetId).name})` : '⚔ CLASH', c: '#ffe9b0' });
         const who = act => [act.actorId, ...(act.partners || [])].map(id => b.unit(id).name).join(' + ');
-        lines.push({ t: `${who(me)} — ${sk.name}   F ${fMe} + 0–3`, c: '#9fd8ff' });
-        lines.push({ t: `${who(other)} — ${SKILLS[other.skillId].name}   F ${fOt} + 0–3`, c: '#ff9a8a' });
-        lines.push({ t: `Previsão: ${CAT_NAME[cat]}  (vence ${Math.round(p * 100)}%, empata ${Math.round(ev.odds.tie * 100)}%)`, c: CAT_COLOR[cat] });
+        lines.push({ t: `${who(me)} — ${sk.name}:  ${cad(sMe)}`, c: '#9fd8ff' });
+        lines.push({ t: `${who(other)} — ${SKILLS[other.skillId].name}:  ${cad(sOt)}`, c: '#ff9a8a' });
+        lines.push({ t: `Previsão: ${CAT_NAME[cat]}  (vence ${Math.round(myOdds.win * 100)}% · empata ${Math.round(myOdds.tie * 100)}% · perde ${Math.round(myOdds.lose * 100)}%)`, c: CAT_COLOR[cat] });
         { const el = this.elemLine(b.unit(me.actorId), b.unit(other.actorId)); if (el) lines.push(el); }
         // Postura: o que acontece com o alvo SE vencer (e o risco para mim se perder)
         const foeU = b.unit(other.actorId), meU = b.unit(me.actorId);
@@ -3534,7 +3573,7 @@ body.resolving #panel { opacity:.6; }
       const E = G.ELEMENTS[A.def.element], rel = b.elementRel(A, T);
       const lines = [{ t: `${who} — ${sk.name}${sk.combo ? '  ⚔ COMBO' : ''}`, c: '#ff9a8a' },
         { t: `${type} · alvo: ${T.name}`, c: '#cbbfb0' },
-        { t: `Força ${sk.force} + 0–3 · Dano ${sk.dmg} · Pressão ${sk.pressure || 0}`, c: '#e8dccb' },
+        { t: `Força ${sk.force} · ${sk.beats || 1} batida(s) +0–${sk.impulse != null ? sk.impulse : 3} · Dano ${sk.dmg} · Pressão ${sk.pressure || 0}`, c: '#e8dccb' },
         { t: `Elemento: ${E.name}` + (rel > 0 ? '  ▲ vantagem sobre ' + T.name + ' (+20% dano)' : rel < 0 ? '  ▼ desvantagem contra ' + T.name + ' (−20% dano)' : ''), c: rel > 0 ? '#ff9a8a' : rel < 0 ? '#9fe0a0' : E.color }];
       return lines;
     }
@@ -3803,7 +3842,7 @@ body.resolving #panel { opacity:.6; }
           if (link || info) {
             const ev = link && preview.find(e => e.type === 'clash' && (e.a.id === a.id || e.b.id === a.id));
             let col = '#888', label = '';
-            if (ev) { const p = ev.a.id === a.id ? ev.odds.win : ev.odds.lose; const cat = b.category(p); col = CAT_COLOR[cat]; label = CAT_NAME[cat]; }
+            if (ev) { const mine = ev.a.id === a.id, o = mine ? ev.odds : { win: ev.odds.lose, tie: ev.odds.tie, lose: ev.odds.win }; const cat = b.category(o.win, o); col = CAT_COLOR[cat]; label = CAT_NAME[cat]; }
             const q = this._at(a._cv, 0.5);
             const toggle = !!(info && info.valid && (!link || link.type === 'intercept'));
             this._disk(ctx, q.x, q.y, 14 / k, '#140c14', col, link ? (link.type === 'intercept' ? 'protect' : 'clash') : 'clash', !!link);
@@ -3883,7 +3922,7 @@ body.resolving #panel { opacity:.6; }
         if (hi && !hi.cancel && hi.skillId && this.sel) {
           const sk = SKILLS[hi.skillId], u = b.unit(sk.combo ? sk.members[0] : this.sel.uid);
           const lines = [{ t: sk.name + (sk.hits ? `  ·  ${sk.hits.length} golpes` : ''), c: '#ffe9b0' },
-            sk.kind === 'attack' ? { t: `Força ${sk.force} · Dano ${sk.dmg} · Pressão ${sk.pressure || 0} · Vel ${b.actionSpeed(u, sk)}`, c: '#e8dccb' } : { t: KIND_STYLE[sk.kind].label + (sk.kind === 'defense' ? ' · age antes de tudo' : ` · Vel ${b.actionSpeed(u, sk)}`), c: '#9fd0ff' },
+            sk.kind === 'attack' ? { t: `Força ${sk.force} · ${sk.beats || 1} batida(s) +0–${sk.impulse != null ? sk.impulse : 3} · Dano ${sk.dmg} · Pressão ${sk.pressure || 0} · Vel ${b.actionSpeed(u, sk)}`, c: '#e8dccb' } : { t: KIND_STYLE[sk.kind].label + (sk.kind === 'defense' ? ' · age antes de tudo' : ` · Vel ${b.actionSpeed(u, sk)}`), c: '#9fd0ff' },
             { t: sk.desc, c: '#bdb0a8', wrap: true }];
           if (sk.postureHeal) lines.push({ t: `Recupera ${sk.postureHeal} de Postura`, c: '#ffd36a' });
           { const E = G.ELEMENTS[u.def.element]; if (E && sk.kind === 'attack') lines.push({ t: `Elemento ${E.name}: forte contra ${G.ELEMENTS[E.beats].name}`, c: E.color }); }
@@ -4112,7 +4151,7 @@ body.resolving #panel { opacity:.6; }
   'use strict';
   const { SKILLS } = G;
   const $ = sel => document.querySelector(sel);
-  const CAT = { favorable: ['Favorável', '#6fd890'], even: ['Equilibrado', '#ffd36a'], unfavorable: ['Desfavorável', '#ff7a6a'] };
+  const CAT = { favorable: ['Favorável', '#6fd890'], even: ['Equilibrado', '#ffd36a'], unfavorable: ['Desfavorável', '#ff7a6a'], certain: ['Vitória garantida', '#7fffb0'], doomed: ['Derrota garantida', '#ff5050'] };
 
   const UI = {
     CAT,
@@ -4135,7 +4174,8 @@ body.resolving #panel { opacity:.6; }
         else if (ev.type === 'support') { cls = 'o-sup'; txt = `${n(ev.a.actorId)} ✚ ${n(ev.a.targetId)}`; }
         else if (ev.type === 'clash') {
           const ally = ev.a.side === 'ally' ? ev.a : ev.b, foe = ally === ev.a ? ev.b : ev.a;
-          const c = CAT[battle.category(ally === ev.a ? ev.odds.win : ev.odds.lose)];
+          const o = ally === ev.a ? ev.odds : { win: ev.odds.lose, tie: ev.odds.tie, lose: ev.odds.win };
+          const c = CAT[battle.category(o.win, o)];
           cls = 'o-clash'; txt = `⚔ ${who(ally)} × ${who(foe)} <b style="color:${c[1]}">${c[0]}</b>`;
         } else {
           const a = ev.a, sk = SKILLS[a.skillId];
@@ -4196,7 +4236,7 @@ body.resolving #panel { opacity:.6; }
           <section class="blk attrs">
             <div class="tile"><i>Vida</i><b>${f.hp}</b></div><div class="tile"><i>Postura</i><b>${f.posture}</b></div><div class="tile"><i>Velocidade</i><b>${f.spd}</b></div>
             <div class="tile wide"><i>Ataque</i><span>${f.offense || ''}</span></div><div class="tile wide"><i>Defesa</i><span>${f.defense || ''}</span></div></section>
-          <section class="blk skills"><div class="sh">Habilidades</div><div class="skgrid">${sks.map(([k, sk]) => `<button class="skbtn${state.skill === k ? ' on' : ''}" data-skill="${k}"><canvas width="40" height="40" data-icon="${sk.icon}"></canvas><span>${sk.name}</span><small>${sk.kind === 'attack' ? `F${sk.force} · D${sk.dmg} · P${sk.pressure || 0}` : sk.kind === 'support' ? 'Suporte' : 'Defesa'}</small></button>`).join('')}</div></section>
+          <section class="blk skills"><div class="sh">Habilidades</div><div class="skgrid">${sks.map(([k, sk]) => `<button class="skbtn${state.skill === k ? ' on' : ''}" data-skill="${k}"><canvas width="40" height="40" data-icon="${sk.icon}"></canvas><span>${sk.name}</span><small>${sk.kind === 'attack' ? `F${sk.force}×${sk.beats || 1} · D${sk.dmg} · P${sk.pressure || 0}` : sk.kind === 'support' ? 'Suporte' : 'Defesa'}</small></button>`).join('')}</div></section>
           <section class="blk role"><div class="sh">Papel tático</div>
             <div class="rl"><b>Faz bem</b><span>${f.good || ''}</span></div><div class="rl"><b>Melhor contra</b><span>${f.bestVs || ''}</span></div><div class="rl"><b>Limitações</b><span>${f.limits || ''}</span></div></section>
         </div>`;
@@ -4212,7 +4252,7 @@ body.resolving #panel { opacity:.6; }
         const fx = [sk.applies === 'weaken' ? 'enfraquece' : '', sk.impact === 'knockdown' ? 'derruba' : sk.impact === 'stagger' ? 'desequilibra' : sk.impact === 'push' ? 'empurra' : '',
           sk.tags.includes('magic') ? 'magia' : sk.tags.includes('ranged') ? 'à distância' : '', sk.postureHeal ? `+${sk.postureHeal} Postura` : '', sk.cooldown ? `recarga ${sk.cooldown - 1}` : ''].filter(Boolean).join(' · ');
         sp.innerHTML = `<div class="spc" style="--acc:${f.accent}"><h3>${sk.name}</h3><p>${sk.desc}</p>
-          <div class="nums">${sk.kind === 'attack' ? `<span><i>Força</i>${sk.force}</span><span><i>Dano</i>${sk.dmg}</span><span><i>Pressão</i>${sk.pressure || 0}</span><span><i>Golpes</i>${(sk.hits || [1]).length}</span>` : `<span><i>Tipo</i>${sk.kind === 'support' ? 'Suporte' : 'Defesa'}</span>`}</div>
+          <div class="nums">${sk.kind === 'attack' ? `<span><i>Força</i>${sk.force}</span><span><i>Dano</i>${sk.dmg}</span><span><i>Pressão</i>${sk.pressure || 0}</span><span><i>Batidas</i>${sk.beats || 1}</span><span><i>Golpes</i>${(sk.hits || [1]).length}</span>` : `<span><i>Tipo</i>${sk.kind === 'support' ? 'Suporte' : 'Defesa'}</span>`}</div>
           ${fx ? `<div class="fx">${fx}</div>` : ''}<div id="pv-slot" class="pv-slot"></div></div>`;
         if (cb.preview) cb.preview.mount(sp.querySelector('#pv-slot'));
       } else sp.innerHTML = `<div class="spc empty"><p>Clique numa habilidade da ficha para ver a descrição completa e a prévia animada.</p></div>`;
@@ -4442,7 +4482,7 @@ body.resolving #panel { opacity:.6; }
     const it = b.intents.find(i => i.actorId === e.id || (i.partners || []).includes(e.id));
     if (it && SKILLS[it.skillId].kind === 'attack' && (it.targetId === u.id)) {
       // Clash direto: pesa a chance real de vencer
-      const odds = b.clashOdds(sk.force + b.forceMods(u, false), SKILLS[it.skillId].force + b.forceMods(e, false));
+      const odds = b.clashOdds(Object.assign({ base: sk.force + b.forceMods(u, false) }, b.cadence(sk)), Object.assign({ base: SKILLS[it.skillId].force + b.forceMods(e, false) }, b.cadence(SKILLS[it.skillId])));
       sc = sc * (0.3 + odds.win) + odds.win * 0.4;
     } else if (it && SKILLS[it.skillId].kind === 'defense') sc *= 0.55;                  // alvo vai se defender
     return sc + Math.random() * 0.08;

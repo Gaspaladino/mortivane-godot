@@ -88,7 +88,7 @@
       this.banner = null; this.caption = null; this.screenFlash = 0;
       this.cam = { x: W / 2, y: H / 2, z: 1 }; this.camT = { x: W / 2, y: H / 2, z: 1 }; this.viewCY = H / 2;
       this.shake = 0; this.spot = null; this.time = 0;
-      this.threatened = null; this.nums = []; this.xfx = []; this.showLabels = true; this.highlight = null;
+      this.threatened = null; this.nums = []; this.plates = []; this.showLabels = true; this.highlight = null;
       this.bg = this._buildBackground();
       this.fog = Array.from({ length: 20 }, (_, i) => ({ x: Math.random() * (W + BG_M.x * 2) - BG_M.x, y: GROUND - 40 + Math.random() * 120, r: 80 + Math.random() * 120, v: 0.004 + Math.random() * 0.01 }));
       this._last = performance.now();
@@ -150,7 +150,7 @@
       for (const tw of this.tweens) { Object.assign(tw.obj, tw.to); tw.res(); }
       for (const w of this.waits) w.res();
       this.tweens = []; this.waits = [];
-      this.particles = []; this.texts = []; this.fx = []; this.banner = null; this.nums = []; this.xfx = [];
+      this.particles = []; this.texts = []; this.fx = []; this.banner = null; this.nums = []; this.plates = [];
       this.slow = 1; this.freeze = 0;
     }
 
@@ -991,88 +991,107 @@
       return lv;
     }
 
-    // ============================================================ CLASH: RAIOS EM X
-    // Só APRESENTA o resultado já calculado pela lógica. Curto (~0,75 s) e legível:
-    // raio 1 = lado esquerdo (base + bônus), raio 2 cruza = lado direito; no centro, o valor vencedor.
-    async _clashX(ev, A, B, cx, cy, skA, skB, together) {
-      // o X fica sempre inteiro na tela (mesmo com o Clash na borda da arena)
-      { const half = (skA.tags.includes('ranged') || skB.tags.includes('ranged') ? 190 : 230) / 2 * 0.75 + 60;
-        const tl = this.toWorld(0, 0), br = this.toWorld(this.canvas.clientWidth, this.canvas.clientHeight);
-        cx = clamp(cx, tl.x + half, br.x - half); cy = clamp(cy, tl.y + half + 20, br.y - half); }
+    // ============================================================ CLASH EM BATIDAS
+    // Só REPRODUZ o registro da lógica (ev.a.steps / ev.b.steps / ev.beats): nada é sorteado aqui.
+    // Placas de força acompanham o confronto; cada batida é um choque físico com som e número.
+    async _clashBeats(ev, A, B, P, hy, skA, skB) {
       const left = A.x <= B.x;
-      const L = left ? { s: ev.a, v: A } : { s: ev.b, v: B }, Rr = left ? { s: ev.b, v: B } : { s: ev.a, v: A };
-      const magic = skA.tags.includes('magic') || skB.tags.includes('magic');
-      const ranged = !magic && (skA.tags.includes('ranged') || skB.tags.includes('ranged'));
-      const crit = !!(ev.hit && ev.hit.crit);
-      const sideCol = v => v.side === 'ally' ? '#8fd3ff' : '#ff8a7a';
-      const lab = s => `${s.base}${s.mod ? (s.mod > 0 ? '+' + s.mod : '−' + -s.mod) : ''} +${s.roll}`;
-      const jag = n => Array.from({ length: n + 1 }, (_, i) => (i === 0 || i === n) ? 0 : (Math.random() - 0.5) * (magic ? 10 : 18));
-      const win = ev.winner ? (ev.winner === L.v.id ? 'L' : 'R') : null;
-      const X = { cx, cy, len: ranged ? 190 : 230, b1: 0, b2: 0, cs: 0.3, a: 1, crit, magic, ranged,
-        j1: jag(9), j2: jag(9), colL: sideCol(L.v), colR: sideCol(Rr.v), labL: lab(L.s), labR: lab(Rr.s),
-        totL: L.s.total, totR: Rr.s.total, win, center: 0 };
-      if (this.skipping) return X;
-      this.xfx.push(X);
-      SFX('zap');
-      await this.tween(X, { b1: 1 }, 110, 'out');              // 1º raio
-      await this.wait(60);
-      SFX('zapCross', { vol: ev.close ? 1 : 0.85 });
-      await this.tween(X, { b2: 1 }, 110, 'out');              // 2º raio cruza: forma o X
-      this.hitStop(60);
-      this.flashAt(cx, cy, crit ? '#ffcf6a' : '#fff2c0', 70);
-      this.sparks(cx, cy, crit ? '#ffcf6a' : '#fff2c0', 12, 0.45);
-      SFX('clashDecide');
-      X.center = 1;
-      await this.tween(X, { cs: 1 }, 170, 'back');             // valor decisivo no centro
-      await together;
-      await this.wait(ev.close ? 260 : 170);
-      return X;
+      const mk = (sd, v) => ({ side: v.side, name: v.name, val: sd.start, disp: sd.start, imp: null, impA: 0, impY: 0, lead: 0, win: 0, a: 0, s: 0.6, hold: false, flash: 0 });
+      const pa = mk(ev.a, A), pb = mk(ev.b, B);
+      const PL = left ? pa : pb, PR = left ? pb : pa;
+      // posição: perto do centro do confronto, sempre dentro da tela
+      const tl = this.toWorld(0, 0), br = this.toWorld(this.canvas.clientWidth, this.canvas.clientHeight);
+      const cx = clamp(P.x, tl.x + 130, br.x - 130), cy = clamp(hy - 78, tl.y + 70, br.y - 120);
+      PL.x = cx - 74; PR.x = cx + 74; PL.y = PR.y = cy;
+      const plates = [pa, pb];
+      if (!this.skipping) this.plates.push(...plates);
+      const unarmed = [skA, skB].some(sk => (sk.hits || []).some(h => /punch|upper/.test(h.motion)));
+      const magic = [skA, skB].some(sk => sk.tags.includes('magic') || sk.tags.includes('ranged'));
+      const beatSfx = i => magic ? 'beatMagic' : unarmed ? 'beatThud' : (i % 2 ? 'beatClang' : 'beatTin');
+      SFX('clashTense', { vol: 0.7 });
+      await Promise.all(plates.map(p => this.tween(p, { a: 1, s: 1 }, 120, 'back')));   // ~0,15 s de preparação
+      const dirOf = v => (v === A ? (B.x >= A.x ? 1 : -1) : (A.x >= B.x ? 1 : -1));
+      let lastLead = null;
+      for (let i = 0; i < ev.beats.length; i++) {
+        const last = i === ev.beats.length - 1, bt = ev.beats[i];
+        const sa = ev.a.steps[i], sb = ev.b.steps[i];
+        // 1. puxa / sustenta (quem esgotou as batidas segura a guarda — não fica parado à toa)
+        const moves = [];
+        for (const [v, st] of [[A, sa], [B, sb]]) {
+          const d = dirOf(v);
+          if (st.imp == null) { moves.push(this.tween(v, { crouch: 0.12, guard: 0.8, lean: 0.12 }, 80, 'out')); }
+          else moves.push(this.tween(v, { lean: -0.16, arm: i % 2 ? 0.2 : -1.2, x: v.x - d * 8 }, 75, 'out'));
+        }
+        await Promise.all(moves);
+        // 2. golpe e contato (no instante do choque: som, faísca, micro pausa)
+        for (const [v, st] of [[A, sa], [B, sb]]) { if (st.imp != null) { const d = dirOf(v); this.tween(v, { lean: 0.28, arm: i % 2 ? -0.9 : 1.2, x: v.x + d * 14 }, 60, 'in'); } }
+        await this.wait(55);
+        SFX(beatSfx(i), { vol: last ? 1 : 0.8, pitch: 1 + i * 0.06 });
+        this.hitStop(last ? 55 : 30);
+        if (magic) this.addFx({ kind: 'ring', dur: 260, x: P.x, y: hy, color: '#c8a0ff', r: 34 + i * 8 });
+        else this.addFx({ kind: 'star', dur: 220, x: P.x, y: hy - i * 6, color: '#fff2a8' });
+        this.sparks(P.x, hy, magic ? '#c8a0ff' : '#ffe28a', 8 + i * 3, 0.45);
+        this.hurtShake(last ? 4 : 2, 0);
+        // 3. impulso aparece pequeno e é "absorvido" pelo número principal
+        const upd = [];
+        for (const [pl, st] of [[pa, sa], [pb, sb]]) {
+          pl.hold = st.imp == null;
+          if (st.imp == null) continue;
+          pl.imp = `+${st.imp}`; pl.impA = 1; pl.impY = 0;
+          upd.push(this.tween(pl, { impY: 1 }, 110, 'out').then(() => { pl.impA = 0; pl.val = st.total; return this.tween(pl, { disp: st.total }, 90, 'out'); }));
+        }
+        await this.wait(70);
+        SFX('tick', { vol: 0.6, pitch: 1 + i * 0.08 });
+        await Promise.all(upd);
+        // 4. domínio parcial: quem lidera empurra, o outro perde terreno (sem dano nem Postura)
+        const lead = bt.lead;
+        pa.lead = lead === 'a' ? 1 : 0; pb.lead = lead === 'b' ? 1 : 0;
+        if (lead && lastLead && lead !== lastLead) { SFX('leadSwap', { vol: 0.7 }); (lead === 'a' ? pa : pb).flash = 1; }
+        lastLead = lead || lastLead;
+        if (lead) {
+          const W = lead === 'a' ? A : B, Lz = lead === 'a' ? B : A, d = dirOf(W);
+          this.tween(W, { x: W.x + d * 10, lean: 0.32 }, 90, 'out');
+          this.tween(Lz, { x: clamp(Lz.x + d * 14, ARENA.minX, ARENA.maxX), lean: -0.2 }, 90, 'out');
+        } else { this.tween(A, { lean: 0.22 }, 80); this.tween(B, { lean: 0.22 }, 80); } // armas travadas
+        await this.wait(last ? 120 : 70);
+      }
+      // conclusão: valor final decide (maior soma acumulada)
+      SFX('clashFinal', { vol: ev.close ? 1 : 0.85 });
+      this.flashAt(P.x, hy, '#fff2c0', 70);
+      if (ev.winner) {
+        const pw = ev.winner === A.id ? pa : pb, pl = pw === pa ? pb : pa;
+        pw.win = 1; pl.win = -1;
+        this.tween(pw, { s: 1.25 }, 140, 'back');
+        this.tween(pl, { s: 0.85 }, 140, 'out');
+      } else { pa.win = pb.win = 2; }
+      await this.wait(ev.winner ? 160 : 220);
+      return plates;
     }
-    _drawX(ctx, X) {
-      if (X.a <= 0.01) return;
-      const d = X.len / 2, k = this.pxPerWorld || 1;
-      ctx.save(); ctx.globalAlpha = X.a; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      const bolt = (dir, prog, jg, col) => {
-        // dir: +1 = ↘ (do canto superior esquerdo), −1 = ↙ (do superior direito)
-        const x0 = X.cx - dir * d * 0.75, y0 = X.cy - d * 0.75, x1 = X.cx + dir * d * 0.75, y1 = X.cy + d * 0.75;
-        const nx = -(y1 - y0), ny = x1 - x0, nl = Math.hypot(nx, ny), n = jg.length - 1;
-        const pts = jg.map((o, i) => ({ x: x0 + (x1 - x0) * i / n + nx / nl * o, y: y0 + (y1 - y0) * i / n + ny / nl * o }));
-        const m = Math.max(1, Math.ceil(prog * n));
-        const path = () => { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i <= m; i++) { const f = i === m ? (prog * n - (m - 1)) : 1; ctx.lineTo(pts[i - 1].x + (pts[i].x - pts[i - 1].x) * f, pts[i - 1].y + (pts[i].y - pts[i - 1].y) * f); } };
-        ctx.shadowColor = X.crit ? '#ffcf6a' : X.magic ? '#c8a0ff' : col; ctx.shadowBlur = X.crit ? 22 : 14;
-        ctx.strokeStyle = col; ctx.lineWidth = X.ranged ? 6 : 9; path(); ctx.stroke();
-        ctx.shadowBlur = 0; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = X.ranged ? 2 : 3; path(); ctx.stroke();
-        return pts;
-      };
-      const p1 = X.b1 > 0 ? bolt(1, X.b1, X.j1, X.colL) : null;
-      const p2 = X.b2 > 0 ? bolt(-1, X.b2, X.j2, X.colR) : null;
-      // valores de cada lado, na ponta superior de cada raio
-      const pill = (x, y, text, col, dim) => {
-        ctx.font = '800 17px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
-        const w = ctx.measureText(text).width + 16;
-        ctx.globalAlpha = X.a * (dim ? 0.45 : 1);
-        ctx.fillStyle = 'rgba(10,6,14,0.88)'; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 14, w, 24, 8); ctx.fill();
-        ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke();
-        ctx.fillStyle = col; ctx.fillText(text, x, y + 4);
-        ctx.globalAlpha = X.a;
-      };
-      const loserDim = s => X.center && X.win && X.win !== s;
-      if (p1 && X.labL) pill(p1[0].x - 8, p1[0].y - 14, X.labL, X.colL, loserDim('L'));
-      if (p2 && X.labR) pill(p2[0].x + 8, p2[0].y - 14, X.labR, X.colR, loserDim('R'));
-      // centro do X: valor que decidiu (vencedor em destaque, perdedor discreto)
-      if (X.center) {
-        ctx.translate(X.cx, X.cy); ctx.scale(X.cs, X.cs);
-        const col = X.win === 'L' ? X.colL : X.win === 'R' ? X.colR : '#e8dccb';
-        ctx.fillStyle = 'rgba(10,6,14,0.9)'; ctx.beginPath(); ctx.arc(0, 0, 34, 0, 7); ctx.fill();
-        ctx.strokeStyle = X.crit ? '#ffcf6a' : col; ctx.lineWidth = 3; ctx.stroke();
-        ctx.textAlign = 'center';
-        if (X.win) {
-          const big = X.win === 'L' ? X.totL : X.totR, small = X.win === 'L' ? X.totR : X.totL;
-          ctx.font = '900 34px "Trebuchet MS", sans-serif'; ctx.fillStyle = X.crit ? '#ffcf6a' : '#ffe9b0'; ctx.fillText(String(big), 0, 11);
-          ctx.font = '700 12px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#b8a8a0'; ctx.fillText(`vs ${small}`, 0, 50);
-        } else { ctx.font = '900 22px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#e8dccb'; ctx.fillText(`${X.totL}=${X.totR}`, 0, 8); ctx.font = '700 12px "Trebuchet MS", sans-serif'; ctx.fillText('EMPATE', 0, 50); }
+    _drawPlate(ctx, p) {
+      if (p.a <= 0.01) return;
+      ctx.save(); ctx.globalAlpha = p.a * (p.win === -1 ? 0.55 : 1);
+      ctx.translate(p.x, p.y); ctx.scale(p.s, p.s);
+      const col = p.win === 1 ? '#ffd36a' : p.win === 2 ? '#c8c0b8' : p.side === 'ally' ? '#8fd3ff' : '#ff8a7a';
+      // placa de metal escuro com rebites
+      const g = ctx.createLinearGradient(0, -24, 0, 24); g.addColorStop(0, '#2c2530'); g.addColorStop(1, '#141017');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(-34, -24, 68, 48, 9); ctx.fill();
+      ctx.lineWidth = p.lead || p.win === 1 ? 3 : 1.6; ctx.strokeStyle = col;
+      if (p.lead || p.win === 1 || p.flash > 0.05) { ctx.shadowColor = col; ctx.shadowBlur = 10 + p.flash * 14; }
+      ctx.stroke(); ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.25)'; for (const [rx, ry] of [[-28, -18], [28, -18], [-28, 18], [28, 18]]) { ctx.beginPath(); ctx.arc(rx, ry, 1.6, 0, 7); ctx.fill(); }
+      ctx.textAlign = 'center';
+      ctx.font = '700 9px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#b8a8a0'; ctx.fillText(p.name.toUpperCase(), 0, -30);
+      ctx.font = '900 28px "Trebuchet MS", sans-serif'; ctx.fillStyle = p.win === 1 ? '#ffe9b0' : '#fff1d0';
+      ctx.fillText(String(Math.round(p.disp)), 0, 10);
+      if (p.hold && !p.win) { ctx.font = '700 9px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#9fb0c0'; ctx.fillText('SEGURA', 0, 36); }
+      if (p.win === 2) { ctx.font = '800 10px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#e8dccb'; ctx.fillText('EMPATE', 0, 36); }
+      // impulso: pequeno, sobe da lateral e entra no número
+      if (p.impA > 0.01 && p.imp) {
+        ctx.globalAlpha = p.a * p.impA; ctx.font = '800 15px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#9fe8a8';
+        ctx.fillText(p.imp, 24 - p.impY * 18, -10 + p.impY * 8);
       }
       ctx.restore();
+      p.flash = Math.max(0, p.flash - 0.04);
     }
 
     // ------------------------------------------------------------ CLASH
@@ -1109,7 +1128,7 @@
       if (T) {
         if (!magB) { this.setState(B, 'APPROACHING'); B.dashing = true; this.tween(B, { x: lerp(B.x, P.x, 0.45) }, 260, 'in'); }
         await this.wait(190);
-        this.showBanner('INTERCEPTAÇÃO!', '#7fc4ff', 900, `${A.name} entra na frente de ${T.name}`);
+        this.showBanner('INTERCEPTAÇÃO!', '#7fc4ff', 560, `${A.name} entra na frente de ${T.name}`);
         this.slowMo(0.5, 420);
       } else await this.wait(230);
 
@@ -1138,34 +1157,16 @@
       for (const v of [A, B]) this.setState(v, 'CLASHING');
       this.focusOn([A, B], 0.1);
 
-      // 5. choque das armas + resistência (mais longa se for equilibrado)
+      // 5–6. batidas do Clash (choques sucessivos, força acumulada, sons sincronizados)
       const hy = P.y - (variant === 0 ? 95 : variant === 1 ? 55 : 75);
-      this.hitStop(ev.close ? 150 : 90);
-      this.addFx({ kind: 'star', dur: 380, x: P.x, y: hy, color: '#fff2a8' });
-      this.sparks(P.x, hy, '#ffe28a', ev.close ? 28 : 16, 0.6);
-      this.hurtShake(ev.close ? 7 : 4);
-      SFX('clash', { vol: ev.close ? 1 : 0.8 });
-      this.flashAt(P.x, hy, '#fff2a8', 80);
-      if (ev.close) this.slowMo(0.5, 650);
-      const struggle = ev.close ? 520 : 260;
-      const t0 = this.time;
-      const jitter = async () => {
-        for (let i = 0; i < 6 && !this.skipping; i++) {
-          const s = i % 2 ? 1 : -1;
-          await Promise.all([this.tween(A, { lean: 0.25 + 0.06 * s }, struggle / 6), this.tween(B, { lean: 0.25 - 0.06 * s }, struggle / 6)]);
-          if (i % 2) this.sparks(P.x, hy, '#ffe28a', 3, 0.3);
-        }
-      };
-      const jit = jitter();
-
-      // 6. resolução do Clash: dois raios em X (cada raio = um lado; o centro = valor decisivo)
-      const X = await this._clashX(ev, A, B, P.x, hy - 30, skA, skB, jit);
+      const plates = await this._clashBeats(ev, A, B, P, hy, skA, skB);
+      const fadePlates = (ms) => plates.forEach(p => this.tween(p, { a: 0 }, ms, 'in'));
 
       if (!ev.winner) {
         // empate: as forças se anulam e os dois são repelidos
         this.float(P.x, P.y - 240, 'EMPATE', '#e8dccb', 30);
         SFX('block');
-        this.tween(X, { a: 0 }, 300);
+        fadePlates(320);
         this.sparks(P.x, hy, '#ffe28a', 14, 0.5);
         this.react(A, 'medium', A.x < P.x ? -1 : 1);
         this.react(B, 'medium', B.x < P.x ? -1 : 1);
@@ -1177,7 +1178,7 @@
         pL.forEach(p => this.react(p, 'light', p.x < P.x ? -1 : 1)); // a combinação perdida é interrompida
         const dirL = L.x >= W.x ? 1 : -1;
         SFX(W.side === 'ally' ? 'clashWin' : 'clashLose', { vol: 0.6 });
-        this.tween(X, { a: 0 }, 420, 'in'); // o X sai enquanto o vencedor parte para o golpe
+        fadePlates(420); // as placas saem enquanto o vencedor parte para o golpe
         // 7. intensidade visual pela margem (não muda o dano)
         if (margin <= 2) {
           // por pouco: o vencedor empurra a guarda devagar
@@ -1200,7 +1201,7 @@
         if (h.killed || lv === 'extreme') await this._decisive(L, h.killed);
         await this.wait(lv === 'light' ? 220 : 320);
       }
-      this.xfx = this.xfx.filter(x => x !== X);
+      this.plates = this.plates.filter(p => !plates.includes(p));
       this.caption = null;
     }
 
@@ -1337,8 +1338,6 @@
           // aparo: personagens ficam próximos no choque
           this.tween(D, { arm: 1.1 }, 60, 'in');
           SFX('parry');
-          { const X = { cx: hx, cy: hy, len: 170, b1: 1, b2: 1, cs: 1, a: 1, crit: false, magic: false, ranged: false, j1: [0, 6, -8, 5, 0], j2: [0, -6, 7, -4, 0], colL: '#fff2a8', colR: '#fff2a8', labL: '', labR: '', center: 0 };
-            if (!this.skipping) { this.xfx.push(X); this.tween(X, { a: 0 }, 520, 'in').then(() => { this.xfx = this.xfx.filter(x => x !== X); }); } }
           this.hitStop(120);
           this.addFx({ kind: 'star', dur: 420, x: hx, y: hy, color: '#fff2a8' });
           this.sparks(hx, hy, '#ffe28a', 26, 0.7);
@@ -1500,7 +1499,7 @@
       for (const v of list) this._drawHud(ctx, v);
       if (this.ui) this.ui.drawOver(ctx);
       this._drawNums(ctx);
-      for (const X of this.xfx) this._drawX(ctx, X);
+      for (const pl of this.plates) this._drawPlate(ctx, pl);
       for (const p of this.particles) {
         ctx.globalAlpha = clamp(p.life / 300, 0, 1);
         ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();

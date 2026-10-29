@@ -182,7 +182,7 @@
     const it = b.intents.find(i => i.actorId === e.id || (i.partners || []).includes(e.id));
     if (it && SKILLS[it.skillId].kind === 'attack' && (it.targetId === u.id)) {
       // Clash direto: pesa a chance real de vencer
-      const odds = b.clashOdds(sk.force + b.forceMods(u, false), SKILLS[it.skillId].force + b.forceMods(e, false));
+      const odds = b.clashOdds(Object.assign({ base: sk.force + b.forceMods(u, false) }, b.cadence(sk)), Object.assign({ base: SKILLS[it.skillId].force + b.forceMods(e, false) }, b.cadence(SKILLS[it.skillId])));
       sc = sc * (0.3 + odds.win) + odds.win * 0.4;
     } else if (it && SKILLS[it.skillId].kind === 'defense') sc *= 0.55;                  // alvo vai se defender
     return sc + Math.random() * 0.08;

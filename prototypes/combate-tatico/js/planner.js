@@ -19,8 +19,8 @@
     combo:   { color: '#e8c060', dark: '#4a3810', link: 'double', label: 'Ataque combinado' },
   };
   const styleOf = sk => sk.combo ? 'combo' : sk.kind;
-  const CAT_COLOR = { favorable: '#6fd890', even: '#ffd36a', unfavorable: '#ff7a6a' };
-  const CAT_NAME = { favorable: 'Favorável', even: 'Equilibrado', unfavorable: 'Desfavorável' };
+  const CAT_COLOR = { favorable: '#6fd890', even: '#ffd36a', unfavorable: '#ff7a6a', certain: '#7fffb0', doomed: '#ff5050' };
+  const CAT_NAME = { favorable: 'Favorável', even: 'Equilibrado', unfavorable: 'Desfavorável', certain: 'Vitória garantida', doomed: 'Derrota garantida' };
 
   class Planner {
     // cb: { battle(), choices(), plan(), preview(), commit(uid, skillId, targetId), cancel(uid), toggleIntercept(uid) }
@@ -320,14 +320,16 @@
       if (ev && sk.combo) lines.push({ t: `Custa a ação de ${sk.members.map(m => b.unit(m).name).join(' e ')}`, c: KIND_STYLE.combo.color });
       if (ev) {
         const meFirst = ev.a.id === me.id, other = meFirst ? ev.b : ev.a;
-        const fMe = meFirst ? ev.fa : ev.fb, fOt = meFirst ? ev.fb : ev.fa;
+        const sMe = meFirst ? ev.sa : ev.sb, sOt = meFirst ? ev.sb : ev.sa;
         const p = meFirst ? ev.odds.win : ev.odds.lose;
-        const cat = b.category(p);
+        const myOdds = meFirst ? ev.odds : { win: ev.odds.lose, tie: ev.odds.tie, lose: ev.odds.win };
+        const cat = b.category(p, myOdds);
+        const cad = sd => { const [lo, hi] = b.range(sd); return `${sd.base} · ${sd.beats} batida${sd.beats > 1 ? 's' : ''} (+0–${sd.imp}) → ${lo}–${hi}`; };
         lines.push({ t: ev.link.type === 'intercept' ? `⚔ INTERCEPTAÇÃO (protege ${b.unit(this.battle.intents.find(i => i.id === other.id).targetId).name})` : '⚔ CLASH', c: '#ffe9b0' });
         const who = act => [act.actorId, ...(act.partners || [])].map(id => b.unit(id).name).join(' + ');
-        lines.push({ t: `${who(me)} — ${sk.name}   F ${fMe} + 0–3`, c: '#9fd8ff' });
-        lines.push({ t: `${who(other)} — ${SKILLS[other.skillId].name}   F ${fOt} + 0–3`, c: '#ff9a8a' });
-        lines.push({ t: `Previsão: ${CAT_NAME[cat]}  (vence ${Math.round(p * 100)}%, empata ${Math.round(ev.odds.tie * 100)}%)`, c: CAT_COLOR[cat] });
+        lines.push({ t: `${who(me)} — ${sk.name}:  ${cad(sMe)}`, c: '#9fd8ff' });
+        lines.push({ t: `${who(other)} — ${SKILLS[other.skillId].name}:  ${cad(sOt)}`, c: '#ff9a8a' });
+        lines.push({ t: `Previsão: ${CAT_NAME[cat]}  (vence ${Math.round(myOdds.win * 100)}% · empata ${Math.round(myOdds.tie * 100)}% · perde ${Math.round(myOdds.lose * 100)}%)`, c: CAT_COLOR[cat] });
         { const el = this.elemLine(b.unit(me.actorId), b.unit(other.actorId)); if (el) lines.push(el); }
         // Postura: o que acontece com o alvo SE vencer (e o risco para mim se perder)
         const foeU = b.unit(other.actorId), meU = b.unit(me.actorId);
@@ -360,7 +362,7 @@
       const E = G.ELEMENTS[A.def.element], rel = b.elementRel(A, T);
       const lines = [{ t: `${who} — ${sk.name}${sk.combo ? '  ⚔ COMBO' : ''}`, c: '#ff9a8a' },
         { t: `${type} · alvo: ${T.name}`, c: '#cbbfb0' },
-        { t: `Força ${sk.force} + 0–3 · Dano ${sk.dmg} · Pressão ${sk.pressure || 0}`, c: '#e8dccb' },
+        { t: `Força ${sk.force} · ${sk.beats || 1} batida(s) +0–${sk.impulse != null ? sk.impulse : 3} · Dano ${sk.dmg} · Pressão ${sk.pressure || 0}`, c: '#e8dccb' },
         { t: `Elemento: ${E.name}` + (rel > 0 ? '  ▲ vantagem sobre ' + T.name + ' (+20% dano)' : rel < 0 ? '  ▼ desvantagem contra ' + T.name + ' (−20% dano)' : ''), c: rel > 0 ? '#ff9a8a' : rel < 0 ? '#9fe0a0' : E.color }];
       return lines;
     }
@@ -629,7 +631,7 @@
           if (link || info) {
             const ev = link && preview.find(e => e.type === 'clash' && (e.a.id === a.id || e.b.id === a.id));
             let col = '#888', label = '';
-            if (ev) { const p = ev.a.id === a.id ? ev.odds.win : ev.odds.lose; const cat = b.category(p); col = CAT_COLOR[cat]; label = CAT_NAME[cat]; }
+            if (ev) { const mine = ev.a.id === a.id, o = mine ? ev.odds : { win: ev.odds.lose, tie: ev.odds.tie, lose: ev.odds.win }; const cat = b.category(o.win, o); col = CAT_COLOR[cat]; label = CAT_NAME[cat]; }
             const q = this._at(a._cv, 0.5);
             const toggle = !!(info && info.valid && (!link || link.type === 'intercept'));
             this._disk(ctx, q.x, q.y, 14 / k, '#140c14', col, link ? (link.type === 'intercept' ? 'protect' : 'clash') : 'clash', !!link);
@@ -709,7 +711,7 @@
         if (hi && !hi.cancel && hi.skillId && this.sel) {
           const sk = SKILLS[hi.skillId], u = b.unit(sk.combo ? sk.members[0] : this.sel.uid);
           const lines = [{ t: sk.name + (sk.hits ? `  ·  ${sk.hits.length} golpes` : ''), c: '#ffe9b0' },
-            sk.kind === 'attack' ? { t: `Força ${sk.force} · Dano ${sk.dmg} · Pressão ${sk.pressure || 0} · Vel ${b.actionSpeed(u, sk)}`, c: '#e8dccb' } : { t: KIND_STYLE[sk.kind].label + (sk.kind === 'defense' ? ' · age antes de tudo' : ` · Vel ${b.actionSpeed(u, sk)}`), c: '#9fd0ff' },
+            sk.kind === 'attack' ? { t: `Força ${sk.force} · ${sk.beats || 1} batida(s) +0–${sk.impulse != null ? sk.impulse : 3} · Dano ${sk.dmg} · Pressão ${sk.pressure || 0} · Vel ${b.actionSpeed(u, sk)}`, c: '#e8dccb' } : { t: KIND_STYLE[sk.kind].label + (sk.kind === 'defense' ? ' · age antes de tudo' : ` · Vel ${b.actionSpeed(u, sk)}`), c: '#9fd0ff' },
             { t: sk.desc, c: '#bdb0a8', wrap: true }];
           if (sk.postureHeal) lines.push({ t: `Recupera ${sk.postureHeal} de Postura`, c: '#ffd36a' });
           { const E = G.ELEMENTS[u.def.element]; if (E && sk.kind === 'attack') lines.push({ t: `Elemento ${E.name}: forte contra ${G.ELEMENTS[E.beats].name}`, c: E.color }); }

@@ -6,7 +6,10 @@
 
   const CONFIG = {
     clash: {
-      rollMin: 0, rollMax: 3,     // bônus aleatório inteiro, chances iguais
+      // CLASH EM BATIDAS: cada habilidade tem 'beats' (1–3) e 'impulse' (bônus 0..impulse por batida).
+      // Força acumulada = força base + soma dos impulsos; o Clash dura o maior número de batidas.
+      // Habilidade com menos batidas mantém o valor acumulado nas batidas seguintes.
+      rollMin: 0, rollMax: 3,     // (impulso padrão de habilidades sem 'impulse')
       closeMargin: 1,             // diferença <= 1 → Clash "equilibrado" (destaque maior)
       favorable: 0.60,            // chance de vitória >= 60% → Favorável
       unfavorable: 0.35,          // chance de vitória < 35% → Desfavorável
@@ -31,59 +34,59 @@
   // tags: melee | magic | heavy | fast
   const SKILLS = {
     // --- Cavaleiro
-    k_basic: { name: 'Ataque Básico', pressure: 15, icon: 'sword', kind: 'attack', force: 6, dmg: 8, tags: ['melee'],
+    k_basic: { name: 'Ataque Básico', pressure: 15, icon: 'sword', kind: 'attack', beats: 2, impulse: 2, force: 5, dmg: 8, tags: ['melee'],
       desc: 'Golpe de espada equilibrado.' },
-    k_shield: { name: 'Golpe de Escudo', pressure: 10, icon: 'shieldbash', kind: 'attack', force: 8, dmg: 6, tags: ['melee'],
+    k_shield: { name: 'Golpe de Escudo', pressure: 10, icon: 'shieldbash', kind: 'attack', beats: 1, impulse: 3, force: 8, dmg: 6, tags: ['melee'],
       desc: 'Muito confiável em Clashes, pouco dano.' },
-    k_heavy: { name: 'Golpe Pesado', pressure: 35, windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 14, tags: ['melee', 'heavy'], cooldown: 2,
+    k_heavy: { name: 'Golpe Pesado', pressure: 35, windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', beats: 1, impulse: 3, force: 5, dmg: 14, tags: ['melee', 'heavy'], cooldown: 2,
       desc: 'Lento e devastador. Arriscado em Clashes.' },
     k_guard: { name: 'Firmar Guarda', postureHeal: 25, icon: 'shield', kind: 'defense', reaction: 'block', tags: [],
       desc: 'Bloqueia os golpes desta rodada (-60% de dano) e recupera 25 de Postura.' },
     k_protect: { name: 'Proteção', icon: 'protect', kind: 'protect', reaction: 'block', tags: [],
       desc: 'Fica na frente de um aliado: recebe e bloqueia os golpes sem oposição destinados a ele.' },
     // --- Espadachim
-    s_basic: { name: 'Corte Rápido', pressure: 12, hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'light' }], icon: 'slash', kind: 'attack', force: 6, dmg: 7, tags: ['melee', 'fast'],
+    s_basic: { name: 'Corte Rápido', pressure: 12, hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'light' }], icon: 'slash', kind: 'attack', beats: 2, impulse: 2, force: 5, dmg: 7, tags: ['melee', 'fast'],
       desc: 'Corte veloz: age cedo na rodada.' },
-    s_precise: { name: 'Golpe Preciso', pressure: 8, icon: 'precise', kind: 'attack', force: 9, dmg: 6, tags: ['melee'],
+    s_precise: { name: 'Golpe Preciso', pressure: 8, icon: 'precise', kind: 'attack', beats: 1, impulse: 3, force: 9, dmg: 6, tags: ['melee'],
       desc: 'Força alta: vence a maioria dos Clashes.' },
-    s_risky: { name: 'Ataque Arriscado', pressure: 20, hits: [{ share: 0.25, motion: 'h', react: 'light' }, { share: 0.3, motion: 'd', react: 'medium' }, { share: 0.45, motion: 'over', react: 'final' }], icon: 'risky', impact: 'stagger', kind: 'attack', force: 4, dmg: 15, tags: ['melee'], cooldown: 2,
+    s_risky: { name: 'Ataque Arriscado', pressure: 20, hits: [{ share: 0.25, motion: 'h', react: 'light' }, { share: 0.3, motion: 'd', react: 'medium' }, { share: 0.45, motion: 'over', react: 'final' }], icon: 'risky', impact: 'stagger', kind: 'attack', beats: 3, impulse: 2, force: 2, dmg: 15, tags: ['melee'], cooldown: 2,
       desc: 'Força baixa, dano enorme. Ótimo contra quem não vai reagir.' },
     s_parry: { name: 'Aparar', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [],
       desc: 'Tenta aparar o primeiro golpe físico recebido; se der certo, anula e contra-ataca. Não funciona contra magia.' },
     // --- Mago
-    m_bolt: { name: 'Projétil Mágico', pressure: 10, hits: [{ share: 0.5, motion: 'proj', react: 'light' }, { share: 0.5, motion: 'proj', react: 'final' }], icon: 'bolt', kind: 'attack', force: 6, dmg: 7, tags: ['magic'],
+    m_bolt: { name: 'Projétil Mágico', pressure: 10, hits: [{ share: 0.5, motion: 'proj', react: 'light' }, { share: 0.5, motion: 'proj', react: 'final' }], icon: 'bolt', kind: 'attack', beats: 2, impulse: 2, force: 5, dmg: 7, tags: ['magic'],
       desc: 'Ataque à distância.' },
-    m_blast: { name: 'Explosão Arcana', pressure: 20, icon: 'blast', impact: 'knockdown', kind: 'attack', force: 5, dmg: 13, tags: ['magic'], cooldown: 2,
+    m_blast: { name: 'Explosão Arcana', pressure: 20, icon: 'blast', impact: 'knockdown', kind: 'attack', beats: 1, impulse: 3, force: 5, dmg: 13, tags: ['magic'], cooldown: 2,
       desc: 'Magia de dano elevado.' },
-    m_weaken: { name: 'Enfraquecimento', pressure: 12, icon: 'weaken', kind: 'attack', force: 7, dmg: 3, tags: ['magic', 'support'], applies: 'weaken',
+    m_weaken: { name: 'Enfraquecimento', pressure: 12, icon: 'weaken', kind: 'attack', beats: 1, impulse: 3, force: 7, dmg: 3, tags: ['magic', 'support'], applies: 'weaken',
       desc: 'Pouco dano, mas o alvo perde 2 de força nos Clashes até o fim da próxima rodada. Age cedo.' },
     m_support: { name: 'Reforço Arcano', postureHeal: 15, icon: 'support', kind: 'support', tags: ['support'],
       desc: 'Um aliado ganha +2 de força na próxima habilidade ofensiva e recupera 15 de Postura. Age cedo.' },
     // --- Lanceiro (alcance e controle de distância)
-    l_thrust: { name: 'Estocada', pressure: 12, icon: 'spear', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'],
+    l_thrust: { name: 'Estocada', pressure: 12, icon: 'spear', kind: 'attack', beats: 1, impulse: 3, force: 8, dmg: 7, tags: ['melee', 'fast'],
       hits: [{ share: 1, motion: 'thrust', react: 'final' }], desc: 'Estocada rápida de longo alcance. Boa força de Clash.' },
-    l_sweep: { name: 'Varredura', pressure: 30, icon: 'sweep', impact: 'push', kind: 'attack', force: 6, dmg: 9, tags: ['melee'],
+    l_sweep: { name: 'Varredura', pressure: 30, icon: 'sweep', impact: 'push', kind: 'attack', beats: 2, impulse: 2, force: 5, dmg: 9, tags: ['melee'],
       hits: [{ share: 1, motion: 'sweep', react: 'final' }], desc: 'Arco amplo com a haste: empurra o alvo para longe.' },
-    l_pierce: { name: 'Investida Perfurante', pressure: 25, icon: 'pierce', impact: 'stagger', kind: 'attack', force: 5, dmg: 14, tags: ['melee'], cooldown: 2, windup: 1.3,
+    l_pierce: { name: 'Investida Perfurante', pressure: 25, icon: 'pierce', impact: 'stagger', kind: 'attack', beats: 1, impulse: 3, force: 5, dmg: 14, tags: ['melee'], cooldown: 2, windup: 1.3,
       hits: [{ share: 1, motion: 'lunge', react: 'final' }], desc: 'Avança e perfura com força. Dano alto, força de Clash moderada.' },
     l_parry: { name: 'Guarda da Lança', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [],
       desc: 'Apara o primeiro golpe físico com a haste e contra-ataca.' },
     // --- Lutador (pressão e múltiplos impactos)
-    f_jab: { name: 'Soco Direto', pressure: 10, icon: 'fist', kind: 'attack', force: 7, dmg: 6, tags: ['melee', 'fast'],
+    f_jab: { name: 'Soco Direto', pressure: 10, icon: 'fist', kind: 'attack', beats: 1, impulse: 3, force: 7, dmg: 6, tags: ['melee', 'fast'],
       hits: [{ share: 1, motion: 'punch', react: 'final' }], desc: 'Soco rápido e simples.' },
-    f_flurry: { name: 'Sequência de Golpes', pressure: 25, icon: 'flurry', kind: 'attack', force: 6, dmg: 12, tags: ['melee'],
+    f_flurry: { name: 'Sequência de Golpes', pressure: 25, icon: 'flurry', kind: 'attack', beats: 3, impulse: 2, force: 4, dmg: 12, tags: ['melee'],
       hits: [{ share: 0.3, motion: 'punch', react: 'light' }, { share: 0.3, motion: 'punch2', react: 'light' }, { share: 0.4, motion: 'punch', react: 'final' }],
       desc: 'Três socos seguidos (um único Clash). O dano é dividido entre os impactos.' },
-    f_upper: { name: 'Golpe Ascendente', pressure: 35, icon: 'upper', impact: 'knockdown', kind: 'attack', force: 5, dmg: 12, tags: ['melee'], cooldown: 2, windup: 1.3,
+    f_upper: { name: 'Golpe Ascendente', pressure: 35, icon: 'upper', impact: 'knockdown', kind: 'attack', beats: 1, impulse: 3, force: 5, dmg: 12, tags: ['melee'], cooldown: 2, windup: 1.3,
       hits: [{ share: 1, motion: 'upper', react: 'final' }], desc: 'De baixo para cima: pode derrubar o alvo.' },
     f_dodge: { name: 'Esquiva Lateral', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
       desc: 'Esquiva ágil de cada golpe recebido nesta rodada (chance alta).' },
     // --- Arqueira (precisão à distância)
-    a_shot: { name: 'Flecha Precisa', pressure: 10, icon: 'arrow', kind: 'attack', force: 8, dmg: 7, tags: ['ranged'],
+    a_shot: { name: 'Flecha Precisa', pressure: 10, icon: 'arrow', kind: 'attack', beats: 1, impulse: 3, force: 8, dmg: 7, tags: ['ranged'],
       hits: [{ share: 1, motion: 'arrow', react: 'final' }], desc: 'Flecha certeira: boa força de Clash, dano moderado.' },
-    a_double: { name: 'Disparo Duplo', pressure: 15, icon: 'arrow2', kind: 'attack', force: 6, dmg: 10, tags: ['ranged'],
+    a_double: { name: 'Disparo Duplo', pressure: 15, icon: 'arrow2', kind: 'attack', beats: 2, impulse: 2, force: 5, dmg: 10, tags: ['ranged'],
       hits: [{ share: 0.5, motion: 'arrow', react: 'light' }, { share: 0.5, motion: 'arrow', react: 'final' }], desc: 'Duas flechas em sequência; o dano é dividido.' },
-    a_pierce: { name: 'Flecha Perfurante', pressure: 20, icon: 'arrowp', impact: 'stagger', kind: 'attack', force: 5, dmg: 14, tags: ['ranged'], cooldown: 2, windup: 1.6,
+    a_pierce: { name: 'Flecha Perfurante', pressure: 20, icon: 'arrowp', impact: 'stagger', kind: 'attack', beats: 1, impulse: 3, force: 5, dmg: 14, tags: ['ranged'], cooldown: 2, windup: 1.6,
       hits: [{ share: 1, motion: 'arrowp', react: 'final' }], desc: 'Tensiona o arco ao máximo: dano alto, preparação longa.' },
     a_evade: { name: 'Recuo Ágil', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
       desc: 'Salta para trás tentando esquivar de cada golpe.' },
@@ -91,16 +94,16 @@
       desc: 'Tenta esquivar de cada golpe recebido nesta rodada.' },
 
     // --- Brutamontes (prioriza ataques fortes)
-    b_smash: { name: 'Esmagar', pressure: 40, windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 16, tags: ['melee', 'heavy'], cooldown: 2 },
-    b_bash: { name: 'Pancada', pressure: 20, icon: 'hammer', kind: 'attack', force: 8, dmg: 9, tags: ['melee'] },
+    b_smash: { name: 'Esmagar', pressure: 40, windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', beats: 1, impulse: 3, force: 5, dmg: 16, tags: ['melee', 'heavy'], cooldown: 2 },
+    b_bash: { name: 'Pancada', pressure: 20, icon: 'hammer', kind: 'attack', beats: 2, impulse: 2, force: 8, dmg: 9, tags: ['melee'] },
     b_guard: { name: 'Couraça', icon: 'shield', kind: 'defense', reaction: 'block', tags: [] },
     // --- Duelista (prefere alvos vulneráveis)
-    d_flurry: { name: 'Lâmina Veloz', pressure: 15, hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'final' }], icon: 'slash', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'] },
-    d_lunge: { name: 'Investida Feroz', pressure: 25, icon: 'precise', impact: 'stagger', kind: 'attack', force: 6, dmg: 12, tags: ['melee'], cooldown: 2 },
+    d_flurry: { name: 'Lâmina Veloz', pressure: 15, hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'final' }], icon: 'slash', kind: 'attack', beats: 2, impulse: 2, force: 8, dmg: 7, tags: ['melee', 'fast'] },
+    d_lunge: { name: 'Investida Feroz', pressure: 25, icon: 'precise', impact: 'stagger', kind: 'attack', beats: 1, impulse: 3, force: 6, dmg: 12, tags: ['melee'], cooldown: 2 },
     d_parry: { name: 'Contra-guarda', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [] },
     // --- Conjurador (magias e suporte)
-    c_ray: { name: 'Raio Sombrio', pressure: 15, icon: 'bolt', kind: 'attack', force: 7, dmg: 10, tags: ['magic'] },
-    c_curse: { name: 'Maldição', pressure: 10, icon: 'weaken', kind: 'attack', force: 6, dmg: 4, tags: ['magic', 'support'], applies: 'weaken', cooldown: 2 },
+    c_ray: { name: 'Raio Sombrio', pressure: 15, icon: 'bolt', kind: 'attack', beats: 2, impulse: 2, force: 6, dmg: 10, tags: ['magic'] },
+    c_curse: { name: 'Maldição', pressure: 10, icon: 'weaken', kind: 'attack', beats: 1, impulse: 3, force: 6, dmg: 4, tags: ['magic', 'support'], applies: 'weaken', cooldown: 2 },
     c_veil: { name: 'Véu Sombrio', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [] },
   };
 
@@ -110,12 +113,12 @@
   //   by: índice do membro que executa o golpe; share: fração do dano total; react: reação daquele impacto
   const COMBOS = {
     combo_ks: { name: 'Investida Conjunta', pressure: 40, kind: 'attack', icon: 'combo', tags: ['melee'], combo: true,
-      side: 'ally', members: ['knight', 'swordsman'], force: 10, dmg: 15, impact: 'knockdown', cooldown: 3,
+      side: 'ally', members: ['knight', 'swordsman'], beats: 3, impulse: 2, force: 8, dmg: 15, impact: 'knockdown', cooldown: 3,
       desc: 'Cavaleiro + Espadachim: escudo abre a guarda, dois cortes e o golpe final. Gasta a ação dos dois. Força alta e derruba; dano um pouco menor que dois ataques separados.',
       hits: [{ by: 0, share: 0.3, motion: 'bash', react: 'medium' }, { by: 1, share: 0.2, motion: 'h', react: 'light' },
              { by: 1, share: 0.2, motion: 'd', react: 'light' }, { by: 0, share: 0.3, motion: 'over', react: 'final' }] },
     combo_bd: { name: 'Pressão Brutal', pressure: 45, kind: 'attack', icon: 'combo', tags: ['melee'], combo: true,
-      side: 'enemy', members: ['brute', 'duelist'], force: 10, dmg: 17, impact: 'knockdown', cooldown: 3,
+      side: 'enemy', members: ['brute', 'duelist'], beats: 3, impulse: 2, force: 8, dmg: 17, impact: 'knockdown', cooldown: 3,
       hits: [{ by: 0, share: 0.4, motion: 'over', react: 'medium' }, { by: 1, share: 0.15, motion: 'h', react: 'light' },
              { by: 1, share: 0.15, motion: 'h2', react: 'light' }, { by: 0, share: 0.3, motion: 'bash', react: 'final' }] },
   };

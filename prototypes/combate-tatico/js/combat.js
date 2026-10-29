@@ -209,17 +209,32 @@
       if (u.statuses.support) { m += CONFIG.support.amount; if (consumeSupport) delete u.statuses.support; }
       return m;
     }
-    // Chances de vitória/empate de A sobre B somando as rolagens possíveis
-    clashOdds(fa, fb) {
-      const { rollMin: lo, rollMax: hi } = CONFIG.clash;
-      let win = 0, tie = 0, n = 0;
-      for (let i = lo; i <= hi; i++) for (let j = lo; j <= hi; j++) {
-        n++; if (fa + i > fb + j) win++; else if (fa + i === fb + j) tie++;
+    // Cadência de uma habilidade no Clash
+    cadence(sk) { return { beats: sk.beats || 1, imp: sk.impulse != null ? sk.impulse : CONFIG.clash.rollMax }; }
+    // Distribuição exata da força final (base + soma de 'beats' impulsos uniformes 0..imp)
+    forceDist(side) {
+      let d = new Map([[side.base, 1]]);
+      for (let i = 0; i < side.beats; i++) {
+        const n = new Map();
+        for (const [v, p] of d) for (let r = 0; r <= side.imp; r++) n.set(v + r, (n.get(v + r) || 0) + p / (side.imp + 1));
+        d = n;
       }
-      return { win: win / n, tie: tie / n, lose: 1 - (win + tie) / n };
+      return d;
     }
-    category(p) {
+    // Chances de vitória/empate/derrota de A sobre B considerando TODOS os impulsos possíveis
+    // (aceita números simples para compatibilidade: tratados como 1 batida 0–3)
+    clashOdds(a, b) {
+      const norm = x => typeof x === 'number' ? { base: x, beats: 1, imp: CONFIG.clash.rollMax } : x;
+      const da = this.forceDist(norm(a)), db = this.forceDist(norm(b));
+      let win = 0, tie = 0;
+      for (const [va, pa] of da) for (const [vb, pb] of db) { if (va > vb) win += pa * pb; else if (va === vb) tie += pa * pb; }
+      return { win, tie, lose: Math.max(0, 1 - win - tie) };
+    }
+    range(side) { return [side.base, side.base + side.beats * side.imp]; }
+    category(p, odds) {
       const c = CONFIG.clash;
+      if (odds && odds.win >= 0.9999) return 'certain';
+      if (odds && odds.lose >= 0.9999) return 'doomed';
       return p >= c.favorable ? 'favorable' : p < c.unfavorable ? 'unfavorable' : 'even';
     }
     // Simula só a parte determinística (modificadores na ordem certa) para a prévia.
@@ -230,14 +245,14 @@
         const sk = SKILLS[act.skillId], m = mods[act.actorId];
         let f = sk.force + (m.weaken ? -CONFIG.weaken.amount : 0) + (m.support ? CONFIG.support.amount : 0);
         m.support = false;
-        return f;
+        return Object.assign({ base: f }, this.cadence(sk));
       };
       const out = [];
       for (const ev of plan.order) {
         if (ev.type === 'clash') {
-          const fa = force(ev.a), fb = force(ev.b);
-          const odds = this.clashOdds(fa, fb);
-          out.push({ ...ev, fa, fb, odds, cat: this.category(odds.win) });
+          const sa = force(ev.a), sb = force(ev.b);
+          const odds = this.clashOdds(sa, sb);
+          out.push({ ...ev, fa: sa.base, fb: sb.base, sa, sb, odds, cat: this.category(odds.win, odds) });
           // um efeito que só acontece se o Clash for vencido não é contado como certo
         } else if (ev.type === 'support') {
           mods[ev.a.targetId].support = true; out.push(ev);
@@ -335,17 +350,28 @@
         return out.filter(Boolean);
       }
       const skA = SKILLS[ev.a.skillId], skB = SKILLS[ev.b.skillId];
+      // CLASH EM BATIDAS: cada batida sorteia um impulso (uma vez) e soma ao acumulado.
+      // Quem tem menos batidas mantém o valor nas seguintes. O registro completo vai para a apresentação.
       const side = (u, act, sk) => {
-        const mod = this.forceMods(u, true);
-        const roll = this._roll();
-        return { actorId: u.id, skillId: act.skillId, partners: act.partners || [], base: sk.force, mod, roll, total: sk.force + mod + roll };
+        const mod = this.forceMods(u, true), cad = this.cadence(sk);
+        return { actorId: u.id, skillId: act.skillId, partners: act.partners || [], base: sk.force, mod, roll: 0,
+          total: sk.force + mod, beats: cad.beats, imp: cad.imp, start: sk.force + mod, steps: [] };
       };
       const sa = side(A, ev.a, skA), sb = side(B, ev.b, skB);
+      const nBeats = Math.max(sa.beats, sb.beats), beatLog = [];
+      for (let i = 0; i < nBeats; i++) {
+        for (const sd of [sa, sb]) {
+          const imp = i < sd.beats ? Math.floor(this.rand() * (sd.imp + 1)) : null; // null = sem batida própria (sustenta)
+          if (imp != null) { sd.total += imp; sd.roll += imp; }
+          sd.steps.push({ imp, total: sd.total });
+        }
+        beatLog.push({ a: sa.total, b: sb.total, lead: sa.total > sb.total ? 'a' : sb.total > sa.total ? 'b' : null });
+      }
       // a: sempre o aliado quando há um (para a apresentação ser previsível)
       const intercept = ev.link.type === 'intercept';
       const enemyAct = A.side === 'enemy' ? ev.a : ev.b;
       const res = { type: 'clash', a: sa, b: sb, intercept, originalTargetId: intercept ? enemyAct.targetId : null,
-        winner: null, hit: null };
+        winner: null, hit: null, beats: beatLog };
       res.close = Math.abs(sa.total - sb.total) <= CONFIG.clash.closeMargin;
       if (sa.total !== sb.total) {
         const [W, L, wAct] = sa.total > sb.total ? [A, B, ev.a] : [B, A, ev.b];
@@ -355,7 +381,7 @@
         res.posture = L.hp > 0 ? this.applyPressure(L, SKILLS[wAct.skillId].pressure) : null;
       }
       this._acted(ev.a); this._acted(ev.b);
-      if (A.side === 'enemy') { const t = res.a; res.a = res.b; res.b = t; } // a = aliado
+      if (A.side === 'enemy') { const t = res.a; res.a = res.b; res.b = t; res.beats = beatLog.map(x => ({ a: x.b, b: x.a, lead: x.lead === 'a' ? 'b' : x.lead === 'b' ? 'a' : null })); } // a = aliado
       res.decisive = !!(res.hit && res.hit.killed);
       res.after = this.snapshot();
       return [res];

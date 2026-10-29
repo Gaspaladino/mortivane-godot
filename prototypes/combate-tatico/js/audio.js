@@ -109,7 +109,16 @@
         case 'chainOpen': for (let i = 0; i < 5; i++) { N(0.03, { type: 'bandpass', f0: 3200 + i * 300, q: 8, peak: 0.16 }); [1, 2.7].forEach(m => T(0.08, { type: 'sine', f0: 1900 * m * (1 + i * 0.04), peak: 0.035 }, i * 0.035)); } break;
         case 'chainLock': T(0.12, { type: 'square', f0: 620, f1: 420, peak: 0.05 }); N(0.04, { type: 'bandpass', f0: 2600, q: 6, peak: 0.18 }); break;
         case 'chainTick': N(0.02, { type: 'bandpass', f0: 3600, q: 10, peak: 0.12 }); break;
-        // raios do Clash
+        // Clash em batidas: tin! clang! … TUM!
+        case 'clashTense': T(0.22, { type: 'sine', f0: 220, f1: 330, peak: 0.08, a: 0.06 }); N(0.2, { f0: 600, f1: 1400, q: 3, peak: 0.06, a: 0.08 }); break;
+        case 'beatTin': [1, 2.9, 5.1].forEach((m, i) => T(0.16, { type: 'sine', f0: 1500 * m, peak: 0.11 / (i + 1) })); N(0.03, { type: 'highpass', f0: 5000, peak: 0.25 }); break;
+        case 'beatClang': [1, 2.4, 3.9].forEach((m, i) => T(0.26, { type: 'triangle', f0: 640 * m, peak: 0.12 / (i + 1) })); N(0.05, { type: 'bandpass', f0: 2400, q: 2, peak: 0.3 }); break;
+        case 'beatThud': T(0.12, { type: 'sine', f0: 170, f1: 70, peak: 0.45 }); N(0.04, { type: 'lowpass', f0: 1600, peak: 0.25 }); break;
+        case 'beatMagic': T(0.18, { type: 'sine', f0: 700, f1: 1100, peak: 0.12 }); N(0.12, { f0: 1800, f1: 900, q: 5, peak: 0.14 }); break;
+        case 'tick': T(0.05, { type: 'square', f0: 2400, peak: 0.04 }); break;
+        case 'leadSwap': T(0.12, { type: 'triangle', f0: 520, f1: 880, peak: 0.1 }); break;
+        case 'clashFinal': T(0.4, { type: 'sine', f0: 90, f1: 42, peak: 0.6 }); N(0.12, { type: 'lowpass', f0: 1200, f1: 300, peak: 0.4 }); [1, 2.7].forEach(m => T(0.35, { type: 'triangle', f0: 420 * m, peak: 0.06 })); break;
+        // raios do Clash (não usados mais)
         case 'zap': N(0.09, { type: 'highpass', f0: 2400, peak: 0.3 }); T(0.08, { type: 'sawtooth', f0: 1400, f1: 300, peak: 0.07 }); break;
         case 'zapCross': N(0.12, { type: 'highpass', f0: 1800, peak: 0.4 }); T(0.14, { type: 'sawtooth', f0: 900, f1: 160, peak: 0.1 }); T(0.2, { type: 'sine', f0: 120, f1: 50, peak: 0.45 }); break;
         case 'clashDecide': T(0.18, { type: 'triangle', f0: 660, peak: 0.12 }); T(0.24, { type: 'triangle', f0: 990, peak: 0.1 }, 0.05); break;
