@@ -2,6 +2,30 @@
 
 Protótipo jogável e independente do projeto Godot. Basta abrir `index.html` no navegador; não precisa de servidor nem de build.
 
+## Postura e Quebra de Guarda
+Cada personagem tem **Vida** (barra vermelha/verde) e **Postura** (barra âmbar, mais fina, logo abaixo).
+- **Desgaste:** só quem **perde um Clash** perde Postura, igual à **Pressão** da habilidade vencedora. A Pressão é aplicada **uma vez por habilidade**, mesmo com vários golpes; a barra cai em etapas junto com os impactos. Empates e ataques sem Clash não desgastam. Na interceptação, quem perde Postura é quem interceptou.
+- **Sem regeneração:** a Postura persiste entre rodadas.
+- **Quebra:** em 0 o personagem perde a guarda (animação própria por classe, ruptura e som) e **perde a próxima ação**. Se ainda não agiu na rodada, a ação planejada é cancelada; se já agiu, perde a ação da rodada seguinte (não dá para planejar nada para ele, e a IA não o usa).
+- **Recuperação:** cumprida a penalidade, a Postura volta ao máximo e ele ganha **Estabilidade Recuperada** (losango verde). Enquanto ela durar, a Postura pode cair até 1, mas não quebra de novo; a proteção acaba quando ele executa uma ação válida.
+- **Recuperar por habilidade:** **Firmar Guarda** (Cavaleiro, +25, além do bloqueio) e **Reforço Arcano** (Mago, +15 num aliado, além do +2 de força). Não passam do máximo e não removem uma Quebra já aplicada.
+- **Interface:** a Pressão aparece no leque, na ficha e na prévia de Clash ("Se vencer: −P na Postura de X… → possível QUEBRA" / "Se perder: risco de QUEBRA"). Ao mirar, **⚡ QUEBRA?** aparece junto da barra dos alvos que podem quebrar se você vencer. Passar o mouse num inimigo mostra a Postura dele.
+- **Postura baixa (só visual):** abaixo de 50% a guarda oscila; abaixo de 25% o tronco recua e a barra pulsa. É diferente do cansaço da Vida baixa (corpo curvado e respiração mais pesada).
+- **IA:** pesa um pouco a chance de Quebra conforme a classe (o Brutamontes mais, o Duelista menos), sem caçar sempre o alvo mais frágil.
+
+| Postura | Cavaleiro 100 · Espadachim 70 · Mago 40 · Lanceiro 75 · Lutador 65 · Arqueira 45 · Brutamontes 110 · Duelista 70 · Conjurador 45 |
+|---|---|
+| Pressão | Ataque Básico 15 · Golpe de Escudo 10 · Golpe Pesado 35 · Corte Rápido 12 · Golpe Preciso 8 · Ataque Arriscado 20 · Projétil 10 · Explosão 20 · Enfraquecimento 12 · Estocada 12 · Varredura 30 · Investida Perfurante 25 · Soco 10 · Sequência 25 · Ascendente 35 · Flecha Precisa 10 · Disparo Duplo 15 · Flecha Perfurante 20 · Esmagar 40 · Pancada 20 · Lâmina Veloz 15 · Investida Feroz 25 · Raio 15 · Maldição 10 · Investida Conjunta 40 · Pressão Brutal 45 |
+
+## Críticos
+10% de chance por habilidade que acerta e 1,5× de dano (`CONFIG.crit`). São rolados **uma vez por habilidade**, mesmo com vários golpes, e não afetam o Clash. A apresentação tem uma pausa no impacto configurável, flash dourado, tremor maior, "CRÍTICO!", número em destaque, som próprio e um efeito que varia por tipo de golpe (corte cruzado, estocada, soco ou anel mágico).
+
+## Ficha de personagem e prévia
+Na formação, cada personagem tem uma ficha com moldura na cor da classe: retrato, função e estilo, atributos (Vida, Postura, Velocidade, Ataque e Defesa), habilidades com ícone, força, dano, Pressão, número de golpes e efeitos, e a especialidade. Passar o mouse, focar com o teclado ou clicar numa habilidade mostra uma **prévia animada** feita com o próprio motor de combate, num canvas separado, contra um boneco de treino. As defesas aparecem contra um Duelista e o suporte num aliado. A prévia não altera a batalha. A opção **Reduzir animações** (no menu 🔊) faz as prévias tocarem uma vez só e reduz tremores e câmera lenta.
+
+## Movimento e gestos
+Durante o planejamento, os personagens dão pequenos passos em **X e Y** (Y é profundidade: quem está mais abaixo aparece maior e desenhado na frente). Seguem a preferência de formação (a frente fica mais à frente, a retaguarda mais ao fundo) e recuam se um inimigo chega perto. Também fazem **gestos de classe** de vez em quando: o Cavaleiro ajusta o escudo, o Espadachim gira a espada, o Mago move as mãos, o Lanceiro reposiciona a lança, o Lutador alterna a guarda e a Arqueira ajusta o arco ou mira. Os inimigos gesticulam sobre a pose de preparação. Nada disso acontece com quem está selecionado, atacando, caído ou quebrado. As **posturas defensivas** escolhidas (bloqueio, aparo, esquiva, proteção) aparecem já no planejamento, com pose própria por classe, e voltam suavemente ao neutro ao cancelar. As intenções inimigas ganharam **setas** na ponta e um chevron que percorre o arco.
+
 ## Formação da equipe
 Antes da batalha, escolha 3 dos 6 combatentes: Cavaleiro, Espadachim, Mago, **Lanceiro**, **Lutador** e **Arqueira**. Cada card tem retrato e barras de vida, velocidade e resistência; clique para ver os detalhes (habilidades com força, dano e número de golpes, a defesa e o estilo). Não dá para repetir personagem e o botão Iniciar só libera com 3 escolhidos. A posição em campo segue a especialidade: Cavaleiro e Lutador na frente, Mago e Arqueira atrás. No fim da batalha dá para lutar de novo com a mesma equipe ou trocar; o botão 👥 também volta à formação, e a última equipe fica salva.
 
@@ -87,6 +111,7 @@ Enfraquecimento tira 2 de força do alvo e Suporte dá +2 de força para a próx
 | `js/combat.js` | Lógica pura (`Battle`): intenções, `buildPlan` (valida as ações e liga os Clashes e as interceptações), `previewPlan` (prévia), `resolveRound` (fila de eventos com o resultado completo e um snapshot do estado). Usa RNG com semente. |
 | `js/ai.js` | IA: Brutamontes prefere golpes fortes, Duelista prefere alvos frágeis ou enfraquecidos e Conjurador usa magias e Maldição. Com pouca vida, às vezes eles se defendem. |
 | `js/presenter.js` | Apresentação: estados visuais, rotinas paralelas de recuperação, reações físicas, espaçamento (`settle`), câmera que acompanha, e reprodução dos eventos `stances`, `support`, `clash` e `attack`. |
+| `js/preview.js` | Prévia animada das habilidades nas fichas (reaproveita o Presenter com eventos sintéticos). |
 | `js/planner.js` | Planejamento na arena: seleção, menu radial, correntes, alvos válidos, entrada (clique ou arrasto, Esc, botão direito) e prévia de Clash. |
 | `js/ui.js` | Barra compacta: dica, ordem prevista e botão para executar. |
 | `js/main.js` | Máquina de estados: `INTENTS → PLAN → RESOLVE → (INTENTS \| END)`. |

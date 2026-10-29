@@ -36,7 +36,9 @@
     }
     _makeUnit(key, side, slot) {
       const d = UNITS[key];
-      return { id: key, key, side, slot, def: d, name: d.name, hp: d.hp, maxHp: d.hp, statuses: {}, cooldowns: {} };
+      // post/postMax: Postura · broken: Quebra pendente (perde a próxima ação) · stable: protegido contra nova Quebra até agir
+      return { id: key, key, side, slot, def: d, name: d.name, hp: d.hp, maxHp: d.hp, statuses: {}, cooldowns: {},
+        post: d.posture || 60, postMax: d.posture || 60, broken: false, stable: false };
     }
 
     unit(id) { return this.units.find(u => u.id === id); }
@@ -48,6 +50,36 @@
     }
     skillReady(u, id) { return !(u.cooldowns[id] > 0); }
     allAlive(act) { return members(act).every(id => this.unit(id).hp > 0); }
+
+    // ------------------------------------------------------------ POSTURA
+    // Desgaste de Postura (só quem perde um Clash). Nunca negativo; protegido não quebra (mínimo 1).
+    applyPressure(u, amount) {
+      if (!amount || u.hp <= 0) return null;
+      const before = u.post;
+      let after = Math.max(0, before - amount), broke = false, held = false;
+      if (after === 0) {
+        if (u.stable) { after = Math.max(CONFIG.posture.protectedMin, after); held = true; }
+        else if (!u.broken) { broke = true; u.broken = true; }
+      }
+      u.post = after;
+      return { unitId: u.id, amount, before, after, broke, held };
+    }
+    healPosture(u, amount) {
+      if (!amount || u.hp <= 0) return 0;
+      const before = u.post;
+      u.post = Math.min(u.postMax, u.post + amount); // nunca passa do máximo; não remove uma Quebra já aplicada
+      return u.post - before;
+    }
+    // Cumpre a penalidade da Quebra: a ação é perdida, a Postura volta ao máximo e o personagem fica protegido.
+    _stagger(ids, act) {
+      const broken = ids.map(id => this.unit(id)).filter(u => u.hp > 0 && u.broken);
+      if (!broken.length) return null;
+      for (const u of broken) { u.broken = false; u.post = u.postMax; u.stable = true; }
+      return { type: 'stagger', unitIds: broken.map(u => u.id), cancelled: act ? members(act) : broken.map(u => u.id),
+        skillId: act ? act.skillId : null, after: this.snapshot() };
+    }
+    _brokenIn(act) { return members(act).some(id => this.unit(id).hp > 0 && this.unit(id).broken); }
+    _acted(act) { for (const id of members(act)) { const u = this.unit(id); if (u) u.stable = false; } } // ação válida encerra a proteção
     // Combinação disponível para este aliado? (todos os membros vivos e sem recarga)
     combosFor(uid) {
       return Object.keys(G.COMBOS).filter(id => {
@@ -59,7 +91,7 @@
     }
     snapshot() {
       const s = {};
-      for (const u of this.units) s[u.id] = { hp: u.hp, statuses: JSON.parse(JSON.stringify(u.statuses)) };
+      for (const u of this.units) s[u.id] = { hp: u.hp, statuses: JSON.parse(JSON.stringify(u.statuses)), post: u.post, postMax: u.postMax, broken: u.broken, stable: u.stable };
       return s;
     }
 
@@ -90,6 +122,7 @@
         if (this.allAlive(it)) actions.push({ ...it, speed: this.actionSpeed(a, SKILLS[it.skillId]) });
       }
       for (const u of this.alive('ally')) {
+        if (u.broken) continue; // Quebra pendente: esta rodada a ação é perdida
         const c = choices[u.id];
         if (!c || !c.skillId) continue; // (parceiro de combinação: c.comboWith, sem ação própria)
         const sk = SKILLS[c.skillId];
@@ -97,7 +130,7 @@
         if (!own || !this.skillReady(u, c.skillId)) { errors.push(`${u.name}: habilidade indisponível`); continue; }
         const partners = sk.combo ? sk.members.slice(1) : undefined;
         // a combinação consome a ação de todos os membros: precisam estar vivos e reservados
-        if (partners && !partners.every(id => this.unit(id).hp > 0 && choices[id] && choices[id].comboWith === u.id)) { errors.push(`${sk.name}: parceiro indisponível`); continue; }
+        if (partners && !partners.every(id => this.unit(id).hp > 0 && !this.unit(id).broken && choices[id] && choices[id].comboWith === u.id)) { errors.push(`${sk.name}: parceiro indisponível`); continue; }
         let targetId = c.targetId;
         if (sk.kind === 'defense') targetId = u.id;
         const t = this.unit(targetId);
@@ -220,9 +253,12 @@
         const sk = SKILLS[a.skillId];
         if (sk.cooldown) this.unit(a.actorId).cooldowns[a.skillId] = sk.cooldown;
       }
+      // quem já estava com Quebra pendente (sem ação nesta rodada) cumpre a penalidade agora
+      const planned = new Set(plan.actions.flatMap(a => members(a)));
+      for (const u of this.units) if (u.hp > 0 && u.broken && !planned.has(u.id)) { const e = this._stagger([u.id], null); if (e) events.push(e); }
       for (const ev of plan.order) {
         if (this.outcome()) break;
-        if (ev.type === 'stances') { const e = this._stances(ev.actions); if (e) events.push(e); continue; }
+        if (ev.type === 'stances') { events.push(...this._stances(ev.actions)); continue; }
         if (ev.type === 'support') { events.push(this._support(ev.a)); continue; }
         if (ev.type === 'clash') { events.push(...this._clashOrFallback(ev, done)); continue; }
         events.push(this._attack(ev.a));
@@ -231,10 +267,12 @@
     }
 
     _stances(actions) {
-      const list = [];
+      const list = [], extra = [];
       for (const a of actions) {
         const u = this.unit(a.actorId), sk = SKILLS[a.skillId];
         if (u.hp <= 0) continue;
+        if (u.broken) { const e = this._stagger([u.id], a); if (e) extra.push(e); continue; }
+        this._acted(a);
         if (sk.kind === 'protect') {
           const t = this.unit(a.targetId);
           if (!t || t.hp <= 0) continue;
@@ -243,18 +281,22 @@
           list.push({ unitId: u.id, skillId: a.skillId, reaction: 'block', protectId: t.id });
         } else {
           u.statuses[sk.reaction] = true;
-          list.push({ unitId: u.id, skillId: a.skillId, reaction: sk.reaction });
+          // Firmar Guarda: recupera Postura
+          list.push({ unitId: u.id, skillId: a.skillId, reaction: sk.reaction, postHeal: this.healPosture(u, sk.postureHeal) });
         }
       }
-      return list.length ? { type: 'stances', list, after: this.snapshot() } : null;
+      return [...extra, ...(list.length ? [{ type: 'stances', list, after: this.snapshot() }] : [])];
     }
 
     _support(a) {
       const u = this.unit(a.actorId), t = this.unit(a.targetId);
       if (u.hp <= 0) return null;
+      if (u.broken) return this._stagger([u.id], a);
       if (!t || t.hp <= 0) return { type: 'fizzle', actorId: u.id, skillId: a.skillId, reason: 'alvo caído' };
+      this._acted(a);
       t.statuses.support = true;
-      return { type: 'support', actorId: u.id, targetId: t.id, skillId: a.skillId, after: this.snapshot() };
+      const postHeal = this.healPosture(t, SKILLS[a.skillId].postureHeal);
+      return { type: 'support', actorId: u.id, targetId: t.id, skillId: a.skillId, postHeal, after: this.snapshot() };
     }
 
     _roll() {
@@ -265,6 +307,16 @@
     _clashOrFallback(ev, done) {
       const A = this.unit(ev.a.actorId), B = this.unit(ev.b.actorId);
       // se um lado caiu (ou perdeu um membro da combinação), o outro age sem oposição
+      // lado com Quebra pendente perde a ação; o outro lado age sem oposição
+      const brA = this._brokenIn(ev.a), brB = this._brokenIn(ev.b);
+      if ((brA || brB) && this.allAlive(ev.a) && this.allAlive(ev.b)) {
+        const out = [];
+        if (brA) out.push(this._stagger(members(ev.a), ev.a));
+        if (brB) out.push(this._stagger(members(ev.b), ev.b));
+        if (!brA) out.push(this._attack(ev.a));
+        if (!brB) out.push(this._attack(ev.b));
+        return out.filter(Boolean);
+      }
       const okA = this.allAlive(ev.a), okB = this.allAlive(ev.b);
       if (!okA || !okB) {
         // o lado incompleto vira "fizzle" (_attack detecta); o lado inteiro age normalmente
@@ -292,7 +344,10 @@
         const [W, L, wAct] = sa.total > sb.total ? [A, B, ev.a] : [B, A, ev.b];
         res.winner = W.id;
         res.hit = this._applyHit(W, L, wAct.skillId);
+        // o perdedor do Clash sofre a Pressão da habilidade vencedora (uma vez, mesmo com vários golpes)
+        res.posture = L.hp > 0 ? this.applyPressure(L, SKILLS[wAct.skillId].pressure) : null;
       }
+      this._acted(ev.a); this._acted(ev.b);
       if (A.side === 'enemy') { const t = res.a; res.a = res.b; res.b = t; } // a = aliado
       res.decisive = !!(res.hit && res.hit.killed);
       res.after = this.snapshot();
@@ -301,7 +356,9 @@
 
     _applyHit(att, def, skillId, dmgMult = 1) {
       const sk = SKILLS[skillId];
-      let dmg = Math.max(1, Math.round(sk.dmg * dmgMult));
+      // crítico: uma rolagem por habilidade que acerta (não influencia o Clash)
+      const crit = this.rand() < (sk.critChance != null ? sk.critChance : CONFIG.crit.chance);
+      let dmg = Math.max(1, Math.round(sk.dmg * dmgMult * (crit ? CONFIG.crit.mult : 1)));
       const hpBefore = def.hp;
       def.hp = Math.max(0, def.hp - dmg);
       let applied = null;
@@ -310,7 +367,7 @@
         applied = sk.applies;
       }
       return { attackerId: att.id, defenderId: def.id, skillId,
-        damage: dmg, hpBefore, hpAfter: def.hp, killed: def.hp <= 0, applied, impact: this.impactOf(sk, dmg, def, dmgMult < 1) };
+        damage: dmg, crit, hpBefore, hpAfter: def.hp, killed: def.hp <= 0, applied, impact: this.impactOf(sk, dmg, def, dmgMult < 1) };
     }
 
     // Classificação do impacto físico: light | medium | heavy | extreme.
@@ -345,6 +402,8 @@
       if (a.hp <= 0) return null;
       // combinação sem todos os membros não acontece (nada de ação extra pela metade)
       if (!this.allAlive(act)) return { type: 'fizzle', actorId: a.id, skillId: act.skillId, reason: 'combinação interrompida' };
+      if (this._brokenIn(act)) return this._stagger(members(act), act); // Quebra: perde esta ação
+      this._acted(act);
       const t = this.unit(act.targetId);
       if (!t || t.hp <= 0) return { type: 'fizzle', actorId: a.id, skillId: act.skillId, reason: 'alvo já caído' };
       this.forceMods(a, true); // gasta o Suporte, se houver
@@ -365,7 +424,7 @@
         outcome = success ? 'parried' : 'parryFail'; mult = success ? 0 : 1;
       }
       let hit;
-      if (mult === 0) hit = { damage: 0, hpBefore: d.hp, hpAfter: d.hp, killed: false, applied: null, impact: null };
+      if (mult === 0) hit = { damage: 0, crit: false, hpBefore: d.hp, hpAfter: d.hp, killed: false, applied: null, impact: null };
       else hit = this._applyHit(a, d, act.skillId, mult);
       if (outcome === 'parried') {
         const before = a.hp, cd = CONFIG.parry.counterDmg;
@@ -374,7 +433,7 @@
       }
       return { type: 'attack', attackerId: a.id, partners: act.partners || [], skillId: act.skillId, skill: sk, targetId: t.id, defenderId: d.id,
         protectorId, reaction, chance: ch, success, outcome, damage: hit.damage, hpBefore: hit.hpBefore, hpAfter: hit.hpAfter,
-        killed: hit.killed, applied: hit.applied, impact: hit.impact, consumed: [], counter,
+        killed: hit.killed, applied: hit.applied, impact: hit.impact, crit: hit.crit, consumed: [], counter,
         decisive: hit.killed || !!(counter && counter.killed), after: this.snapshot() };
     }
 

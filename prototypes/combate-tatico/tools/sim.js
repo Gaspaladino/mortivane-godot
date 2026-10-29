@@ -41,7 +41,15 @@ for (const [label, pick] of [['aleatório', randomChoices], ['simples', smartCho
       b.planEnemyIntents();
       const plan = b.buildPlan(pick(b));
       const acted = new Set();
+      const brokenBefore = new Set(b.units.filter(u => u.broken).map(u => u.id));
       for (const ev of b.resolveRound(plan)) {
+        if (ev.type === 'stagger') {
+          types.lostActions = (types.lostActions || 0) + ev.unitIds.length;
+          for (const id of ev.cancelled) { if (acted.has(id)) throw new Error('quebra cancelou ação já usada: ' + id); acted.add(id); }
+        }
+        if (ev.type === 'clash' && ev.posture) { types.pressure = (types.pressure || 0) + 1; if (ev.posture.broke) types.breaks = (types.breaks || 0) + 1; if (ev.posture.held) types.held = (types.held || 0) + 1; }
+        if (ev.crit || (ev.hit && ev.hit.crit)) types.crit = (types.crit || 0) + 1;
+        for (const u of b.units) if (u.post < 0 || u.post > u.postMax) throw new Error('postura fora do limite');
         types[ev.type] = (types[ev.type] || 0) + 1;
         // integridade: cada personagem age no máximo uma vez por rodada (combinação conta para os dois)
         const actors = ev.type === 'clash' ? [ev.a, ev.b].flatMap(x => [x.actorId, ...x.partners])

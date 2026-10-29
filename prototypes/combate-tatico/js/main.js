@@ -52,7 +52,9 @@
     return G.PARTY.slice();
   }
   const teamState = { team: team.slice(), focus: team[0] };
+  const preview = new G.SkillPreview();
   const teamCb = {
+    preview,
     focus(id) { teamState.focus = id; G.SFX.play('uiSelect'); UI.renderTeam(teamState, teamCb); },
     toggle(id) {
       const i = teamState.team.indexOf(id);
@@ -68,6 +70,7 @@
       team = teamState.team.slice().sort((a, b) => (G.UNITS[a].formation || 0) - (G.UNITS[b].formation || 0));
       try { localStorage.setItem('duelo-team', JSON.stringify(teamState.team)); } catch (e) { /* ok */ }
       G.SFX.play('uiConfirm');
+      preview.pause();
       UI.showTeam(false);
       start();
     },
@@ -146,7 +149,13 @@
     view.plan = battle.buildPlan(view.choices);
     view.preview = battle.previewPlan(view.plan);
     // completo: todo aliado vivo tem ação própria OU participa de uma combinação válida
-    view.complete = allies.every(u => view.plan.actions.some(a => a.actorId === u.id || (a.partners || []).includes(u.id)));
+    // (quem está com Quebra pendente não planeja: perde a ação desta rodada)
+    view.complete = allies.every(u => u.broken || view.plan.actions.some(a => a.actorId === u.id || (a.partners || []).includes(u.id)));
+    // posturas defensivas preparadas aparecem já no planejamento
+    for (const u of allies) {
+      const c = view.choices[u.id], sk = c && c.skillId && SKILLS[c.skillId];
+      presenter.setPrepStance(u.id, sk && sk.kind === 'defense' ? sk.reaction : sk && sk.kind === 'protect' ? 'block' : null);
+    }
     const note = {};
     for (const a of view.plan.actions.filter(x => x.side === 'ally')) {
       const sk = SKILLS[a.skillId];
@@ -154,8 +163,9 @@
       else if (sk.kind === 'defense') note[a.actorId] = note[a.actorId] || G.REACTIONS[sk.reaction].name;
     }
     UI.defenseNote = note;
-    view.hint = firstAction ? '<b>Selecione um personagem e conecte uma habilidade ao alvo.</b> <small>(clique ou arraste · botão direito/✕ cancela · Esc desfaz)</small>'
-      : view.complete ? 'Tudo pronto. Passe o mouse nas correntes para ver os Clashes.' : 'Planeje os personagens restantes.';
+    const lost = allies.filter(u => u.broken).map(u => u.name);
+    view.hint = (lost.length ? `<b style="color:#ffd36a">${lost.join(' e ')} perde${lost.length > 1 ? 'm' : ''} a ação (Quebra de Postura).</b> ` : '') + (firstAction ? '<b>Selecione um personagem e conecte uma habilidade ao alvo.</b> <small>(clique ou arraste · botão direito/✕ cancela · Esc desfaz)</small>'
+      : view.complete ? 'Tudo pronto. Passe o mouse nas correntes para ver os Clashes.' : 'Planeje os personagens restantes.');
     UI.setTop(battle, 'Planejamento', false);
     UI.renderBar(battle, view, () => { if (view.complete && fsm.state === Phase.PLAN) fsm.go(Phase.RESOLVE); });
   }
@@ -189,6 +199,10 @@
   document.getElementById('vol-sfx').oninput = e => { G.SFX.set('sfx', +e.target.value); G.SFX.play('uiSkill'); };
   document.getElementById('vol-mute').onchange = e => { G.SFX.set('muted', e.target.checked); document.getElementById('btn-audio').textContent = e.target.checked ? '🔇' : '🔊'; };
   document.getElementById('btn-audio').textContent = A.muted ? '🔇' : '🔊';
+  // reduzir animações: prévias não repetem, menos tremor, sem câmera lenta
+  try { G.reduceMotion = localStorage.getItem('duelo-reduce') === '1'; } catch (e) { /* ok */ }
+  document.getElementById('vol-reduce').checked = !!G.reduceMotion;
+  document.getElementById('vol-reduce').onchange = e => { G.reduceMotion = e.target.checked; try { localStorage.setItem('duelo-reduce', e.target.checked ? '1' : '0'); } catch (er) { /* ok */ } };
   document.getElementById('btn-audio').onclick = () => document.getElementById('audio-pop').classList.toggle('show');
   document.getElementById('btn-team').onclick = () => { if (fsm.state === 'TEAM' || confirm('Voltar para a formação de equipe? A batalha atual será encerrada.')) openTeam(); };
 

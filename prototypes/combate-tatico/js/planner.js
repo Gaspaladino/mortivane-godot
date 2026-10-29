@@ -69,9 +69,12 @@
         const valid = new Set(this.validTargets(uid, sid));
         this.p.highlight = valid;
         this.p.dimIds = new Set(Object.keys(this.p.vis).filter(id => !valid.has(id) && id !== uid));
+        const pr = SKILLS[sid].pressure || 0;
+        this.p.breakHint = new Set([...valid].filter(id => { const t = this.battle.unit(id); return t.side === 'enemy' && pr && !t.stable && !t.broken && t.post <= pr; }));
       } else {
         this.p.highlight = this.enabled && uid ? new Set([uid]) : null;
         this.p.dimIds = null;
+        this.p.breakHint = null;
       }
     }
 
@@ -128,6 +131,7 @@
         const { sx, sy } = pos(e); this._move(sx, sy);
         canvas.setPointerCapture(e.pointerId);
         this.press = this._hitAt() ; this.press.sx = sx; this.press.sy = sy;
+        if (this.press.kind === 'ally' && this.battle.unit(this.press.id).broken) { G.SFX && G.SFX.play('uiCancel'); this.press = null; return; }
         if (this.press.kind === 'ally' && !(this.sel && this.sel.skillId && this.validTargets(this.sel.uid, this.sel.skillId).includes(this.press.id))) {
           if (!this.sel || this.sel.uid !== this.press.id || this.sel.skillId) this._select(this.press.id);
         }
@@ -301,6 +305,11 @@
         lines.push({ t: `${who(me)} — ${sk.name}   F ${fMe} + 0–3`, c: '#9fd8ff' });
         lines.push({ t: `${who(other)} — ${SKILLS[other.skillId].name}   F ${fOt} + 0–3`, c: '#ff9a8a' });
         lines.push({ t: `Previsão: ${CAT_NAME[cat]}  (vence ${Math.round(p * 100)}%, empata ${Math.round(ev.odds.tie * 100)}%)`, c: CAT_COLOR[cat] });
+        // Postura: o que acontece com o alvo SE vencer (e o risco para mim se perder)
+        const foeU = b.unit(other.actorId), meU = b.unit(me.actorId);
+        const myP = sk.pressure || 0, theirP = SKILLS[other.skillId].pressure || 0;
+        lines.push({ t: `Se vencer: −${myP} Postura em ${foeU.name} (${foeU.post}/${foeU.postMax})` + (!foeU.stable && foeU.post <= myP ? '  → possível QUEBRA' : ''), c: '#d9b85c' });
+        lines.push({ t: `Se perder: −${theirP} na sua Postura (${meU.post}/${meU.postMax})` + (!meU.stable && meU.post <= theirP ? '  → risco de QUEBRA' : ''), c: '#b89a70' });
       } else if (sk.kind === 'attack') {
         const info = me && me.interceptInfo;
         lines.push({ t: `${sk.name} → ${b.unit(targetId).name}`, c: '#ffe9b0' });
@@ -448,7 +457,18 @@
           ctx.globalAlpha = this.fade * (on ? 0.6 : 0.16);
           ctx.strokeStyle = SKILLS[c.it.skillId].combo ? '#ff9a5a' : '#ff5a5a'; ctx.lineWidth = 2; ctx.setLineDash([7, 7]); ctx.lineDashOffset = -this.p.time * 0.04;
           ctx.beginPath(); ctx.moveTo(cv.p0.x, cv.p0.y); ctx.bezierCurveTo(cv.c1.x, cv.c1.y, cv.c2.x, cv.c2.y, cv.p1.x, cv.p1.y); ctx.stroke();
+          ctx.setLineDash([]);
+          // seta de direção: ponta perto do alvo + chevron que percorre devagar o arco (inimigo → alvo)
+          const tip = this._at(cv, 0.985), col = SKILLS[c.it.skillId].combo ? '#ff9a5a' : '#ff5a5a';
+          this._arrowHead(ctx, tip.x, tip.y, tip.a, 13, col);
+          const tt = ((this.p.time * 0.00028 + c.seed * 0.1) % 1) * 0.8 + 0.1, ch = this._at(cv, tt);
+          ctx.globalAlpha *= 0.8; this._arrowHead(ctx, ch.x, ch.y, ch.a, 8, col, true);
           ctx.restore();
+          // inimigo sob o cursor: destaca também o alvo
+          if (this.hover.unit === c.from) {
+            const T = vis[c.to]; ctx.save(); ctx.translate(T.x, T.y + 4); ctx.scale(1, 0.32);
+            ctx.strokeStyle = 'rgba(255,90,90,0.9)'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(0, 0, 64, 0, 7); ctx.stroke(); ctx.restore();
+          }
         } else {
           const sk = SKILLS[c.a.skillId];
           const editing = this.sel && c.members.includes(this.sel.uid);
@@ -490,6 +510,13 @@
       }
     }
 
+    _arrowHead(ctx, x, y, a, size, color, open) {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+      ctx.fillStyle = color; ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(size * 0.6, 0); ctx.lineTo(-size * 0.6, -size * 0.55); ctx.lineTo(-size * 0.3, 0); ctx.lineTo(-size * 0.6, size * 0.55); ctx.closePath();
+      open ? ctx.stroke() : ctx.fill();
+      ctx.restore();
+    }
     // Ligação secundária discreta entre os membros de uma combinação
     _tether(ctx, vs, color, alpha, dashed) {
       vs = vs.filter(Boolean);
@@ -569,6 +596,14 @@
         ctx.globalAlpha = this.fade;
       }
 
+      // Quebra pendente: este personagem perde a ação desta rodada
+      for (const id in vis) {
+        const v = vis[id], u = b.unit(id);
+        if (!u || u.hp <= 0 || !u.broken) continue;
+        ctx.globalAlpha = this.fade;
+        this._tag(ctx, v.x, v.y - 200, 'DESEQUILIBRADO · perde a ação', '#ffd36a', 12 / k, true);
+      }
+      ctx.globalAlpha = this.fade;
       // indicador: combinação disponível para estes personagens
       if (this.enabled) for (const id in G.COMBOS) {
         const c = G.COMBOS[id];
@@ -609,8 +644,9 @@
         if (hi && !hi.cancel && hi.skillId && this.sel) {
           const sk = SKILLS[hi.skillId], u = b.unit(sk.combo ? sk.members[0] : this.sel.uid);
           const lines = [{ t: sk.name + (sk.hits ? `  ·  ${sk.hits.length} golpes` : ''), c: '#ffe9b0' },
-            sk.kind === 'attack' ? { t: `Força ${sk.force} · Dano ${sk.dmg} · Vel ${b.actionSpeed(u, sk)}`, c: '#e8dccb' } : { t: KIND_STYLE[sk.kind].label + (sk.kind === 'defense' ? ' · age antes de tudo' : ` · Vel ${b.actionSpeed(u, sk)}`), c: '#9fd0ff' },
+            sk.kind === 'attack' ? { t: `Força ${sk.force} · Dano ${sk.dmg} · Pressão ${sk.pressure || 0} · Vel ${b.actionSpeed(u, sk)}`, c: '#e8dccb' } : { t: KIND_STYLE[sk.kind].label + (sk.kind === 'defense' ? ' · age antes de tudo' : ` · Vel ${b.actionSpeed(u, sk)}`), c: '#9fd0ff' },
             { t: sk.desc, c: '#bdb0a8', wrap: true }];
+          if (sk.postureHeal) lines.push({ t: `Recupera ${sk.postureHeal} de Postura`, c: '#ffd36a' });
           if (sk.combo) lines.push({ t: `Participantes: ${sk.members.map(m => b.unit(m).name).join(' + ')} · custa a ação dos dois`, c: KIND_STYLE.combo.color, wrap: true });
           if (hi.disabled) lines.push({ t: hi.cd ? `Em recarga (${hi.cd})` : 'Sem alvo válido', c: '#ff9a8a' });
           this._tooltip(ctx, hi.x, hi.y - hi.r - 10 / k2, lines);
@@ -629,7 +665,8 @@
             if (it) {
               const sk = SKILLS[it.skillId], A = vis[it.actorId];
               this._tooltip(ctx, A.x, A.y - 215, sk.kind === 'attack'
-                ? [{ t: `${[it.actorId, ...(it.partners || [])].map(id => b.unit(id).name).join(' + ')} → ${b.unit(it.targetId).name}${sk.combo ? '  (ATAQUE COMBINADO)' : ''}`, c: '#ff9a8a' }, { t: `${sk.name} · Força ${sk.force} · Dano ${sk.dmg} · Vel ${b.actionSpeed(b.unit(it.actorId), sk)}`, c: '#e8dccb' }]
+                ? [{ t: `${[it.actorId, ...(it.partners || [])].map(id => b.unit(id).name).join(' + ')} → ${b.unit(it.targetId).name}${sk.combo ? '  (ATAQUE COMBINADO)' : ''}`, c: '#ff9a8a' },
+                   { t: `Postura ${b.unit(it.actorId).post}/${b.unit(it.actorId).postMax} · Pressão do golpe ${sk.pressure || 0}`, c: '#d9b85c' }, { t: `${sk.name} · Força ${sk.force} · Dano ${sk.dmg} · Vel ${b.actionSpeed(b.unit(it.actorId), sk)}`, c: '#e8dccb' }]
                 : [{ t: `${b.unit(it.actorId).name} vai se defender`, c: '#9fd0ff' }, { t: sk.name, c: '#e8dccb' }]);
             }
           }

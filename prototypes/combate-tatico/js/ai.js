@@ -12,6 +12,7 @@
       const intents = [];
       if (!allies.length) return intents;
       for (const e of battle.alive('enemy')) {
+        if (e.broken) continue; // Quebra pendente: não age nesta rodada
         const ready = e.def.skills.filter(id => battle.skillReady(e, id));
         const attacks = ready.filter(id => SKILLS[id].kind === 'attack');
         const defense = ready.find(id => SKILLS[id].kind === 'defense');
@@ -50,20 +51,27 @@
       const ratio = u.hp / u.maxHp;
       const best = Math.max(...e.def.skills.filter(id => SKILLS[id].kind === 'attack' && battle.skillReady(e, id)).map(id => SKILLS[id].dmg), 0);
       const canKill = best >= u.hp ? 1.2 : 0;
+      // Postura: chance de Quebra pesa um pouco, conforme a classe (sem caçar sempre o mais frágil)
+      const bestP = Math.max(...e.def.skills.filter(id => SKILLS[id].kind === 'attack' && battle.skillReady(e, id)).map(id => SKILLS[id].pressure || 0), 0);
+      const breakable = !u.stable && !u.broken && u.post <= bestP ? ({ strong: 0.5, weak: 0.2, threat: 0.25 }[prefers] || 0.2) : 0;
       switch (prefers) {
         case 'strong': // Brutamontes: alvo onde o golpe forte rende mais (quem pode finalizar, ou o mais resistente)
-          return canKill + (u.statuses.block ? -0.5 : 0) + 0.4 * (1 - ratio) + (u.id === 'knight' ? 0.3 : 0);
+          return canKill + breakable + (u.statuses.block ? -0.5 : 0) + 0.4 * (1 - ratio) + (u.id === 'knight' ? 0.3 : 0);
         case 'weak':   // Duelista: vulneráveis, enfraquecidos, pouca vida
-          return canKill + 1.4 * (1 - ratio) + (u.statuses.weaken ? 0.8 : 0) + (u.maxHp < 50 ? 0.3 : 0);
+          return canKill + breakable + 1.4 * (1 - ratio) + (u.statuses.weaken ? 0.8 : 0) + (u.maxHp < 50 ? 0.3 : 0);
         case 'threat': // Conjurador: ameaças e quem ainda não foi amaldiçoado
-          return (AI_THREAT[u.id] || 0) + (u.statuses.weaken ? -0.6 : 0.3) + 0.5 * (1 - ratio) + canKill * 0.5;
+          return (AI_THREAT[u.id] || 0) + breakable + (u.statuses.weaken ? -0.6 : 0.3) + 0.5 * (1 - ratio) + canKill * 0.5;
         default: return 1 - ratio;
       }
     },
 
     pickSkill(battle, e, target, attacks, prefers) {
       const by = (f) => attacks.slice().sort((a, b) => f(SKILLS[b]) - f(SKILLS[a]))[0];
-      if (prefers === 'strong') return battle.rand() < 0.8 ? by(s => s.dmg) : by(s => s.force);
+      // Brutamontes: prefere Pressão quando o alvo está perto de quebrar
+      if (prefers === 'strong') {
+        if (!target.stable && target.post <= Math.max(...attacks.map(id => SKILLS[id].pressure || 0)) && battle.rand() < 0.6) return by(s => s.pressure || 0);
+        return battle.rand() < 0.8 ? by(s => s.dmg) : by(s => s.force);
+      }
       if (prefers === 'threat') {
         const curse = attacks.find(id => SKILLS[id].applies === 'weaken');
         if (curse && !target.statuses.weaken && battle.rand() < 0.7) return curse;

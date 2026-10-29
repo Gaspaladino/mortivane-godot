@@ -136,6 +136,39 @@ body.resolving #panel { opacity:.6; }
 .end .row { display:flex; gap:10px; justify-content:center; }
 @media (max-width: 700px) { .roster { grid-template-columns:repeat(2, 1fr); } }
 
+/* ficha de personagem */
+.detail { flex:1 1 380px; padding:0; background:none; border:none; }
+.sheet { position:relative; display:flex; flex-direction:column; gap:8px; padding:14px; border-radius:14px; background:linear-gradient(160deg, #1d1424 0%, #120c16 100%);
+  border:1px solid color-mix(in srgb, var(--acc) 55%, #2a1f30); box-shadow:inset 0 0 0 3px #0c0810, inset 0 0 0 4px color-mix(in srgb, var(--acc) 25%, transparent); animation:sheetIn .25s ease-out; }
+.sheet::before, .sheet::after { content:''; position:absolute; width:18px; height:18px; border:2px solid var(--acc); opacity:.7; }
+.sheet::before { top:6px; left:6px; border-right:none; border-bottom:none; } .sheet::after { bottom:6px; right:6px; border-left:none; border-top:none; }
+@keyframes sheetIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.sheet-head { display:flex; gap:12px; align-items:stretch; }
+.sheet-portrait { width:120px; height:136px; border-radius:10px; border:2px solid var(--acc); flex:0 0 auto; }
+.sheet-title { position:relative; flex:1; display:flex; flex-direction:column; gap:3px; }
+.sheet-glyph { position:absolute; right:0; top:-4px; width:64px; height:64px; pointer-events:none; }
+.sheet-title h2 { margin:0; font-size:24px; color:#fff1d0; letter-spacing:1px; }
+.sheet-title .cls { color:var(--acc); font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:1.5px; }
+.sheet-title p { margin:4px 0 0; color:#cbbfb0; font-size:13px; line-height:1.35; }
+.stats { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.tile { background:#0f0a13; border:1px solid #2e2234; border-radius:8px; padding:5px 8px; display:flex; flex-direction:column; }
+.tile i { font-style:normal; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); } .tile b { font-size:20px; color:#fff1d0; }
+.tile.wide { grid-column:span 3; flex-direction:row; gap:8px; align-items:baseline; } .tile.wide span { font-size:12px; color:#d9cdbd; }
+.sklist { display:flex; flex-direction:column; gap:4px; }
+.skrow { display:flex; gap:9px; align-items:flex-start; padding:6px; border-radius:9px; border:1px solid transparent; cursor:pointer; outline:none; }
+.skrow:hover, .skrow.on, .skrow:focus { background:#1f1626; border-color:color-mix(in srgb, var(--acc) 60%, transparent); }
+.skico { width:38px; height:38px; flex:0 0 auto; }
+.skbody { display:flex; flex-direction:column; gap:2px; font-size:12px; color:#cbbfb0; } .skbody b { color:#fff1d0; font-size:14px; }
+.skbody .chips { gap:4px; margin-top:2px; } .skbody em { font-style:normal; color:var(--acc); font-size:11px; align-self:center; }
+.chipv { font-size:11px; border:1px solid #3a2c40; background:#120c16; border-radius:8px; padding:0 6px; color:#fff1d0; } .chipv i { font-style:normal; color:var(--muted); margin-right:4px; }
+.chipv.p { border-color:#6a5530; color:#ffd36a; }
+.pv-slot { min-height:180px; }
+.pv-box { position:relative; height:190px; border-radius:10px; overflow:hidden; border:1px solid #2e2234; }
+.pv-box canvas { position:absolute; inset:0; width:100%; height:100%; }
+.pv-label { position:absolute; left:8px; top:6px; font-size:12px; font-weight:700; color:#ffe9b0; text-shadow:0 1px 3px #000; }
+.team-box { width:min(1240px,100%); }
+.roster { align-content:start; align-items:start; }
+
 </style>
 </head>
 <body>
@@ -159,6 +192,7 @@ body.resolving #panel { opacity:.6; }
     <label>Volume geral <input type="range" id="vol-master" min="0" max="1" step="0.05"></label>
     <label>Efeitos <input type="range" id="vol-sfx" min="0" max="1" step="0.05"></label>
     <label class="chk"><input type="checkbox" id="vol-mute"> Silenciar</label>
+    <label class="chk"><input type="checkbox" id="vol-reduce"> Reduzir animações</label>
   </div>
   <div id="team" class="team">
     <div class="team-box">
@@ -181,6 +215,8 @@ body.resolving #panel { opacity:.6; }
       <p><b>Leitura:</b> linhas vermelhas tracejadas = intenções inimigas. Correntes = suas ações (vermelha com ponta = ataque, verde = suporte, azul com escudo = proteção). O selo no meio da corrente mostra o Clash (Favorável / Equilibrado / Desfavorável); passe o mouse para ver as forças. Em interceptações, clique no selo para ligar/desligar.</p>
       <p><b>Clash:</b> cada lado rola <b>Força + (0 a 3)</b>; o maior interrompe o outro e acerta seu dano. Empate anula os dois. Interceptar exige velocidade (+ alcance do Cavaleiro) ≥ a do golpe inimigo.</p>
       <p><b>Defesas</b> agem antes de tudo: Postura de Escudo, Proteção (o Cavaleiro recebe os golpes no lugar de um aliado), Aparar (1º golpe físico), Passo Etéreo (esquiva). Enfraquecimento (−2 força) e Suporte (+2) afetam só o que vem depois deles.</p>
+      <p><b>Postura:</b> barra âmbar abaixo da vida. Perder um Clash tira Postura (a Pressão da habilidade vencedora). Em 0 ocorre a <b>Quebra</b>: o personagem perde a próxima ação, depois volta com a Postura cheia e fica protegido contra nova Quebra até agir. Firmar Guarda (+25) e Reforço Arcano (+15) recuperam Postura. ⚡ QUEBRA? indica que o golpe escolhido pode quebrar o alvo se vencer.</p>
+      <p><b>Críticos:</b> 10% por habilidade que acerta, 1,5× de dano; não interferem no Clash.</p>
       <p><b>Equipe:</b> 👥 volta à formação (6 combatentes, escolha 3). 🔊 ajusta o áudio.</p>
       <p><b>Controles:</b> 1×/2×, Pular (ou Espaço), Enter executa a rodada. Os resultados já estão decididos antes da animação.</p>
       <p class="muted">Clique para fechar.</p>
@@ -287,6 +323,13 @@ body.resolving #panel { opacity:.6; }
         case 'arrowHit': N(0.05, { type: 'bandpass', f0: 1800, q: 2, peak: 0.35 }); T(0.08, { type: 'sine', f0: 260, f1: 120, peak: 0.3 }); break;
         case 'thud': T(0.3, { type: 'sine', f0: 70, f1: 40, peak: 0.55 }); N(0.25, { type: 'lowpass', f0: 500, f1: 150, peak: 0.35 }); break; // queda
         case 'defeat': T(0.6, { type: 'triangle', f0: 220, f1: 110, peak: 0.15 }); break;
+        // postura e crítico
+        case 'pressure': T(0.16, { type: 'triangle', f0: 180, f1: 120, peak: 0.18 }); N(0.1, { type: 'bandpass', f0: 900, q: 2, peak: 0.18 }); break; // defesa pressionada
+        case 'postureBreak': // ruptura: estalo + estilhaço + grave
+          N(0.05, { type: 'highpass', f0: 3500, peak: 0.45 }); [1, 1.5, 2.3, 3.4].forEach((m, i) => T(0.3, { type: 'triangle', f0: 900 * m, f1: 600 * m, peak: 0.08 }, 0.02 * i));
+          T(0.45, { type: 'sine', f0: 95, f1: 45, peak: 0.55 }); break;
+        case 'recover': T(0.25, { type: 'sine', f0: 330, f1: 495, peak: 0.12, a: 0.05 }); T(0.3, { type: 'sine', f0: 495, f1: 660, peak: 0.08, a: 0.08 }, 0.08); break;
+        case 'crit': N(0.08, { type: 'highpass', f0: 2500, peak: 0.4 }); T(0.4, { type: 'sine', f0: 140, f1: 50, peak: 0.6 }); T(0.25, { type: 'square', f0: 1320, f1: 880, peak: 0.05 }); break;
         // interface
         case 'uiSelect': T(0.07, { type: 'triangle', f0: 660, peak: 0.1 }); break;
         case 'uiSkill': T(0.08, { type: 'triangle', f0: 880, peak: 0.09 }); break;
@@ -322,7 +365,12 @@ body.resolving #panel { opacity:.6; }
     // Intensidade visual do impacto (dano / vida máxima do alvo). Só apresentação, por enquanto;
     // 'knockdown' (derrubada) só acontece com habilidades que têm essa propriedade (impact).
     impact: { medium: 0.14, heavy: 0.26 },
-    weaken: { amount: 2, rounds: 2 },  // -2 de força; dura até o fim da próxima rodada
+    weaken: { amount: 2, rounds: 2 },
+    // POSTURA: só o perdedor de um Clash perde Postura (Pressão da habilidade vencedora, uma vez por habilidade).
+    // Em 0 → Quebra: perde a próxima ação; depois volta ao máximo e fica protegido até agir.
+    posture: { protectedMin: 1 },
+    // CRÍTICO: rolado uma vez por habilidade que acerta; não afeta o Clash.
+    crit: { chance: 0.10, mult: 1.5, hitstop: 130 },  // -2 de força; dura até o fim da próxima rodada
     support: { amount: 2 },            // +2 de força na próxima habilidade ofensiva do aliado
   };
 
@@ -330,59 +378,59 @@ body.resolving #panel { opacity:.6; }
   // tags: melee | magic | heavy | fast
   const SKILLS = {
     // --- Cavaleiro
-    k_basic: { name: 'Ataque Básico', icon: 'sword', kind: 'attack', force: 6, dmg: 8, tags: ['melee'],
+    k_basic: { name: 'Ataque Básico', pressure: 15, icon: 'sword', kind: 'attack', force: 6, dmg: 8, tags: ['melee'],
       desc: 'Golpe de espada equilibrado.' },
-    k_shield: { name: 'Golpe de Escudo', icon: 'shieldbash', kind: 'attack', force: 8, dmg: 6, tags: ['melee'],
+    k_shield: { name: 'Golpe de Escudo', pressure: 10, icon: 'shieldbash', kind: 'attack', force: 8, dmg: 6, tags: ['melee'],
       desc: 'Muito confiável em Clashes, pouco dano.' },
-    k_heavy: { name: 'Golpe Pesado', windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 14, tags: ['melee', 'heavy'], cooldown: 2,
+    k_heavy: { name: 'Golpe Pesado', pressure: 35, windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 14, tags: ['melee', 'heavy'], cooldown: 2,
       desc: 'Lento e devastador. Arriscado em Clashes.' },
-    k_guard: { name: 'Postura de Escudo', icon: 'shield', kind: 'defense', reaction: 'block', tags: [],
-      desc: 'Bloqueia todos os golpes recebidos nesta rodada (-60% de dano).' },
+    k_guard: { name: 'Firmar Guarda', postureHeal: 25, icon: 'shield', kind: 'defense', reaction: 'block', tags: [],
+      desc: 'Bloqueia os golpes desta rodada (-60% de dano) e recupera 25 de Postura.' },
     k_protect: { name: 'Proteção', icon: 'protect', kind: 'protect', reaction: 'block', tags: [],
       desc: 'Fica na frente de um aliado: recebe e bloqueia os golpes sem oposição destinados a ele.' },
     // --- Espadachim
-    s_basic: { name: 'Corte Rápido', hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'light' }], icon: 'slash', kind: 'attack', force: 6, dmg: 7, tags: ['melee', 'fast'],
+    s_basic: { name: 'Corte Rápido', pressure: 12, hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'light' }], icon: 'slash', kind: 'attack', force: 6, dmg: 7, tags: ['melee', 'fast'],
       desc: 'Corte veloz: age cedo na rodada.' },
-    s_precise: { name: 'Golpe Preciso', icon: 'precise', kind: 'attack', force: 9, dmg: 6, tags: ['melee'],
+    s_precise: { name: 'Golpe Preciso', pressure: 8, icon: 'precise', kind: 'attack', force: 9, dmg: 6, tags: ['melee'],
       desc: 'Força alta: vence a maioria dos Clashes.' },
-    s_risky: { name: 'Ataque Arriscado', hits: [{ share: 0.25, motion: 'h', react: 'light' }, { share: 0.3, motion: 'd', react: 'medium' }, { share: 0.45, motion: 'over', react: 'final' }], icon: 'risky', impact: 'stagger', kind: 'attack', force: 4, dmg: 15, tags: ['melee'], cooldown: 2,
+    s_risky: { name: 'Ataque Arriscado', pressure: 20, hits: [{ share: 0.25, motion: 'h', react: 'light' }, { share: 0.3, motion: 'd', react: 'medium' }, { share: 0.45, motion: 'over', react: 'final' }], icon: 'risky', impact: 'stagger', kind: 'attack', force: 4, dmg: 15, tags: ['melee'], cooldown: 2,
       desc: 'Força baixa, dano enorme. Ótimo contra quem não vai reagir.' },
     s_parry: { name: 'Aparar', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [],
       desc: 'Tenta aparar o primeiro golpe físico recebido; se der certo, anula e contra-ataca. Não funciona contra magia.' },
     // --- Mago
-    m_bolt: { name: 'Projétil Mágico', hits: [{ share: 0.5, motion: 'proj', react: 'light' }, { share: 0.5, motion: 'proj', react: 'final' }], icon: 'bolt', kind: 'attack', force: 6, dmg: 7, tags: ['magic'],
+    m_bolt: { name: 'Projétil Mágico', pressure: 10, hits: [{ share: 0.5, motion: 'proj', react: 'light' }, { share: 0.5, motion: 'proj', react: 'final' }], icon: 'bolt', kind: 'attack', force: 6, dmg: 7, tags: ['magic'],
       desc: 'Ataque à distância.' },
-    m_blast: { name: 'Explosão Arcana', icon: 'blast', impact: 'knockdown', kind: 'attack', force: 5, dmg: 13, tags: ['magic'], cooldown: 2,
+    m_blast: { name: 'Explosão Arcana', pressure: 20, icon: 'blast', impact: 'knockdown', kind: 'attack', force: 5, dmg: 13, tags: ['magic'], cooldown: 2,
       desc: 'Magia de dano elevado.' },
-    m_weaken: { name: 'Enfraquecimento', icon: 'weaken', kind: 'attack', force: 7, dmg: 3, tags: ['magic', 'support'], applies: 'weaken',
+    m_weaken: { name: 'Enfraquecimento', pressure: 12, icon: 'weaken', kind: 'attack', force: 7, dmg: 3, tags: ['magic', 'support'], applies: 'weaken',
       desc: 'Pouco dano, mas o alvo perde 2 de força nos Clashes até o fim da próxima rodada. Age cedo.' },
-    m_support: { name: 'Suporte', icon: 'support', kind: 'support', tags: ['support'],
-      desc: 'Um aliado ganha +2 de força na próxima habilidade ofensiva. Age cedo.' },
+    m_support: { name: 'Reforço Arcano', postureHeal: 15, icon: 'support', kind: 'support', tags: ['support'],
+      desc: 'Um aliado ganha +2 de força na próxima habilidade ofensiva e recupera 15 de Postura. Age cedo.' },
     // --- Lanceiro (alcance e controle de distância)
-    l_thrust: { name: 'Estocada', icon: 'spear', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'],
+    l_thrust: { name: 'Estocada', pressure: 12, icon: 'spear', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'],
       hits: [{ share: 1, motion: 'thrust', react: 'final' }], desc: 'Estocada rápida de longo alcance. Boa força de Clash.' },
-    l_sweep: { name: 'Varredura', icon: 'sweep', impact: 'push', kind: 'attack', force: 6, dmg: 9, tags: ['melee'],
+    l_sweep: { name: 'Varredura', pressure: 30, icon: 'sweep', impact: 'push', kind: 'attack', force: 6, dmg: 9, tags: ['melee'],
       hits: [{ share: 1, motion: 'sweep', react: 'final' }], desc: 'Arco amplo com a haste: empurra o alvo para longe.' },
-    l_pierce: { name: 'Investida Perfurante', icon: 'pierce', impact: 'stagger', kind: 'attack', force: 5, dmg: 14, tags: ['melee'], cooldown: 2, windup: 1.3,
+    l_pierce: { name: 'Investida Perfurante', pressure: 25, icon: 'pierce', impact: 'stagger', kind: 'attack', force: 5, dmg: 14, tags: ['melee'], cooldown: 2, windup: 1.3,
       hits: [{ share: 1, motion: 'lunge', react: 'final' }], desc: 'Avança e perfura com força. Dano alto, força de Clash moderada.' },
     l_parry: { name: 'Guarda da Lança', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [],
       desc: 'Apara o primeiro golpe físico com a haste e contra-ataca.' },
     // --- Lutador (pressão e múltiplos impactos)
-    f_jab: { name: 'Soco Direto', icon: 'fist', kind: 'attack', force: 7, dmg: 6, tags: ['melee', 'fast'],
+    f_jab: { name: 'Soco Direto', pressure: 10, icon: 'fist', kind: 'attack', force: 7, dmg: 6, tags: ['melee', 'fast'],
       hits: [{ share: 1, motion: 'punch', react: 'final' }], desc: 'Soco rápido e simples.' },
-    f_flurry: { name: 'Sequência de Golpes', icon: 'flurry', kind: 'attack', force: 6, dmg: 12, tags: ['melee'],
+    f_flurry: { name: 'Sequência de Golpes', pressure: 25, icon: 'flurry', kind: 'attack', force: 6, dmg: 12, tags: ['melee'],
       hits: [{ share: 0.3, motion: 'punch', react: 'light' }, { share: 0.3, motion: 'punch2', react: 'light' }, { share: 0.4, motion: 'punch', react: 'final' }],
       desc: 'Três socos seguidos (um único Clash). O dano é dividido entre os impactos.' },
-    f_upper: { name: 'Golpe Ascendente', icon: 'upper', impact: 'knockdown', kind: 'attack', force: 5, dmg: 12, tags: ['melee'], cooldown: 2, windup: 1.3,
+    f_upper: { name: 'Golpe Ascendente', pressure: 35, icon: 'upper', impact: 'knockdown', kind: 'attack', force: 5, dmg: 12, tags: ['melee'], cooldown: 2, windup: 1.3,
       hits: [{ share: 1, motion: 'upper', react: 'final' }], desc: 'De baixo para cima: pode derrubar o alvo.' },
     f_dodge: { name: 'Esquiva Lateral', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
       desc: 'Esquiva ágil de cada golpe recebido nesta rodada (chance alta).' },
     // --- Arqueira (precisão à distância)
-    a_shot: { name: 'Flecha Precisa', icon: 'arrow', kind: 'attack', force: 8, dmg: 7, tags: ['ranged'],
+    a_shot: { name: 'Flecha Precisa', pressure: 10, icon: 'arrow', kind: 'attack', force: 8, dmg: 7, tags: ['ranged'],
       hits: [{ share: 1, motion: 'arrow', react: 'final' }], desc: 'Flecha certeira: boa força de Clash, dano moderado.' },
-    a_double: { name: 'Disparo Duplo', icon: 'arrow2', kind: 'attack', force: 6, dmg: 10, tags: ['ranged'],
+    a_double: { name: 'Disparo Duplo', pressure: 15, icon: 'arrow2', kind: 'attack', force: 6, dmg: 10, tags: ['ranged'],
       hits: [{ share: 0.5, motion: 'arrow', react: 'light' }, { share: 0.5, motion: 'arrow', react: 'final' }], desc: 'Duas flechas em sequência; o dano é dividido.' },
-    a_pierce: { name: 'Flecha Perfurante', icon: 'arrowp', impact: 'stagger', kind: 'attack', force: 5, dmg: 14, tags: ['ranged'], cooldown: 2, windup: 1.6,
+    a_pierce: { name: 'Flecha Perfurante', pressure: 20, icon: 'arrowp', impact: 'stagger', kind: 'attack', force: 5, dmg: 14, tags: ['ranged'], cooldown: 2, windup: 1.6,
       hits: [{ share: 1, motion: 'arrowp', react: 'final' }], desc: 'Tensiona o arco ao máximo: dano alto, preparação longa.' },
     a_evade: { name: 'Recuo Ágil', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
       desc: 'Salta para trás tentando esquivar de cada golpe.' },
@@ -390,16 +438,16 @@ body.resolving #panel { opacity:.6; }
       desc: 'Tenta esquivar de cada golpe recebido nesta rodada.' },
 
     // --- Brutamontes (prioriza ataques fortes)
-    b_smash: { name: 'Esmagar', windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 16, tags: ['melee', 'heavy'], cooldown: 2 },
-    b_bash: { name: 'Pancada', icon: 'hammer', kind: 'attack', force: 8, dmg: 9, tags: ['melee'] },
+    b_smash: { name: 'Esmagar', pressure: 40, windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 16, tags: ['melee', 'heavy'], cooldown: 2 },
+    b_bash: { name: 'Pancada', pressure: 20, icon: 'hammer', kind: 'attack', force: 8, dmg: 9, tags: ['melee'] },
     b_guard: { name: 'Couraça', icon: 'shield', kind: 'defense', reaction: 'block', tags: [] },
     // --- Duelista (prefere alvos vulneráveis)
-    d_flurry: { name: 'Lâmina Veloz', hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'final' }], icon: 'slash', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'] },
-    d_lunge: { name: 'Investida Feroz', icon: 'precise', impact: 'stagger', kind: 'attack', force: 6, dmg: 12, tags: ['melee'], cooldown: 2 },
+    d_flurry: { name: 'Lâmina Veloz', pressure: 15, hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'final' }], icon: 'slash', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'] },
+    d_lunge: { name: 'Investida Feroz', pressure: 25, icon: 'precise', impact: 'stagger', kind: 'attack', force: 6, dmg: 12, tags: ['melee'], cooldown: 2 },
     d_parry: { name: 'Contra-guarda', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [] },
     // --- Conjurador (magias e suporte)
-    c_ray: { name: 'Raio Sombrio', icon: 'bolt', kind: 'attack', force: 7, dmg: 10, tags: ['magic'] },
-    c_curse: { name: 'Maldição', icon: 'weaken', kind: 'attack', force: 6, dmg: 4, tags: ['magic', 'support'], applies: 'weaken', cooldown: 2 },
+    c_ray: { name: 'Raio Sombrio', pressure: 15, icon: 'bolt', kind: 'attack', force: 7, dmg: 10, tags: ['magic'] },
+    c_curse: { name: 'Maldição', pressure: 10, icon: 'weaken', kind: 'attack', force: 6, dmg: 4, tags: ['magic', 'support'], applies: 'weaken', cooldown: 2 },
     c_veil: { name: 'Véu Sombrio', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [] },
   };
 
@@ -408,12 +456,12 @@ body.resolving #panel { opacity:.6; }
   // members[0] lidera (é quem aparece como autor da ação).
   //   by: índice do membro que executa o golpe; share: fração do dano total; react: reação daquele impacto
   const COMBOS = {
-    combo_ks: { name: 'Investida Conjunta', kind: 'attack', icon: 'combo', tags: ['melee'], combo: true,
+    combo_ks: { name: 'Investida Conjunta', pressure: 40, kind: 'attack', icon: 'combo', tags: ['melee'], combo: true,
       side: 'ally', members: ['knight', 'swordsman'], force: 10, dmg: 15, impact: 'knockdown', cooldown: 3,
       desc: 'Cavaleiro + Espadachim: escudo abre a guarda, dois cortes e o golpe final. Gasta a ação dos dois. Força alta e derruba; dano um pouco menor que dois ataques separados.',
       hits: [{ by: 0, share: 0.3, motion: 'bash', react: 'medium' }, { by: 1, share: 0.2, motion: 'h', react: 'light' },
              { by: 1, share: 0.2, motion: 'd', react: 'light' }, { by: 0, share: 0.3, motion: 'over', react: 'final' }] },
-    combo_bd: { name: 'Pressão Brutal', kind: 'attack', icon: 'combo', tags: ['melee'], combo: true,
+    combo_bd: { name: 'Pressão Brutal', pressure: 45, kind: 'attack', icon: 'combo', tags: ['melee'], combo: true,
       side: 'enemy', members: ['brute', 'duelist'], force: 10, dmg: 17, impact: 'knockdown', cooldown: 3,
       hits: [{ by: 0, share: 0.4, motion: 'over', react: 'medium' }, { by: 1, share: 0.15, motion: 'h', react: 'light' },
              { by: 1, share: 0.15, motion: 'h2', react: 'light' }, { by: 0, share: 0.3, motion: 'bash', react: 'final' }] },
@@ -436,45 +484,45 @@ body.resolving #panel { opacity:.6; }
 
   // interceptReach: bônus de velocidade só para interceptar ataques contra aliados
   const UNITS = {
-    knight: { name: 'Cavaleiro', role: 'Defensor', side: 'ally', art: 'knight', formation: 0,
+    knight: { name: 'Cavaleiro', offense: 'Golpes firmes; Golpe Pesado derruba.', defense: 'Bloqueio de 60%, Proteção de aliados, Firmar Guarda recupera Postura.', specialty: 'Proteção e bloqueio', accent: '#7fb0e0', glyph: 'shield', role: 'Defensor', side: 'ally', art: 'knight', posture: 100, formation: 0,
       style: 'Linha de frente: resiste, bloqueia e protege os aliados.',
       hp: 62, spd: 3, interceptReach: 4, blockPower: 0.6,
       skills: ['k_basic', 'k_shield', 'k_heavy', 'k_guard', 'k_protect'],
       trait: 'Intercepta ataques mesmo sendo lento (+4 de alcance). Bloqueio de 60%.' },
-    swordsman: { name: 'Espadachim', role: 'Duelista', side: 'ally', art: 'swordsman', formation: 1,
+    swordsman: { name: 'Espadachim', offense: 'Rápido e preciso; vence Clashes com Golpe Preciso.', defense: 'Aparo com contra-ataque.', specialty: 'Aparo e precisão', accent: '#3fc0b0', glyph: 'parry', role: 'Duelista', side: 'ally', art: 'swordsman', posture: 70, formation: 1,
       style: 'Duelos rápidos e precisos; vence Clashes com Golpe Preciso.',
       hp: 44, spd: 8, interceptReach: 0, dodgeSkill: 0.10, parrySkill: 0.10,
       skills: ['s_basic', 's_precise', 's_risky', 's_parry'],
       trait: 'Muito rápido: age cedo e intercepta golpes mais lentos.' },
-    mage: { name: 'Mago', role: 'Conjurador', side: 'ally', art: 'mage', formation: 2,
+    mage: { name: 'Mago', offense: 'Magia à distância (não pode ser aparada).', defense: 'Esquiva etérea; frágil de perto.', specialty: 'Magia e suporte', accent: '#9f8fff', glyph: 'blast', role: 'Conjurador', side: 'ally', art: 'mage', posture: 40, formation: 2,
       style: 'Magia à distância e preparação: enfraquece inimigos e apoia aliados.',
       hp: 34, spd: 5, interceptReach: 0,
       skills: ['m_bolt', 'm_blast', 'm_weaken', 'm_support', 'm_dodge'],
       trait: 'Frágil. Enfraquecimento e Suporte agem cedo e preparam os Clashes dos aliados.' },
 
-    lancer: { name: 'Lanceiro', role: 'Alcance', side: 'ally', art: 'lancer', formation: 1,
+    lancer: { name: 'Lanceiro', offense: 'Alcance longo; Varredura empurra, Investida desequilibra.', defense: 'Aparo com a haste.', specialty: 'Alcance e controle de distância', accent: '#6fbf7f', glyph: 'spear', role: 'Alcance', side: 'ally', art: 'lancer', posture: 75, formation: 1,
       hp: 50, spd: 7, interceptReach: 2, parrySkill: 0.05,
       skills: ['l_thrust', 'l_sweep', 'l_pierce', 'l_parry'],
       style: 'Disciplinado: mantém o inimigo na ponta da lança e controla a distância.',
       trait: 'Alcance longo (+2 para interceptar). Apara com a haste.' },
-    brawler: { name: 'Lutador', role: 'Pressão', side: 'ally', art: 'brawler', formation: 0,
+    brawler: { name: 'Lutador', offense: 'Socos rápidos; Sequência de 3 golpes; Ascendente derruba.', defense: 'Esquiva lateral alta.', specialty: 'Múltiplos impactos e pressão', accent: '#e0705a', glyph: 'fist', role: 'Pressão', side: 'ally', art: 'brawler', posture: 65, formation: 0,
       hp: 48, spd: 9, interceptReach: 0, dodgeSkill: 0.20,
       skills: ['f_jab', 'f_flurry', 'f_upper', 'f_dodge'],
       style: 'Punhos rápidos e pressão constante: muitos impactos e reações no alvo.',
       trait: 'O mais rápido. Especialista em esquiva.' },
-    archer: { name: 'Arqueira', role: 'Precisão', side: 'ally', art: 'archer', formation: 2,
+    archer: { name: 'Arqueira', offense: 'Flechas à distância; Disparo Duplo e Flecha Perfurante.', defense: 'Esquiva e reposicionamento; frágil de perto.', specialty: 'Precisão à distância', accent: '#a9d36f', glyph: 'arrow', role: 'Precisão', side: 'ally', art: 'archer', posture: 45, formation: 2,
       hp: 36, spd: 7, interceptReach: 0, dodgeSkill: 0.15,
       skills: ['a_shot', 'a_double', 'a_pierce', 'a_evade'],
       style: 'Ataca de longe com flechas físicas (podem ser aparadas). Frágil de perto.',
       trait: 'Ataques à distância. Esquiva e reposiciona.' },
 
-    brute: { name: 'Brutamontes', role: 'Força bruta', side: 'enemy', art: 'brute',
+    brute: { name: 'Brutamontes', role: 'Força bruta', side: 'enemy', art: 'brute', posture: 110,
       hp: 56, spd: 2, blockPower: 0.5, skills: ['b_smash', 'b_bash', 'b_guard'],
       ai: { prefers: 'strong', defendBelow: 0.35 } },
-    duelist: { name: 'Duelista', role: 'Lâminas', side: 'enemy', art: 'duelist',
+    duelist: { name: 'Duelista', role: 'Lâminas', side: 'enemy', art: 'duelist', posture: 70,
       hp: 40, spd: 7, dodgeSkill: 0.05, parrySkill: 0.05, skills: ['d_lunge', 'd_flurry', 'd_parry'],
       ai: { prefers: 'weak', defendBelow: 0.30 } },
-    conjurer: { name: 'Conjurador', role: 'Magia negra', side: 'enemy', art: 'conjurer',
+    conjurer: { name: 'Conjurador', role: 'Magia negra', side: 'enemy', art: 'conjurer', posture: 45,
       hp: 32, spd: 4, skills: ['c_curse', 'c_ray', 'c_veil'],
       ai: { prefers: 'threat', defendBelow: 0.30 } },
   };
@@ -527,7 +575,9 @@ body.resolving #panel { opacity:.6; }
     }
     _makeUnit(key, side, slot) {
       const d = UNITS[key];
-      return { id: key, key, side, slot, def: d, name: d.name, hp: d.hp, maxHp: d.hp, statuses: {}, cooldowns: {} };
+      // post/postMax: Postura · broken: Quebra pendente (perde a próxima ação) · stable: protegido contra nova Quebra até agir
+      return { id: key, key, side, slot, def: d, name: d.name, hp: d.hp, maxHp: d.hp, statuses: {}, cooldowns: {},
+        post: d.posture || 60, postMax: d.posture || 60, broken: false, stable: false };
     }
 
     unit(id) { return this.units.find(u => u.id === id); }
@@ -539,6 +589,36 @@ body.resolving #panel { opacity:.6; }
     }
     skillReady(u, id) { return !(u.cooldowns[id] > 0); }
     allAlive(act) { return members(act).every(id => this.unit(id).hp > 0); }
+
+    // ------------------------------------------------------------ POSTURA
+    // Desgaste de Postura (só quem perde um Clash). Nunca negativo; protegido não quebra (mínimo 1).
+    applyPressure(u, amount) {
+      if (!amount || u.hp <= 0) return null;
+      const before = u.post;
+      let after = Math.max(0, before - amount), broke = false, held = false;
+      if (after === 0) {
+        if (u.stable) { after = Math.max(CONFIG.posture.protectedMin, after); held = true; }
+        else if (!u.broken) { broke = true; u.broken = true; }
+      }
+      u.post = after;
+      return { unitId: u.id, amount, before, after, broke, held };
+    }
+    healPosture(u, amount) {
+      if (!amount || u.hp <= 0) return 0;
+      const before = u.post;
+      u.post = Math.min(u.postMax, u.post + amount); // nunca passa do máximo; não remove uma Quebra já aplicada
+      return u.post - before;
+    }
+    // Cumpre a penalidade da Quebra: a ação é perdida, a Postura volta ao máximo e o personagem fica protegido.
+    _stagger(ids, act) {
+      const broken = ids.map(id => this.unit(id)).filter(u => u.hp > 0 && u.broken);
+      if (!broken.length) return null;
+      for (const u of broken) { u.broken = false; u.post = u.postMax; u.stable = true; }
+      return { type: 'stagger', unitIds: broken.map(u => u.id), cancelled: act ? members(act) : broken.map(u => u.id),
+        skillId: act ? act.skillId : null, after: this.snapshot() };
+    }
+    _brokenIn(act) { return members(act).some(id => this.unit(id).hp > 0 && this.unit(id).broken); }
+    _acted(act) { for (const id of members(act)) { const u = this.unit(id); if (u) u.stable = false; } } // ação válida encerra a proteção
     // Combinação disponível para este aliado? (todos os membros vivos e sem recarga)
     combosFor(uid) {
       return Object.keys(G.COMBOS).filter(id => {
@@ -550,7 +630,7 @@ body.resolving #panel { opacity:.6; }
     }
     snapshot() {
       const s = {};
-      for (const u of this.units) s[u.id] = { hp: u.hp, statuses: JSON.parse(JSON.stringify(u.statuses)) };
+      for (const u of this.units) s[u.id] = { hp: u.hp, statuses: JSON.parse(JSON.stringify(u.statuses)), post: u.post, postMax: u.postMax, broken: u.broken, stable: u.stable };
       return s;
     }
 
@@ -581,6 +661,7 @@ body.resolving #panel { opacity:.6; }
         if (this.allAlive(it)) actions.push({ ...it, speed: this.actionSpeed(a, SKILLS[it.skillId]) });
       }
       for (const u of this.alive('ally')) {
+        if (u.broken) continue; // Quebra pendente: esta rodada a ação é perdida
         const c = choices[u.id];
         if (!c || !c.skillId) continue; // (parceiro de combinação: c.comboWith, sem ação própria)
         const sk = SKILLS[c.skillId];
@@ -588,7 +669,7 @@ body.resolving #panel { opacity:.6; }
         if (!own || !this.skillReady(u, c.skillId)) { errors.push(`${u.name}: habilidade indisponível`); continue; }
         const partners = sk.combo ? sk.members.slice(1) : undefined;
         // a combinação consome a ação de todos os membros: precisam estar vivos e reservados
-        if (partners && !partners.every(id => this.unit(id).hp > 0 && choices[id] && choices[id].comboWith === u.id)) { errors.push(`${sk.name}: parceiro indisponível`); continue; }
+        if (partners && !partners.every(id => this.unit(id).hp > 0 && !this.unit(id).broken && choices[id] && choices[id].comboWith === u.id)) { errors.push(`${sk.name}: parceiro indisponível`); continue; }
         let targetId = c.targetId;
         if (sk.kind === 'defense') targetId = u.id;
         const t = this.unit(targetId);
@@ -711,9 +792,12 @@ body.resolving #panel { opacity:.6; }
         const sk = SKILLS[a.skillId];
         if (sk.cooldown) this.unit(a.actorId).cooldowns[a.skillId] = sk.cooldown;
       }
+      // quem já estava com Quebra pendente (sem ação nesta rodada) cumpre a penalidade agora
+      const planned = new Set(plan.actions.flatMap(a => members(a)));
+      for (const u of this.units) if (u.hp > 0 && u.broken && !planned.has(u.id)) { const e = this._stagger([u.id], null); if (e) events.push(e); }
       for (const ev of plan.order) {
         if (this.outcome()) break;
-        if (ev.type === 'stances') { const e = this._stances(ev.actions); if (e) events.push(e); continue; }
+        if (ev.type === 'stances') { events.push(...this._stances(ev.actions)); continue; }
         if (ev.type === 'support') { events.push(this._support(ev.a)); continue; }
         if (ev.type === 'clash') { events.push(...this._clashOrFallback(ev, done)); continue; }
         events.push(this._attack(ev.a));
@@ -722,10 +806,12 @@ body.resolving #panel { opacity:.6; }
     }
 
     _stances(actions) {
-      const list = [];
+      const list = [], extra = [];
       for (const a of actions) {
         const u = this.unit(a.actorId), sk = SKILLS[a.skillId];
         if (u.hp <= 0) continue;
+        if (u.broken) { const e = this._stagger([u.id], a); if (e) extra.push(e); continue; }
+        this._acted(a);
         if (sk.kind === 'protect') {
           const t = this.unit(a.targetId);
           if (!t || t.hp <= 0) continue;
@@ -734,18 +820,22 @@ body.resolving #panel { opacity:.6; }
           list.push({ unitId: u.id, skillId: a.skillId, reaction: 'block', protectId: t.id });
         } else {
           u.statuses[sk.reaction] = true;
-          list.push({ unitId: u.id, skillId: a.skillId, reaction: sk.reaction });
+          // Firmar Guarda: recupera Postura
+          list.push({ unitId: u.id, skillId: a.skillId, reaction: sk.reaction, postHeal: this.healPosture(u, sk.postureHeal) });
         }
       }
-      return list.length ? { type: 'stances', list, after: this.snapshot() } : null;
+      return [...extra, ...(list.length ? [{ type: 'stances', list, after: this.snapshot() }] : [])];
     }
 
     _support(a) {
       const u = this.unit(a.actorId), t = this.unit(a.targetId);
       if (u.hp <= 0) return null;
+      if (u.broken) return this._stagger([u.id], a);
       if (!t || t.hp <= 0) return { type: 'fizzle', actorId: u.id, skillId: a.skillId, reason: 'alvo caído' };
+      this._acted(a);
       t.statuses.support = true;
-      return { type: 'support', actorId: u.id, targetId: t.id, skillId: a.skillId, after: this.snapshot() };
+      const postHeal = this.healPosture(t, SKILLS[a.skillId].postureHeal);
+      return { type: 'support', actorId: u.id, targetId: t.id, skillId: a.skillId, postHeal, after: this.snapshot() };
     }
 
     _roll() {
@@ -756,6 +846,16 @@ body.resolving #panel { opacity:.6; }
     _clashOrFallback(ev, done) {
       const A = this.unit(ev.a.actorId), B = this.unit(ev.b.actorId);
       // se um lado caiu (ou perdeu um membro da combinação), o outro age sem oposição
+      // lado com Quebra pendente perde a ação; o outro lado age sem oposição
+      const brA = this._brokenIn(ev.a), brB = this._brokenIn(ev.b);
+      if ((brA || brB) && this.allAlive(ev.a) && this.allAlive(ev.b)) {
+        const out = [];
+        if (brA) out.push(this._stagger(members(ev.a), ev.a));
+        if (brB) out.push(this._stagger(members(ev.b), ev.b));
+        if (!brA) out.push(this._attack(ev.a));
+        if (!brB) out.push(this._attack(ev.b));
+        return out.filter(Boolean);
+      }
       const okA = this.allAlive(ev.a), okB = this.allAlive(ev.b);
       if (!okA || !okB) {
         // o lado incompleto vira "fizzle" (_attack detecta); o lado inteiro age normalmente
@@ -783,7 +883,10 @@ body.resolving #panel { opacity:.6; }
         const [W, L, wAct] = sa.total > sb.total ? [A, B, ev.a] : [B, A, ev.b];
         res.winner = W.id;
         res.hit = this._applyHit(W, L, wAct.skillId);
+        // o perdedor do Clash sofre a Pressão da habilidade vencedora (uma vez, mesmo com vários golpes)
+        res.posture = L.hp > 0 ? this.applyPressure(L, SKILLS[wAct.skillId].pressure) : null;
       }
+      this._acted(ev.a); this._acted(ev.b);
       if (A.side === 'enemy') { const t = res.a; res.a = res.b; res.b = t; } // a = aliado
       res.decisive = !!(res.hit && res.hit.killed);
       res.after = this.snapshot();
@@ -792,7 +895,9 @@ body.resolving #panel { opacity:.6; }
 
     _applyHit(att, def, skillId, dmgMult = 1) {
       const sk = SKILLS[skillId];
-      let dmg = Math.max(1, Math.round(sk.dmg * dmgMult));
+      // crítico: uma rolagem por habilidade que acerta (não influencia o Clash)
+      const crit = this.rand() < (sk.critChance != null ? sk.critChance : CONFIG.crit.chance);
+      let dmg = Math.max(1, Math.round(sk.dmg * dmgMult * (crit ? CONFIG.crit.mult : 1)));
       const hpBefore = def.hp;
       def.hp = Math.max(0, def.hp - dmg);
       let applied = null;
@@ -801,7 +906,7 @@ body.resolving #panel { opacity:.6; }
         applied = sk.applies;
       }
       return { attackerId: att.id, defenderId: def.id, skillId,
-        damage: dmg, hpBefore, hpAfter: def.hp, killed: def.hp <= 0, applied, impact: this.impactOf(sk, dmg, def, dmgMult < 1) };
+        damage: dmg, crit, hpBefore, hpAfter: def.hp, killed: def.hp <= 0, applied, impact: this.impactOf(sk, dmg, def, dmgMult < 1) };
     }
 
     // Classificação do impacto físico: light | medium | heavy | extreme.
@@ -836,6 +941,8 @@ body.resolving #panel { opacity:.6; }
       if (a.hp <= 0) return null;
       // combinação sem todos os membros não acontece (nada de ação extra pela metade)
       if (!this.allAlive(act)) return { type: 'fizzle', actorId: a.id, skillId: act.skillId, reason: 'combinação interrompida' };
+      if (this._brokenIn(act)) return this._stagger(members(act), act); // Quebra: perde esta ação
+      this._acted(act);
       const t = this.unit(act.targetId);
       if (!t || t.hp <= 0) return { type: 'fizzle', actorId: a.id, skillId: act.skillId, reason: 'alvo já caído' };
       this.forceMods(a, true); // gasta o Suporte, se houver
@@ -856,7 +963,7 @@ body.resolving #panel { opacity:.6; }
         outcome = success ? 'parried' : 'parryFail'; mult = success ? 0 : 1;
       }
       let hit;
-      if (mult === 0) hit = { damage: 0, hpBefore: d.hp, hpAfter: d.hp, killed: false, applied: null, impact: null };
+      if (mult === 0) hit = { damage: 0, crit: false, hpBefore: d.hp, hpAfter: d.hp, killed: false, applied: null, impact: null };
       else hit = this._applyHit(a, d, act.skillId, mult);
       if (outcome === 'parried') {
         const before = a.hp, cd = CONFIG.parry.counterDmg;
@@ -865,7 +972,7 @@ body.resolving #panel { opacity:.6; }
       }
       return { type: 'attack', attackerId: a.id, partners: act.partners || [], skillId: act.skillId, skill: sk, targetId: t.id, defenderId: d.id,
         protectorId, reaction, chance: ch, success, outcome, damage: hit.damage, hpBefore: hit.hpBefore, hpAfter: hit.hpAfter,
-        killed: hit.killed, applied: hit.applied, impact: hit.impact, consumed: [], counter,
+        killed: hit.killed, applied: hit.applied, impact: hit.impact, crit: hit.crit, consumed: [], counter,
         decisive: hit.killed || !!(counter && counter.killed), after: this.snapshot() };
     }
 
@@ -899,6 +1006,7 @@ body.resolving #panel { opacity:.6; }
       const intents = [];
       if (!allies.length) return intents;
       for (const e of battle.alive('enemy')) {
+        if (e.broken) continue; // Quebra pendente: não age nesta rodada
         const ready = e.def.skills.filter(id => battle.skillReady(e, id));
         const attacks = ready.filter(id => SKILLS[id].kind === 'attack');
         const defense = ready.find(id => SKILLS[id].kind === 'defense');
@@ -937,20 +1045,27 @@ body.resolving #panel { opacity:.6; }
       const ratio = u.hp / u.maxHp;
       const best = Math.max(...e.def.skills.filter(id => SKILLS[id].kind === 'attack' && battle.skillReady(e, id)).map(id => SKILLS[id].dmg), 0);
       const canKill = best >= u.hp ? 1.2 : 0;
+      // Postura: chance de Quebra pesa um pouco, conforme a classe (sem caçar sempre o mais frágil)
+      const bestP = Math.max(...e.def.skills.filter(id => SKILLS[id].kind === 'attack' && battle.skillReady(e, id)).map(id => SKILLS[id].pressure || 0), 0);
+      const breakable = !u.stable && !u.broken && u.post <= bestP ? ({ strong: 0.5, weak: 0.2, threat: 0.25 }[prefers] || 0.2) : 0;
       switch (prefers) {
         case 'strong': // Brutamontes: alvo onde o golpe forte rende mais (quem pode finalizar, ou o mais resistente)
-          return canKill + (u.statuses.block ? -0.5 : 0) + 0.4 * (1 - ratio) + (u.id === 'knight' ? 0.3 : 0);
+          return canKill + breakable + (u.statuses.block ? -0.5 : 0) + 0.4 * (1 - ratio) + (u.id === 'knight' ? 0.3 : 0);
         case 'weak':   // Duelista: vulneráveis, enfraquecidos, pouca vida
-          return canKill + 1.4 * (1 - ratio) + (u.statuses.weaken ? 0.8 : 0) + (u.maxHp < 50 ? 0.3 : 0);
+          return canKill + breakable + 1.4 * (1 - ratio) + (u.statuses.weaken ? 0.8 : 0) + (u.maxHp < 50 ? 0.3 : 0);
         case 'threat': // Conjurador: ameaças e quem ainda não foi amaldiçoado
-          return (AI_THREAT[u.id] || 0) + (u.statuses.weaken ? -0.6 : 0.3) + 0.5 * (1 - ratio) + canKill * 0.5;
+          return (AI_THREAT[u.id] || 0) + breakable + (u.statuses.weaken ? -0.6 : 0.3) + 0.5 * (1 - ratio) + canKill * 0.5;
         default: return 1 - ratio;
       }
     },
 
     pickSkill(battle, e, target, attacks, prefers) {
       const by = (f) => attacks.slice().sort((a, b) => f(SKILLS[b]) - f(SKILLS[a]))[0];
-      if (prefers === 'strong') return battle.rand() < 0.8 ? by(s => s.dmg) : by(s => s.force);
+      // Brutamontes: prefere Pressão quando o alvo está perto de quebrar
+      if (prefers === 'strong') {
+        if (!target.stable && target.post <= Math.max(...attacks.map(id => SKILLS[id].pressure || 0)) && battle.rand() < 0.6) return by(s => s.pressure || 0);
+        return battle.rand() < 0.8 ? by(s => s.dmg) : by(s => s.force);
+      }
       if (prefers === 'threat') {
         const curse = attacks.find(id => SKILLS[id].applies === 'weaken');
         if (curse && !target.statuses.weaken && battle.rand() < 0.7) return curse;
@@ -1000,6 +1115,39 @@ body.resolving #panel { opacity:.6; }
     archer:    { dash: 0.90, ease: 'inOut', reach: 70, knock: 1.10, width: 80 },
   };
   const LEVELS = ['light', 'medium', 'heavy', 'extreme'];
+  // Poses defensivas (bloqueio / aparo / esquiva) por classe — preparadas no planejamento
+  const DEF_POSE = {
+    knight:    { block: { guard: 1.15, arm: -0.25, crouch: 0.08, lean: 0.06 }, parry: { arm: -0.9, guard: 0.5, crouch: 0.05 } },
+    swordsman: { parry: { arm: -0.95, lean: 0.08, crouch: 0.06 }, dodge: { crouch: 0.12, lean: -0.1, arm: -0.3 }, block: { arm: -0.6, guard: 0.6, crouch: 0.06 } },
+    mage:      { dodge: { cast: 0.55, crouch: 0.07, lean: -0.06, arm: -0.3 }, block: { cast: 0.8, arm: -0.6 } },
+    lancer:    { parry: { arm: 0.9, crouch: 0.07, lean: 0.04 }, block: { arm: 0.9, crouch: 0.07 } },
+    brawler:   { dodge: { crouch: 0.14, lean: -0.12, arm: -0.25 }, block: { arm: -0.35, crouch: 0.1 } },
+    archer:    { dodge: { crouch: 0.13, lean: -0.12, cast: 0.15 } },
+    brute:     { block: { guard: 1, arm: -0.6, crouch: 0.1 } },
+    duelist:   { parry: { arm: -1.0, lean: 0.06, crouch: 0.05 } },
+    conjurer:  { dodge: { cast: 0.5, crouch: 0.06, lean: -0.08 } },
+  };
+  const DEF_GENERIC = { block: { guard: 1, crouch: 0.06 }, parry: { arm: -0.7 }, dodge: { cast: 0.4, crouch: 0.06 } };
+  // Quebra de Postura: cada um perde a guarda do seu jeito (armas nunca atravessam o corpo)
+  const BREAK_POSE = {
+    knight: { guard: -0.6, arm: 0.9, lean: -0.35, crouch: 0.08 }, swordsman: { arm: 1.5, lean: -0.38, crouch: 0.06 },
+    mage: { cast: 0, arm: 0.9, lean: -0.32, crouch: 0.08 }, lancer: { arm: -1.4, lean: -0.3, crouch: 0.06 },
+    brawler: { arm: -0.5, lean: -0.42, crouch: 0.1 }, archer: { cast: 0, lean: -0.34, crouch: 0.1, arm: 0.5 },
+    brute: { kneel: 1, tilt: 0.36, crouch: 0.3, arm: 0.9 }, duelist: { arm: 1.4, lean: -0.42, crouch: 0.06 },
+    conjurer: { cast: 0, arm: 1.0, lean: -0.35 },
+  };
+  // Gestos ocasionais de espera, por classe: [propriedades, duração] — sempre voltam à pose base
+  const GESTURES = {
+    knight:    [[[{ guard: 0.55 }, 260], [{ guard: 0 }, 300]], [[{ arm: -0.35 }, 240], [{ arm: 0 }, 300]], [[{ crouch: 0.07 }, 280], [{ crouch: 0 }, 320]]],
+    swordsman: [[[{ arm: -0.9 }, 160], [{ arm: 0.5 }, 180], [{ arm: 0 }, 220]], [[{ lean: 0.07 }, 260], [{ lean: -0.05 }, 260], [{ lean: 0 }, 200]], [[{ crouch: 0.06, lean: 0.08 }, 220], [{ crouch: 0, lean: 0 }, 260]]],
+    mage:      [[[{ cast: 0.45, arm: -0.3 }, 320], [{ cast: 0, arm: 0 }, 380]], [[{ arm: 0.25 }, 300], [{ arm: 0 }, 340]]],
+    lancer:    [[[{ arm: 0.45 }, 280], [{ arm: 0 }, 320]], [[{ arm: -0.25 }, 200], [{ arm: 0.1 }, 200], [{ arm: 0 }, 200]]],
+    brawler:   [[[{ arm: 0.35 }, 140], [{ arm: -0.15 }, 160], [{ arm: 0 }, 180]], [[{ lean: 0.06 }, 200], [{ lean: -0.06 }, 200], [{ lean: 0 }, 180]]],
+    archer:    [[[{ cast: 0.35 }, 260], [{ cast: 0 }, 300]], [[{ lean: -0.1 }, 260], [{ lean: 0 }, 280]], [[{ cast: 0.75, lean: -0.04 }, 380], [{ cast: 0.75 }, 500], [{ cast: 0, lean: 0 }, 300]]],
+    brute:     [[[{ arm: -0.55 }, 420], [{ arm: 0 }, 460]], [[{ crouch: 0.08 }, 320], [{ crouch: 0 }, 360]]],
+    duelist:   [[[{ arm: -0.4 }, 220], [{ arm: 0.2 }, 220], [{ arm: 0 }, 220]], [[{ lean: 0.08 }, 260], [{ lean: 0 }, 260]]],
+    conjurer:  [[[{ cast: 0.5 }, 380], [{ cast: 0 }, 420]]],
+  };
   const Z_MIN = 0.72; // menor zoom permitido (o cenário cobre essa área)
   const STANCE_STATE = { block: 'BLOCKING', parry: 'PARRYING', dodge: 'DODGING' };
   const ease = {
@@ -1044,7 +1192,8 @@ body.resolving #panel { opacity:.6; }
           barrier: 0, ready: 0, dead: u.hp <= 0, hp: u.hp, dispHp: u.hp, maxHp: u.maxHp,
           statuses: { ...u.statuses }, phase: i * 1.7, trail: [], stance: null,
           state: u.hp > 0 ? 'IDLE' : 'DEFEATED', tilt: 0, kneel: 0, busy: null,
-          formation: u.def.formation != null ? u.def.formation : u.slot, wound: 0, ambT: 1500 + i * 700 };
+          formation: u.def.formation != null ? u.def.formation : u.slot, wound: 0, ambT: 1500 + i * 700,
+          post: u.post, postMax: u.postMax, dispPost: u.post, broken: u.broken, stable: u.stable, prep: null, gestT: 2500 + i * 900 };
       });
       this.tweens = []; this.waits = []; this.particles = []; this.texts = []; this.fx = [];
       this.banner = null; this.caption = null; this.spot = null;
@@ -1078,7 +1227,7 @@ body.resolving #panel { opacity:.6; }
       if (this.skipping || ms <= 0) return Promise.resolve();
       return new Promise(res => this.waits.push({ t: ms, res }));
     }
-    slowMo(factor, realMs) { if (this.skipping) return; this.slow = factor; this.slowTimer = realMs; }
+    slowMo(factor, realMs) { if (this.skipping || G.reduceMotion) return; this.slow = factor; this.slowTimer = realMs; }
     hitStop(realMs) { if (this.skipping) return; this.freeze = Math.max(this.freeze, realMs); }
     skip() {
       this.skipping = true;
@@ -1091,6 +1240,7 @@ body.resolving #panel { opacity:.6; }
 
     _frame(now) {
       const real = Math.min(50, now - this._last); this._last = now;
+      if (this.paused) { requestAnimationFrame(t => this._frame(t)); return; }
       if (this.slowTimer > 0) { this.slowTimer -= real; if (this.slowTimer <= 0) this.slow = 1; }
       let dt = real * this.speed * this.slow;
       if (this.freeze > 0) { this.freeze -= real; dt = 0; }
@@ -1124,6 +1274,7 @@ body.resolving #panel { opacity:.6; }
         const v = this.vis[id];
         v.flash = Math.max(0, v.flash - dt * 0.005);
         v.dispHp = lerp(v.dispHp, v.hp, 1 - Math.exp(-dt * 0.008));
+        v.dispPost = lerp(v.dispPost, v.post, 1 - Math.exp(-dt * 0.006));
         if (v.trail.length && (this.time - v.trail[0].t > 160)) v.trail.shift();
         if (v.dashing) v.trail.push({ x: v.x, y: v.y, t: this.time });
       }
@@ -1232,6 +1383,7 @@ body.resolving #panel { opacity:.6; }
     // tremor pequeno e direcional (na direção do golpe); golpes leves quase não tremem
     hurtShake(amount, dir = 0) {
       if (this.skipping || amount < 3) return;
+      if (G.reduceMotion) amount *= 0.3; // opção "reduzir animações"
       if (amount >= this.shake) this.shakeDir = dir;
       this.shake = Math.max(this.shake, amount);
     }
@@ -1310,25 +1462,58 @@ body.resolving #panel { opacity:.6; }
       if (ui && ui.drag) return; // não mexe nada enquanto o jogador arrasta uma corrente
       for (const id in this.vis) {
         const v = this.vis[id];
+        // inimigo preparando o ataque: só gestos discretos sobre a pose de preparação (sem sair do lugar)
+        if (v.state === 'PREPARING' && !v.dead && !v.busy) {
+          v.gestT -= dt;
+          if (v.gestT <= 0) { v.gestT = 4200 + Math.random() * 4500; this._gesture(v, true); }
+          continue;
+        }
         if (v.dead || v.busy || busyIds.has(id) || !['IDLE', 'BLOCKING', 'PARRYING', 'DODGING'].includes(v.state)) continue;
+        // gestos de classe (intervalos variados; nunca com postura defensiva preparada)
+        v.gestT -= dt;
+        if (v.gestT <= 0 && v.state === 'IDLE' && !v.prep) { v.gestT = 3500 + Math.random() * 5000; this._gesture(v); continue; }
+        // postura comprometida: ajusta os pés com mais frequência
+        if (v.post / v.postMax < 0.5) v.ambT -= dt * 0.6;
         v.ambT -= dt;
         if (v.ambT > 0) continue;
         v.ambT = 2600 + Math.random() * 4200;
         const foe = this._nearestFoe(v);
         const sideDir = v.side === 'ally' ? 1 : -1;
         const pref = v.side === 'ally' ? [560, 420, 270][v.formation] : [740, 880, 1040][v.formation];
+        // profundidade preferida: frente mais à frente da tela, retaguarda mais ao fundo (só preferência)
+        const prefY = [612, 590, 562][v.formation] + (v.phase % 1 - 0.5) * 20;
+        let dy = clamp((prefY - v.y) * 0.35, -16, 16) + (Math.random() - 0.5) * 14;
         let dx = clamp((pref - v.x) * 0.3, -26, 26) + (Math.random() - 0.5) * 18;
         if (foe && Math.abs(foe.x - v.x) < 170) dx = -sideDir * 26;               // inimigo perto: recua
-        if (Math.abs(dx) < 6) { this.tween(v, { lean: (Math.random() - 0.5) * 0.06 }, 600, 'inOut'); continue; } // só ajusta postura
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 5) { this.tween(v, { lean: (Math.random() - 0.5) * 0.06 }, 600, 'inOut'); continue; } // só ajusta postura
         // respeita o espaço dos outros
-        const nx = clamp(v.x + dx, ARENA.minX, ARENA.maxX);
-        const crowded = Object.values(this.vis).some(o => o !== v && !o.dead && Math.abs(o.y - v.y) < 46 && Math.abs(o.x - nx) < (MOVE[o.art].width + MOVE[v.art].width) / 2);
+        const nx = clamp(v.x + dx, ARENA.minX, ARENA.maxX), ny = clamp(v.y + dy, ARENA.minY, ARENA.maxY);
+        const crowded = Object.values(this.vis).some(o => o !== v && !o.dead && Math.abs(o.y - ny) < 46 && Math.abs(o.x - nx) < (MOVE[o.art].width + MOVE[v.art].width) / 2);
         if (crowded) continue;
         this.setState(v, 'REPOSITIONING');
-        const dur = 420 + Math.abs(dx) * 10;
-        this.tween(v, { x: nx }, dur, 'inOut').then(() => { if (v.state === 'REPOSITIONING') this.setState(v, v.stance ? STANCE_STATE[v.stance] : 'IDLE'); if (foe) this.faceTo(v, foe); });
+        const dur = 420 + Math.hypot(dx, dy) * 10;
+        this.tween(v, { x: nx, y: ny }, dur, 'inOut').then(() => { if (v.state === 'REPOSITIONING') this.setState(v, v.stance ? STANCE_STATE[v.stance] : 'IDLE'); if (foe) this.faceTo(v, foe); });
         this.tween(v, { hop: 3 }, dur / 4, 'out').then(() => this.tween(v, { hop: 0 }, dur / 4, 'in')).then(() => this.tween(v, { hop: 2 }, dur / 4, 'out')).then(() => this.tween(v, { hop: 0 }, dur / 4, 'in'));
       }
+    }
+
+    _gesture(v, keepPose = false) {
+      const list = GESTURES[v.art];
+      if (!list) return;
+      const g = list[Math.floor(Math.random() * list.length)];
+      // base: pose de espera, ou a pose atual de preparação (o gesto volta exatamente a ela)
+      const base = keepPose ? { arm: v.arm, guard: v.guard, cast: v.cast, lean: v.lean, crouch: v.crouch } : this._stancePose(v);
+      const st = v.state;
+      this.routine(v, async () => {
+        for (const [props, dur] of g) {
+          if (v.state !== st || v.dead) break;
+          const target = {};
+          for (const k in props) target[k] = (base[k] || 0) + props[k];
+          await this.tween(v, target, dur, 'inOut');
+        }
+        if (!v.dead && v.state === st) await this.tween(v, base, 220, 'inOut');
+        if (v.art === 'mage' || v.art === 'conjurer') this.sparks(v.x + v.face * 26, v.y - 112, v.side === 'ally' ? 'rgba(160,220,255,0.5)' : 'rgba(210,150,255,0.5)', 3, 0.08, -0.0003);
+      });
     }
 
     // ------------------------------------------------------------ REAÇÕES FÍSICAS
@@ -1415,8 +1600,62 @@ body.resolving #panel { opacity:.6; }
       });
     }
     _stancePose(v) {
-      return { arm: v.stance === 'parry' ? -0.7 : 0, guard: v.stance === 'block' ? 1 : 0,
-        cast: v.stance === 'dodge' ? 0.4 : 0, lean: 0, crouch: v.stance === 'dodge' ? 0.06 : 0 };
+      const r = v.stance || v.prep;
+      const base = { arm: 0, guard: 0, cast: 0, lean: 0, crouch: 0 };
+      if (!r) return base;
+      return Object.assign(base, (DEF_POSE[v.art] || {})[r] || DEF_GENERIC[r] || {});
+    }
+    // Postura defensiva escolhida no planejamento (transição suave; null = cancelar)
+    setPrepStance(id, reaction) {
+      const v = this.vis && this.vis[id];
+      if (!v || v.dead || v.prep === reaction) return;
+      v.prep = reaction;
+      if (v.broken || v.busy || !['IDLE', 'BLOCKING', 'PARRYING', 'DODGING', 'PREPARING'].includes(v.state)) return;
+      this.setState(v, reaction ? STANCE_STATE[reaction] : 'IDLE');
+      this.tween(v, this._stancePose(v), 280, 'inOut');
+    }
+
+    // ------------------------------------------------------------ POSTURA (apresentação)
+    // Barra cai em etapas junto com os golpes; a Quebra acontece no golpe que zera a Postura.
+    _postureStep(v, value) { v.post = value; }
+    _postureBreak(v, dir) {
+      if (v.dead) return;
+      SFX('postureBreak');
+      this.flashAt(v.x, v.y - 80, '#ffd36a', 90);
+      this.addFx({ kind: 'shatter', dur: 520, x: v.x, y: v.y - 80, color: '#ffd36a' });
+      this.sparks(v.x, v.y - 80, '#ffd36a', 22, 0.6);
+      this.hurtShake(8, dir);
+      this.hitStop(90);
+      this.wait(160).then(() => this.float(v.x, v.y - 245, 'QUEBRA DE POSTURA', '#ffd36a', 24, 1500)); // depois do número de dano, acima dele
+      this.focusOn([v], 0.15);
+      // depois da reação física, fica na pose de guarda aberta até cumprir a penalidade
+      this.routine(v, async () => {
+        this.setState(v, 'BROKEN');
+        await this.tween(v, Object.assign({ guard: 0, cast: 0, lean: 0, crouch: 0, arm: 0, tilt: 0, kneel: 0 }, BREAK_POSE[v.art] || BREAK_POSE.swordsman), 260, 'out');
+      });
+    }
+    async playStagger(ev) {
+      for (const id of ev.unitIds) {
+        const v = this.vis[id];
+        if (!v || v.dead) continue;
+        await this.sync(v);
+        this.focusOn([v], 0.1);
+        this.caption = `${v.name} está desequilibrado e perde a ação`;
+        this.float(v.x, v.y - 185, 'AÇÃO PERDIDA', '#ff9a8a', 22, 1300);
+        if (ev.skillId) this.float(v.x, v.y - 160, G.SKILLS[ev.skillId].name, '#c9b', 14, 1100);
+        await this.wait(380);
+        // recuperação: ajusta os pés, ergue a guarda, Postura volta ao máximo
+        this.setState(v, 'REPOSITIONING');
+        this.tween(v, { hop: 6 }, 120, 'out').then(() => this.tween(v, { hop: 0 }, 140, 'in'));
+        await this.tween(v, Object.assign({ tilt: 0, kneel: 0 }, this._stancePose(v)), 360, 'inOut');
+        v.post = v.postMax; v.broken = false; v.stable = true;
+        SFX('recover');
+        this.addFx({ kind: 'ring', dur: 420, x: v.x, y: v.y - 70, color: '#ffd36a', r: 55 });
+        this.float(v.x, v.y - 175, 'POSTURA RESTAURADA', '#ffd36a', 16, 1100);
+        this.setState(v, 'IDLE');
+        await this.wait(220);
+      }
+      this.caption = null;
     }
 
     // ------------------------------------------------------------ intenções
@@ -1430,7 +1669,7 @@ body.resolving #panel { opacity:.6; }
         this.setState(A, 'PREPARING');
         if (sk.kind === 'defense') {
           this.focusOn([A], -0.25);
-          this.tween(A, { ready: 1, guard: 1, arm: -0.5 }, 240);
+          A.prep = sk.reaction; this.tween(A, Object.assign({ ready: 1 }, this._stancePose(A)), 360, 'inOut');
           this.caption = `${A.name} se prepara para defender (${sk.name})`;
         } else if (sk.combo) {
           // combinação anunciada: os dois membros assumem postura e ficam destacados
@@ -1479,6 +1718,7 @@ body.resolving #panel { opacity:.6; }
         else if (ev.type === 'stances') await this.playStances(ev);
         else if (ev.type === 'support') await this.playSupport(ev);
         else if (ev.type === 'fizzle') await this.playFizzle(ev);
+        else if (ev.type === 'stagger') await this.playStagger(ev);
         if (ev.after) this._applySnapshot(ev.after, false);
         this.settle();
       }
@@ -1521,10 +1761,11 @@ body.resolving #panel { opacity:.6; }
         const v = this.vis[id];
         v.stance = null;
         if (v.dead) continue;
-        v.ready = 0; v.barrier = 0;
-        this.setState(v, 'REPOSITIONING');
+        v.ready = 0; v.barrier = 0; v.prep = null;
         const tx = targets[id];
         this.faceTo(v, { x: v.side === 'ally' ? v.x + 100 : v.x - 100 });
+        if (v.broken) { this.tween(v, { x: tx }, clamp(Math.abs(tx - v.x) * 2.6, 200, 700), 'inOut'); continue; } // segue desequilibrado
+        this.setState(v, 'REPOSITIONING');
         this.tween(v, { x: tx, arm: 0, guard: 0, cast: 0, lean: 0, crouch: 0, tilt: 0, kneel: 0 }, clamp(Math.abs(tx - v.x) * 2.2, 200, 650), 'inOut')
           .then(() => { if (v.state === 'REPOSITIONING') this.setState(v, 'IDLE'); });
       }
@@ -1535,7 +1776,8 @@ body.resolving #panel { opacity:.6; }
       for (const id in snap) {
         const v = this.vis[id];
         v.hp = snap[id].hp; v.statuses = { ...snap[id].statuses };
-        if (this.skipping) v.dispHp = v.hp;
+        if (snap[id].post != null) { v.post = snap[id].post; v.postMax = snap[id].postMax; v.broken = snap[id].broken; v.stable = snap[id].stable; }
+        if (this.skipping) { v.dispHp = v.hp; v.dispPost = v.post; }
         // garantia: quem morreu na lógica fica derrotado mesmo se a animação foi pulada
         if (v.hp <= 0 && !v.dead && (final || this.skipping || !v.busy)) {
           v.dead = true; this.setState(v, 'DEFEATED');
@@ -1568,6 +1810,7 @@ body.resolving #panel { opacity:.6; }
           vs.push(T);
         }
         this.float(v.x, v.y - 180, st.protectId ? 'PROTEÇÃO' : NAME[st.reaction], '#9fd0ff', 18);
+        if (st.postHeal) { this.float(v.x, v.y - 205, `+${st.postHeal} POSTURA`, '#ffd36a', 16, 1200); this.addFx({ kind: 'ring', dur: 380, x: v.x, y: v.y - 70, color: '#ffd36a', r: 50 }); SFX('recover', { vol: 0.6 }); }
         moves.push(this.tween(v, this._stancePose(v), 220, 'out'));
         if (st.reaction === 'dodge') this.sparks(v.x, v.y - 60, '#cfe9ff', 8, 0.2, -0.0003);
       }
@@ -1589,6 +1832,7 @@ body.resolving #panel { opacity:.6; }
       this.addFx({ kind: 'ring', dur: 400, x: T.x, y: T.y - 70, color: '#7fe0a0', r: 60 });
       this.sparks(T.x, T.y - 70, '#7fe0a0', 14, 0.25, -0.0004);
       this.float(T.x, T.y - 165, `+${G.CONFIG.support.amount} FORÇA`, '#7fe0a0', 22);
+      if (ev.postHeal) { this.float(T.x, T.y - 192, `+${ev.postHeal} POSTURA`, '#ffd36a', 16, 1200); SFX('recover', { vol: 0.6 }); }
       this.followThrough(A);
       await this.wait(220);
       this.caption = null;
@@ -1737,6 +1981,18 @@ body.resolving #panel { opacity:.6; }
       }
       return dir;
     }
+    // Crítico: flash e partículas mais fortes, número destacado, som próprio (varia pelo tipo de golpe)
+    _critFx(L, dir, motion) {
+      SFX('crit');
+      const x = L.x - dir * 18, y = L.y - 74;
+      this.flashAt(x, y, '#ffcf6a', 120);
+      this.sparks(x, y, '#ffcf6a', 26, 0.8);
+      this.float(L.x, L.y - 168, 'CRÍTICO!', '#ffb347', 26, 1300);
+      if (motion === 'proj') this.addFx({ kind: 'ring', dur: 480, x, y, color: '#ffcf6a', r: 95 });
+      else if (motion === 'punch' || motion === 'punch2' || motion === 'upper') this.addFx({ kind: 'star', dur: 380, x, y, color: '#ffcf6a' });
+      else if (motion === 'arrow' || motion === 'arrowp' || motion === 'thrust' || motion === 'lunge') this.addFx({ kind: 'thrust', dur: 260, x0: x - dir * 120, y0: y, x1: x + dir * 40, y1: y, color: '#ffcf6a', w: 10 });
+      else this.addFx({ kind: 'slash', dur: 300, x: L.x - dir * 30, y: L.y - 70, dir, heavy: true, rot: 0.9, flip: true, color: '#ffcf6a' });
+    }
     // som do contato conforme o tipo de golpe
     _hitSound(motion, blocked, last, heavy) {
       if (blocked) return SFX('block');
@@ -1751,6 +2007,11 @@ body.resolving #panel { opacity:.6; }
       const dmgs = this._splitDamage(hit.damage, steps.map(s => s.share));
       const dmgColor = L.side === 'ally' ? '#ff6a5a' : '#ffe08a';
       let hp = hit.hpBefore, lv = finalLv;
+      // Postura: um único orçamento de Pressão, distribuído pelos golpes na ordem real
+      const pz = opts.posture && !hit.killed ? opts.posture : null;
+      const pDrops = pz ? this._splitDamage(pz.before - pz.after, steps.map(s => s.share)) : null;
+      let pNow = pz ? pz.before : 0, pBrokeShown = false;
+      if (pz) L.post = pz.before;
       for (let i = 0; i < steps.length; i++) {
         const st = steps[i], last = i === steps.length - 1;
         let A = attackers[st.by] || attackers[0];
@@ -1770,10 +2031,23 @@ body.resolving #panel { opacity:.6; }
         this.sparks(L.x - dir * 18, L.y - 72, opts.blocked ? '#cfe3ff' : (st.motion === 'proj' ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ff7a5a'), last ? 16 : 8, 0.5);
         if (st.motion === 'proj' || strong) this.flashAt(L.x - dir * 18, L.y - 72, st.motion === 'proj' ? (A.side === 'ally' ? '#8fd3ff' : '#c86bff') : '#ffe2b0', strong ? 90 : 60);
         const big = last && (hit.killed || steps.length === 1);
-        this.float(L.x + (i % 2 ? 14 : -14), L.y - 128 - i * 10, String(dmgs[i]), dmgColor, big ? (hit.killed ? 46 : 32) : 24, big ? 1400 : 900);
+        const crit = hit.crit && last; // crítico: decidido uma vez pela lógica; destacado no golpe final
+        if (crit) this._critFx(L, dir, st.motion);
+        this.float(L.x + (i % 2 ? 14 : -14), L.y - 128 - i * 10, String(dmgs[i]), crit ? '#ffb347' : dmgColor, crit ? 50 : big ? (hit.killed ? 46 : 32) : 24, big || crit ? 1400 : 900);
         // hit-stop: quase nada nos golpes intermediários, mais forte no golpe final pesado
-        this.hitStop(last ? (strong ? 110 : 65) : 22);
-        this.hurtShake(last ? 2 + dmgs[i] * 0.35 : 0, dir);
+        this.hitStop(crit ? G.CONFIG.crit.hitstop : last ? (strong ? 110 : 65) : 22);
+        this.hurtShake(last ? 2 + dmgs[i] * 0.35 + (crit ? 5 : 0) : 0, dir);
+        // Postura do perdedor do Clash cai junto com o contato
+        if (pz) {
+          pNow = last ? pz.after : Math.max(pz.after, pNow - pDrops[i]);
+          L.post = pNow;
+          if (pz.broke && !pBrokeShown && pNow <= 0) { pBrokeShown = true; this.wait(crit ? 140 : 0).then(() => this._postureBreak(L, dir)); }
+          if (last) {
+            this.float(L.x + 62, L.y - 140, `−${pz.before - pz.after}`, '#d9b85c', 15, 1100); // perto da barra de Postura
+            if (!pz.broke) SFX('pressure', { vol: 0.6 });
+            if (pz.held) this.float(L.x, L.y - 242, 'ESTABILIDADE SEGUROU', '#9fe0c8', 14, 1200);
+          }
+        }
         lv = lvHere;
         if (opts.blocked) lv = LEVELS[Math.max(0, LEVELS.indexOf(lv) - 1)];
         if (!last) {
@@ -1930,7 +2204,7 @@ body.resolving #panel { opacity:.6; }
         const marginLv = margin >= 5 ? 'heavy' : margin >= 3 ? 'medium' : 'light';
         const lv = LEVELS[Math.max(LEVELS.indexOf(h.impact || 'light'), LEVELS.indexOf(marginLv))];
         this.tween(nW, { a: 0 }, 600);
-        await this._sequence([W, ...pW], L, skW, h, lv);
+        await this._sequence([W, ...pW], L, skW, h, lv, { posture: ev.posture });
         if (h.applied) { const st = G.STATUS[h.applied]; this.float(L.x, L.y - 165, st.name.toUpperCase(), st.color, 20, 1300); }
         if (h.killed || lv === 'extreme') await this._decisive(L, h.killed);
         await this.wait(lv === 'light' ? 220 : 320);
@@ -2320,10 +2594,33 @@ body.resolving #panel { opacity:.6; }
         ctx.font = '700 13px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
         ctx.fillStyle = '#e9dfcf'; ctx.fillText(`${v.name}  ${Math.max(0, Math.round(v.hp))}`, x, y - 6);
       }
+      // Postura: barra secundária âmbar, mais fina, logo abaixo da Vida
+      const pr = clamp(v.dispPost / v.postMax, 0, 1), preal = clamp(v.post / v.postMax, 0, 1), py = y + 9;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x - w / 2 - 2, py - 1, w + 4, 6);
+      ctx.fillStyle = 'rgba(255,240,200,0.55)'; ctx.fillRect(x - w / 2, py, w * pr, 4);
+      const pulse = preal < 0.25 && !v.broken ? 0.6 + 0.4 * Math.sin(this.time * 0.012) : 1;
+      ctx.fillStyle = v.broken ? '#8a5a3a' : `rgba(217,184,92,${pulse})`;
+      ctx.fillRect(x - w / 2, py, w * Math.min(pr, preal), 4);
+      if (v.broken) {
+        // barra rompida + ícone de Quebra
+        ctx.strokeStyle = '#ffd36a'; ctx.lineWidth = 1.5; ctx.beginPath();
+        ctx.moveTo(x - 6, py - 3); ctx.lineTo(x - 1, py + 3); ctx.lineTo(x + 3, py - 2); ctx.lineTo(x + 8, py + 5); ctx.stroke();
+        ctx.font = '900 10px "Trebuchet MS", sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#ffd36a';
+        ctx.fillText('QUEBRA', x + w / 2 + 5, py + 5);
+      } else if (v.stable) {
+        ctx.fillStyle = '#9fe0c8'; ctx.beginPath(); ctx.moveTo(x + w / 2 + 6, py - 3); ctx.lineTo(x + w / 2 + 11, py + 2); ctx.lineTo(x + w / 2 + 6, py + 7); ctx.lineTo(x + w / 2 + 1, py + 2); ctx.fill();
+      }
+      // indicador discreto: o golpe escolhido pode quebrar a Postura deste alvo (se vencer o Clash)
+      if (this.breakHint && this.breakHint.has(v.id)) {
+        ctx.globalAlpha = 0.6 + 0.4 * Math.sin(this.time * 0.01);
+        ctx.font = '800 10px "Trebuchet MS", sans-serif'; ctx.textAlign = 'right'; ctx.fillStyle = '#ffd36a';
+        ctx.fillText('⚡ QUEBRA?', x - w / 2 - 4, py + 5); ctx.globalAlpha = 1;
+      }
+      ctx.textAlign = 'center';
       let i = 0;
       for (const k in v.statuses) {
         const st = G.STATUS[k]; if (!st) continue;
-        const sx = x - w / 2 + 8 + i * 20, sy = y + 20;
+        const sx = x - w / 2 + 8 + i * 20, sy = y + 24;
         ctx.fillStyle = st.color; ctx.beginPath(); ctx.arc(sx, sy, 8, 0, 7); ctx.fill();
         ctx.fillStyle = '#140c14'; ctx.font = '900 11px sans-serif'; ctx.fillText(st.icon, sx, sy + 4);
         i++;
@@ -2368,6 +2665,14 @@ body.resolving #panel { opacity:.6; }
           ctx.fillStyle = f.heavy ? '#ffe9b0' : '#e8eef5'; ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(4, -4); ctx.lineTo(4, 4); ctx.fill();
           ctx.fillStyle = '#c84a4a'; ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(-38, -5); ctx.lineTo(-24, 0); ctx.lineTo(-38, 5); ctx.fill();
           if (f.heavy) { ctx.shadowColor = '#ffe9b0'; ctx.shadowBlur = 14; ctx.fillRect(2, -1, 10, 2); }
+        } else if (f.kind === 'shatter') {
+          // ruptura da guarda: estilhaços que se afastam do centro
+          ctx.globalAlpha = 1 - p; ctx.strokeStyle = f.color; ctx.lineWidth = 3;
+          for (let i = 0; i < 9; i++) {
+            const a = i * 0.7 + 0.3, r0 = 14 + p * 70, r1 = r0 + 14 * (1 - p);
+            ctx.beginPath(); ctx.moveTo(f.x + Math.cos(a) * r0, f.y + Math.sin(a) * r0); ctx.lineTo(f.x + Math.cos(a + 0.12) * r1, f.y + Math.sin(a + 0.12) * r1); ctx.stroke();
+          }
+          ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(f.x, f.y, 20 + p * 30, 0, 7); ctx.stroke();
         } else if (f.kind === 'flash') {
           ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55 * (1 - p);
           const gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
@@ -2415,9 +2720,12 @@ body.resolving #panel { opacity:.6; }
       }
       ctx.save();
       ctx.translate(v.x, v.y);
-      // sombra
+      // profundidade: mais abaixo na arena = levemente maior (e desenhado na frente)
+      const ds = 0.93 + clamp((v.y - ARENA.minY) / (ARENA.maxY - ARENA.minY), 0, 1) * 0.12;
+      ctx.scale(ds, ds);
+      // sombra (encolhe quando o personagem sai do chão)
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
-      ctx.beginPath(); ctx.ellipse(0, 2, 44 - v.hop * 0.3, 10, 0, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, 2, 44 - v.hop * 0.3, 10 - v.hop * 0.05, 0, 0, 7); ctx.fill();
       const down = v.dead || v.state === 'KNOCKDOWN';
       const idle = down ? 0 : Math.sin(t * 0.004 + v.phase);
       // animações secundárias contextuais
@@ -2428,7 +2736,10 @@ body.resolving #panel { opacity:.6; }
       ctx.translate(0, -v.hop);
       ctx.scale(v.face, 1);
       const wv = down ? 0 : v.wound;
-      ctx.rotate(v.lean * 0.6 + v.tilt + ctxLean + wv * 0.11 + (wv > 0.6 ? Math.sin(t * 0.0021 + v.phase) * 0.03 * wv : 0));
+      const pqv = down || v.broken ? 0 : clamp((0.5 - v.post / v.postMax) / 0.5, 0, 1);
+      const brokenWob = v.state === 'BROKEN' ? Math.sin(t * 0.007) * 0.04 : 0;
+      ctx.rotate(v.lean * 0.6 + v.tilt + ctxLean + wv * 0.11 + (wv > 0.6 ? Math.sin(t * 0.0021 + v.phase) * 0.03 * wv : 0)
+        - pqv * pqv * 0.05 * (0.5 + 0.5 * Math.sin(t * 0.0042 + v.phase)) + brokenWob); // postura baixa: recua o tronco (perde o equilíbrio)
       ctx.scale(1 + (v.crouch + ctxCrouch + wv * 0.05) * 0.5, 1 - v.crouch - ctxCrouch - wv * 0.05);
       const filters = [];
       if (v.flash > 0.05) filters.push(`brightness(${1 + v.flash * 1.1})`);
@@ -2437,12 +2748,16 @@ body.resolving #panel { opacity:.6; }
       ctx.filter = filters.length ? filters.join(' ') : 'none';
       ctx.globalAlpha = v.alpha;
       const threatGuard = v.threat && v.state === 'IDLE' ? 0.45 : 0;
+      // Postura comprometida (<50%) / crítica (<25%): guarda oscila, pequenos recuos de equilíbrio
+      const pq = down || v.broken ? 0 : clamp((0.5 - v.post / v.postMax) / 0.5, 0, 1);
+      const unsteady = pq * Math.sin(t * 0.0055 + v.phase * 2);
       // condição física: ferido (25–50%) e crítico (<25%) — curva, respira mais forte, arma pesa
       const w = down ? 0 : v.wound;
       const breath = Math.sin(t * (0.004 + w * 0.004) + v.phase);
       const pose = { idle: breath * (1 + w * 1.4), t, wound: w,
         arm: v.arm + (down ? 0 : breath * 0.05) + w * 0.3 + (v.ready ? Math.sin(t * 0.0035 + v.phase) * 0.04 : 0),
-        guard: Math.max(v.guard, threatGuard) * (1 - w * 0.25), cast: v.cast * (1 - w * 0.2) + (v.ready ? 0.12 * Math.sin(t * 0.004) : 0) };
+        guard: Math.max(v.guard, threatGuard) * (1 - w * 0.25) + unsteady * 0.18, cast: v.cast * (1 - w * 0.2) + (v.ready ? 0.12 * Math.sin(t * 0.004) : 0) };
+      pose.arm += unsteady * 0.12;
       ART[v.art](ctx, pose);
       // apoio da mão no chão durante o desequilíbrio
       if (v.kneel > 0.4 && !v.dead) { ctx.fillStyle = '#d9c3a8'; ctx.beginPath(); ctx.arc(30, -6, 6, 0, 7); ctx.fill(); }
@@ -2677,6 +2992,16 @@ body.resolving #panel { opacity:.6; }
     },
   });
 
+  // Boneco de treino (só nas prévias das fichas)
+  ART.dummy = function (ctx, p) {
+    ctx.fillStyle = '#5a3a24'; ctx.fillRect(-4, -40, 8, 40); ctx.fillRect(-22, -2, 44, 6);
+    ctx.fillStyle = '#c9a86a'; ctx.beginPath(); ctx.ellipse(0, -70, 20, 32, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#5a3a24'; ctx.fillRect(-34, -84, 68, 6);
+    ctx.fillStyle = '#d9b97a'; ctx.beginPath(); ctx.arc(0, -112, 13, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#a03a2a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(4, -70, 11, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(4, -70, 4, 0, 7); ctx.stroke();
+  };
+  MOVE.dummy = { dash: 1, ease: 'out', reach: 70, knock: 0.35, width: 70 };
+
   // Retrato para a tela de formação (usa a mesma arte do combate)
   G.drawPortrait = function (canvas, art, opts = {}) {
     const g = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
@@ -2766,9 +3091,12 @@ body.resolving #panel { opacity:.6; }
         const valid = new Set(this.validTargets(uid, sid));
         this.p.highlight = valid;
         this.p.dimIds = new Set(Object.keys(this.p.vis).filter(id => !valid.has(id) && id !== uid));
+        const pr = SKILLS[sid].pressure || 0;
+        this.p.breakHint = new Set([...valid].filter(id => { const t = this.battle.unit(id); return t.side === 'enemy' && pr && !t.stable && !t.broken && t.post <= pr; }));
       } else {
         this.p.highlight = this.enabled && uid ? new Set([uid]) : null;
         this.p.dimIds = null;
+        this.p.breakHint = null;
       }
     }
 
@@ -2825,6 +3153,7 @@ body.resolving #panel { opacity:.6; }
         const { sx, sy } = pos(e); this._move(sx, sy);
         canvas.setPointerCapture(e.pointerId);
         this.press = this._hitAt() ; this.press.sx = sx; this.press.sy = sy;
+        if (this.press.kind === 'ally' && this.battle.unit(this.press.id).broken) { G.SFX && G.SFX.play('uiCancel'); this.press = null; return; }
         if (this.press.kind === 'ally' && !(this.sel && this.sel.skillId && this.validTargets(this.sel.uid, this.sel.skillId).includes(this.press.id))) {
           if (!this.sel || this.sel.uid !== this.press.id || this.sel.skillId) this._select(this.press.id);
         }
@@ -2998,6 +3327,11 @@ body.resolving #panel { opacity:.6; }
         lines.push({ t: `${who(me)} — ${sk.name}   F ${fMe} + 0–3`, c: '#9fd8ff' });
         lines.push({ t: `${who(other)} — ${SKILLS[other.skillId].name}   F ${fOt} + 0–3`, c: '#ff9a8a' });
         lines.push({ t: `Previsão: ${CAT_NAME[cat]}  (vence ${Math.round(p * 100)}%, empata ${Math.round(ev.odds.tie * 100)}%)`, c: CAT_COLOR[cat] });
+        // Postura: o que acontece com o alvo SE vencer (e o risco para mim se perder)
+        const foeU = b.unit(other.actorId), meU = b.unit(me.actorId);
+        const myP = sk.pressure || 0, theirP = SKILLS[other.skillId].pressure || 0;
+        lines.push({ t: `Se vencer: −${myP} Postura em ${foeU.name} (${foeU.post}/${foeU.postMax})` + (!foeU.stable && foeU.post <= myP ? '  → possível QUEBRA' : ''), c: '#d9b85c' });
+        lines.push({ t: `Se perder: −${theirP} na sua Postura (${meU.post}/${meU.postMax})` + (!meU.stable && meU.post <= theirP ? '  → risco de QUEBRA' : ''), c: '#b89a70' });
       } else if (sk.kind === 'attack') {
         const info = me && me.interceptInfo;
         lines.push({ t: `${sk.name} → ${b.unit(targetId).name}`, c: '#ffe9b0' });
@@ -3145,7 +3479,18 @@ body.resolving #panel { opacity:.6; }
           ctx.globalAlpha = this.fade * (on ? 0.6 : 0.16);
           ctx.strokeStyle = SKILLS[c.it.skillId].combo ? '#ff9a5a' : '#ff5a5a'; ctx.lineWidth = 2; ctx.setLineDash([7, 7]); ctx.lineDashOffset = -this.p.time * 0.04;
           ctx.beginPath(); ctx.moveTo(cv.p0.x, cv.p0.y); ctx.bezierCurveTo(cv.c1.x, cv.c1.y, cv.c2.x, cv.c2.y, cv.p1.x, cv.p1.y); ctx.stroke();
+          ctx.setLineDash([]);
+          // seta de direção: ponta perto do alvo + chevron que percorre devagar o arco (inimigo → alvo)
+          const tip = this._at(cv, 0.985), col = SKILLS[c.it.skillId].combo ? '#ff9a5a' : '#ff5a5a';
+          this._arrowHead(ctx, tip.x, tip.y, tip.a, 13, col);
+          const tt = ((this.p.time * 0.00028 + c.seed * 0.1) % 1) * 0.8 + 0.1, ch = this._at(cv, tt);
+          ctx.globalAlpha *= 0.8; this._arrowHead(ctx, ch.x, ch.y, ch.a, 8, col, true);
           ctx.restore();
+          // inimigo sob o cursor: destaca também o alvo
+          if (this.hover.unit === c.from) {
+            const T = vis[c.to]; ctx.save(); ctx.translate(T.x, T.y + 4); ctx.scale(1, 0.32);
+            ctx.strokeStyle = 'rgba(255,90,90,0.9)'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(0, 0, 64, 0, 7); ctx.stroke(); ctx.restore();
+          }
         } else {
           const sk = SKILLS[c.a.skillId];
           const editing = this.sel && c.members.includes(this.sel.uid);
@@ -3187,6 +3532,13 @@ body.resolving #panel { opacity:.6; }
       }
     }
 
+    _arrowHead(ctx, x, y, a, size, color, open) {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+      ctx.fillStyle = color; ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(size * 0.6, 0); ctx.lineTo(-size * 0.6, -size * 0.55); ctx.lineTo(-size * 0.3, 0); ctx.lineTo(-size * 0.6, size * 0.55); ctx.closePath();
+      open ? ctx.stroke() : ctx.fill();
+      ctx.restore();
+    }
     // Ligação secundária discreta entre os membros de uma combinação
     _tether(ctx, vs, color, alpha, dashed) {
       vs = vs.filter(Boolean);
@@ -3266,6 +3618,14 @@ body.resolving #panel { opacity:.6; }
         ctx.globalAlpha = this.fade;
       }
 
+      // Quebra pendente: este personagem perde a ação desta rodada
+      for (const id in vis) {
+        const v = vis[id], u = b.unit(id);
+        if (!u || u.hp <= 0 || !u.broken) continue;
+        ctx.globalAlpha = this.fade;
+        this._tag(ctx, v.x, v.y - 200, 'DESEQUILIBRADO · perde a ação', '#ffd36a', 12 / k, true);
+      }
+      ctx.globalAlpha = this.fade;
       // indicador: combinação disponível para estes personagens
       if (this.enabled) for (const id in G.COMBOS) {
         const c = G.COMBOS[id];
@@ -3306,8 +3666,9 @@ body.resolving #panel { opacity:.6; }
         if (hi && !hi.cancel && hi.skillId && this.sel) {
           const sk = SKILLS[hi.skillId], u = b.unit(sk.combo ? sk.members[0] : this.sel.uid);
           const lines = [{ t: sk.name + (sk.hits ? `  ·  ${sk.hits.length} golpes` : ''), c: '#ffe9b0' },
-            sk.kind === 'attack' ? { t: `Força ${sk.force} · Dano ${sk.dmg} · Vel ${b.actionSpeed(u, sk)}`, c: '#e8dccb' } : { t: KIND_STYLE[sk.kind].label + (sk.kind === 'defense' ? ' · age antes de tudo' : ` · Vel ${b.actionSpeed(u, sk)}`), c: '#9fd0ff' },
+            sk.kind === 'attack' ? { t: `Força ${sk.force} · Dano ${sk.dmg} · Pressão ${sk.pressure || 0} · Vel ${b.actionSpeed(u, sk)}`, c: '#e8dccb' } : { t: KIND_STYLE[sk.kind].label + (sk.kind === 'defense' ? ' · age antes de tudo' : ` · Vel ${b.actionSpeed(u, sk)}`), c: '#9fd0ff' },
             { t: sk.desc, c: '#bdb0a8', wrap: true }];
+          if (sk.postureHeal) lines.push({ t: `Recupera ${sk.postureHeal} de Postura`, c: '#ffd36a' });
           if (sk.combo) lines.push({ t: `Participantes: ${sk.members.map(m => b.unit(m).name).join(' + ')} · custa a ação dos dois`, c: KIND_STYLE.combo.color, wrap: true });
           if (hi.disabled) lines.push({ t: hi.cd ? `Em recarga (${hi.cd})` : 'Sem alvo válido', c: '#ff9a8a' });
           this._tooltip(ctx, hi.x, hi.y - hi.r - 10 / k2, lines);
@@ -3326,7 +3687,8 @@ body.resolving #panel { opacity:.6; }
             if (it) {
               const sk = SKILLS[it.skillId], A = vis[it.actorId];
               this._tooltip(ctx, A.x, A.y - 215, sk.kind === 'attack'
-                ? [{ t: `${[it.actorId, ...(it.partners || [])].map(id => b.unit(id).name).join(' + ')} → ${b.unit(it.targetId).name}${sk.combo ? '  (ATAQUE COMBINADO)' : ''}`, c: '#ff9a8a' }, { t: `${sk.name} · Força ${sk.force} · Dano ${sk.dmg} · Vel ${b.actionSpeed(b.unit(it.actorId), sk)}`, c: '#e8dccb' }]
+                ? [{ t: `${[it.actorId, ...(it.partners || [])].map(id => b.unit(id).name).join(' + ')} → ${b.unit(it.targetId).name}${sk.combo ? '  (ATAQUE COMBINADO)' : ''}`, c: '#ff9a8a' },
+                   { t: `Postura ${b.unit(it.actorId).post}/${b.unit(it.actorId).postMax} · Pressão do golpe ${sk.pressure || 0}`, c: '#d9b85c' }, { t: `${sk.name} · Força ${sk.force} · Dano ${sk.dmg} · Vel ${b.actionSpeed(b.unit(it.actorId), sk)}`, c: '#e8dccb' }]
                 : [{ t: `${b.unit(it.actorId).name} vai se defender`, c: '#9fd0ff' }, { t: sk.name, c: '#e8dccb' }]);
             }
           }
@@ -3426,6 +3788,102 @@ body.resolving #panel { opacity:.6; }
 </script>
   <script>
 // =====================================================================
+// PRÉVIA ANIMADA DAS HABILIDADES (fichas da formação)
+// Reaproveita o Presenter real num canvas próprio, com um boneco de treino.
+// Só cria eventos sintéticos de apresentação: não toca na batalha, não
+// consome ações, não roda IA nem muda o Clash.
+// =====================================================================
+(function (G) {
+  'use strict';
+  const { SKILLS } = G;
+
+  class SkillPreview {
+    constructor() {
+      this.box = document.createElement('div'); this.box.className = 'pv-box';
+      this.canvas = document.createElement('canvas'); this.box.appendChild(this.canvas);
+      this.label = document.createElement('div'); this.label.className = 'pv-label'; this.box.appendChild(this.label);
+      this.p = null; this.token = 0; this.current = null;
+    }
+    // coloca o canvas (persistente) dentro da ficha recém-desenhada
+    mount(slot) { if (slot && this.box.parentElement !== slot) slot.appendChild(this.box); }
+    _ensure() {
+      if (!this.p) { this.p = new G.Presenter(this.canvas); }
+      this.p.paused = false;
+    }
+    pause() { this.token++; this.current = null; if (this.p) { this.p.skip(); this.p.skipping = false; this.p.paused = true; } }
+
+    // Monta a cena: personagem à esquerda, boneco (ou inimigo/aliado demonstrativo) à direita
+    _scene(charId, skill) {
+      const helper = ['knight', 'swordsman', 'mage'].find(id => id !== charId);
+      const b = new G.Battle(1, [charId, helper]);
+      this.p.reset(b);
+      const keepEnemy = skill.kind === 'defense' || skill.kind === 'protect' ? 'duelist' : 'brute';
+      for (const id of Object.keys(this.p.vis)) if (![charId, keepEnemy, ...(skill.kind === 'protect' || skill.kind === 'support' ? [helper] : [])].includes(id)) delete this.p.vis[id];
+      const me = this.p.vis[charId], foe = this.p.vis[keepEnemy];
+      Object.assign(me, { x: 470, y: 600, home: { x: 470, y: 600 }, face: 1 });
+      Object.assign(foe, { x: 790, y: 600, home: { x: 790, y: 600 }, face: -1 });
+      if (keepEnemy === 'brute') Object.assign(foe, { art: 'dummy', name: 'Boneco', hp: 99, dispHp: 99, maxHp: 99, post: 80, postMax: 80, dispPost: 80 });
+      const ally = this.p.vis[helper];
+      if (ally) Object.assign(ally, { x: 330, y: 580, home: { x: 330, y: 580 }, face: 1 });
+      this.p.overview();
+      this.p.camT = { x: 600, y: 520, z: 1.25 };
+      return { b, me, foe, ally, helper, foeId: keepEnemy };
+    }
+
+    async play(charId, skillId, loop = true) {
+      const key = charId + ':' + skillId;
+      if (this.current === key) return;
+      this.current = key;
+      const tk = ++this.token;
+      this._ensure();
+      const sk = SKILLS[skillId];
+      this.label.textContent = sk.name;
+      while (tk === this.token) {
+        this.p.skip(); this.p.skipping = false;
+        const sc = this._scene(charId, sk);
+        await this.p.wait(350);
+        if (tk !== this.token) return;
+        await this.p.playAll(this._events(charId, sk, skillId, sc));
+        if (tk !== this.token) return;
+        await this.p.wait(900);
+        if (!loop || G.reduceMotion) { this.current = null; return; }
+      }
+    }
+
+    // Eventos sintéticos no MESMO formato da lógica (só apresentação)
+    _events(charId, sk, skillId, sc) {
+      const dummy = sc.foe;
+      if (sk.kind === 'attack') {
+        const impact = sc.b.impactOf(sk, sk.dmg, { maxHp: 56 }, false);
+        return [{ type: 'attack', attackerId: charId, partners: [], skillId, skill: sk, targetId: sc.foeId, defenderId: sc.foeId, protectorId: null,
+          reaction: 'none', outcome: 'hit', damage: sk.dmg, crit: false, hpBefore: dummy.hp, hpAfter: dummy.hp - sk.dmg, killed: false,
+          applied: null, impact, consumed: [], counter: null, decisive: false, after: null }];
+      }
+      if (sk.kind === 'support') {
+        return [{ type: 'support', actorId: charId, targetId: sc.helper, skillId, postHeal: sk.postureHeal || 0, after: null }];
+      }
+      // defesas: o inimigo demonstrativo ataca e a reação acontece
+      const atk = SKILLS.d_flurry, me = sc.me;
+      const stance = sk.kind === 'protect'
+        ? { type: 'stances', list: [{ unitId: charId, skillId, reaction: 'block', protectId: sc.helper }], after: null }
+        : { type: 'stances', list: [{ unitId: charId, skillId, reaction: sk.reaction, postHeal: sk.postureHeal || 0 }], after: null };
+      const target = sk.kind === 'protect' ? sc.helper : charId;
+      const r = sk.kind === 'protect' ? 'block' : sk.reaction;
+      const outcome = { block: 'blocked', parry: 'parried', dodge: 'dodged' }[r];
+      const dmg = outcome === 'blocked' ? 3 : 0;
+      return [stance, { type: 'attack', attackerId: 'duelist', partners: [], skillId: 'd_flurry', skill: atk, targetId: target, defenderId: charId,
+        protectorId: sk.kind === 'protect' ? charId : null, reaction: r, outcome, damage: dmg, crit: false, hpBefore: me.hp, hpAfter: me.hp - dmg,
+        killed: false, applied: null, impact: 'light', consumed: [],
+        counter: outcome === 'parried' ? { damage: 6, hpBefore: 40, hpAfter: 34, killed: false, consumed: [] } : null, decisive: false, after: null }];
+    }
+  }
+
+  G.SkillPreview = SkillPreview;
+})(window);
+
+</script>
+  <script>
+// =====================================================================
 // INTERFACE (DOM) — barra compacta. A seleção acontece na arena
 // (planner.js); aqui ficam só: dica, ordem prevista, ações e confirmar.
 // =====================================================================
@@ -3510,15 +3968,46 @@ body.resolving #panel { opacity:.6; }
         card.ondblclick = () => cb.toggle(id);
         roster.appendChild(card);
       }
-      // detalhes do personagem em foco
+      // FICHA do personagem em foco (retrato, atributos, habilidades, especialidade, prévia animada)
       const f = U[state.focus];
-      const defense = f.skills.map(k => G.SKILLS[k]).find(sk => sk.kind !== 'attack');
-      $('#detail').innerHTML = f ? `<h2>${f.name} <small>${f.role}</small></h2><p class="muted">${f.style || ''}</p>
-        <div class="muted">Vida <b>${f.hp}</b> · Velocidade <b>${f.spd}</b>${f.blockPower ? ` · Bloqueio ${Math.round(f.blockPower * 100)}%` : ''}${f.dodgeSkill ? ` · Esquiva +${Math.round(f.dodgeSkill * 100)}%` : ''}</div>
-        ${f.skills.map(k => G.SKILLS[k]).filter(sk => sk.kind === 'attack').map(sk => `<div class="sk"><em>F${sk.force} · D${sk.dmg}${sk.hits && sk.hits.length > 1 ? ` · ${sk.hits.length} golpes` : ''}</em><span><b>${sk.name}</b> — ${sk.desc}</span></div>`).join('')}
-        ${defense ? `<div class="sk"><em>Defesa</em><span><b>${defense.name}</b> — ${defense.desc}</span></div>` : ''}
-        <div class="muted">${f.trait}</div>
-        <button class="confirm" id="btn-toggle">${state.team.includes(state.focus) ? 'Remover da equipe' : state.team.length >= 3 ? 'Equipe cheia (remova alguém)' : 'Adicionar à equipe'}</button>` : '';
+      const det = $('#detail');
+      if (f) {
+        const sks = f.skills.map(k => [k, G.SKILLS[k]]);
+        const fx = sk => [sk.applies === 'weaken' ? 'enfraquece' : '', sk.impact === 'knockdown' ? 'derruba' : sk.impact === 'stagger' ? 'desequilibra' : sk.impact === 'push' ? 'empurra' : '',
+          sk.unblockable ? 'ignora bloqueio' : '', sk.tags.includes('magic') ? 'magia' : sk.tags.includes('ranged') ? 'à distância' : '', sk.cooldown ? `recarga ${sk.cooldown - 1}` : ''].filter(Boolean).join(' · ');
+        const chip = (lbl, v, cls = '') => `<span class="chipv ${cls}"><i>${lbl}</i>${v}</span>`;
+        const row = ([k, sk]) => `<div class="skrow" data-skill="${k}" tabindex="0">
+            <canvas class="skico" width="44" height="44" data-icon="${sk.icon}" data-kind="${sk.kind}"></canvas>
+            <div class="skbody"><b>${sk.name}</b><span>${sk.desc}</span>
+              <div class="chips">${sk.kind === 'attack' ? chip('Força', sk.force) + chip('Dano', sk.dmg) + chip('Pressão', sk.pressure || 0, 'p') + chip('Golpes', (sk.hits || [1]).length) : chip(sk.kind === 'support' ? 'Suporte' : 'Defesa', ' ')}${sk.postureHeal ? chip('Postura', '+' + sk.postureHeal, 'p') : ''}${fx(sk) ? `<em>${fx(sk)}</em>` : ''}</div></div></div>`;
+        det.innerHTML = `<div class="sheet" style="--acc:${f.accent || '#d8b45a'}">
+          <div class="sheet-head"><canvas class="sheet-portrait" width="150" height="170"></canvas>
+            <div class="sheet-title"><canvas class="sheet-glyph" width="70" height="70"></canvas><h2>${f.name}</h2><div class="cls">${f.role} · ${f.specialty || ''}</div><p>${f.style || ''}</p></div></div>
+          <div class="stats">
+            <div class="tile"><i>Vida</i><b>${f.hp}</b></div><div class="tile"><i>Postura</i><b>${f.posture}</b></div><div class="tile"><i>Velocidade</i><b>${f.spd}</b></div>
+            <div class="tile wide"><i>Ataque</i><span>${f.offense || ''}</span></div><div class="tile wide"><i>Defesa</i><span>${f.defense || ''}</span></div>
+          </div>
+          <div class="sh">Habilidades</div>
+          <div class="sklist">${sks.filter(([, sk]) => sk.kind === 'attack').map(row).join('')}</div>
+          <div class="sh">Especialidade · ${f.specialty || ''}</div>
+          <div class="sklist">${sks.filter(([, sk]) => sk.kind !== 'attack').map(row).join('')}</div>
+          <div class="sh">Prévia <small>passe o mouse ou clique numa habilidade</small></div>
+          <div id="pv-slot" class="pv-slot"></div>
+          <button class="confirm" id="btn-toggle">${state.team.includes(state.focus) ? 'Remover da equipe' : state.team.length >= 3 ? 'Equipe cheia (remova alguém)' : 'Adicionar à equipe'}</button></div>`;
+        G.drawPortrait(det.querySelector('.sheet-portrait'), f.art, { glow: f.accent ? f.accent + '55' : '#3a2a44' });
+        const gl = det.querySelector('.sheet-glyph'); G.drawIcon(gl.getContext('2d'), f.glyph || 'sword', 35, 35, 26, (f.accent || '#d8b45a') + '55');
+        det.querySelectorAll('.skico').forEach(c => { const g = c.getContext('2d'); g.fillStyle = '#140c14'; g.beginPath(); g.arc(22, 22, 20, 0, 7); g.fill(); g.strokeStyle = f.accent || '#d8b45a'; g.lineWidth = 2; g.stroke(); G.drawIcon(g, c.dataset.icon, 22, 22, 13, f.accent || '#d8b45a'); });
+        // prévia: hover, foco (teclado) ou clique/toque
+        if (cb.preview) {
+          cb.preview.mount(det.querySelector('#pv-slot'));
+          det.querySelectorAll('.skrow').forEach(r => {
+            const go = () => { det.querySelectorAll('.skrow').forEach(x => x.classList.toggle('on', x === r)); cb.preview.play(state.focus, r.dataset.skill); };
+            r.onmouseenter = go; r.onfocus = go; r.onclick = go;
+          });
+          const first = det.querySelector('.skrow');
+          if (first && !G.reduceMotion) { first.classList.add('on'); cb.preview.play(state.focus, first.dataset.skill); }
+        }
+      } else det.innerHTML = '';
       const tb = $('#btn-toggle');
       if (tb) { tb.disabled = !state.team.includes(state.focus) && state.team.length >= 3; tb.onclick = () => cb.toggle(state.focus); }
       // três espaços da equipe (frente → retaguarda definida pela especialidade)
@@ -3596,7 +4085,9 @@ body.resolving #panel { opacity:.6; }
     return G.PARTY.slice();
   }
   const teamState = { team: team.slice(), focus: team[0] };
+  const preview = new G.SkillPreview();
   const teamCb = {
+    preview,
     focus(id) { teamState.focus = id; G.SFX.play('uiSelect'); UI.renderTeam(teamState, teamCb); },
     toggle(id) {
       const i = teamState.team.indexOf(id);
@@ -3612,6 +4103,7 @@ body.resolving #panel { opacity:.6; }
       team = teamState.team.slice().sort((a, b) => (G.UNITS[a].formation || 0) - (G.UNITS[b].formation || 0));
       try { localStorage.setItem('duelo-team', JSON.stringify(teamState.team)); } catch (e) { /* ok */ }
       G.SFX.play('uiConfirm');
+      preview.pause();
       UI.showTeam(false);
       start();
     },
@@ -3690,7 +4182,13 @@ body.resolving #panel { opacity:.6; }
     view.plan = battle.buildPlan(view.choices);
     view.preview = battle.previewPlan(view.plan);
     // completo: todo aliado vivo tem ação própria OU participa de uma combinação válida
-    view.complete = allies.every(u => view.plan.actions.some(a => a.actorId === u.id || (a.partners || []).includes(u.id)));
+    // (quem está com Quebra pendente não planeja: perde a ação desta rodada)
+    view.complete = allies.every(u => u.broken || view.plan.actions.some(a => a.actorId === u.id || (a.partners || []).includes(u.id)));
+    // posturas defensivas preparadas aparecem já no planejamento
+    for (const u of allies) {
+      const c = view.choices[u.id], sk = c && c.skillId && SKILLS[c.skillId];
+      presenter.setPrepStance(u.id, sk && sk.kind === 'defense' ? sk.reaction : sk && sk.kind === 'protect' ? 'block' : null);
+    }
     const note = {};
     for (const a of view.plan.actions.filter(x => x.side === 'ally')) {
       const sk = SKILLS[a.skillId];
@@ -3698,8 +4196,9 @@ body.resolving #panel { opacity:.6; }
       else if (sk.kind === 'defense') note[a.actorId] = note[a.actorId] || G.REACTIONS[sk.reaction].name;
     }
     UI.defenseNote = note;
-    view.hint = firstAction ? '<b>Selecione um personagem e conecte uma habilidade ao alvo.</b> <small>(clique ou arraste · botão direito/✕ cancela · Esc desfaz)</small>'
-      : view.complete ? 'Tudo pronto. Passe o mouse nas correntes para ver os Clashes.' : 'Planeje os personagens restantes.';
+    const lost = allies.filter(u => u.broken).map(u => u.name);
+    view.hint = (lost.length ? `<b style="color:#ffd36a">${lost.join(' e ')} perde${lost.length > 1 ? 'm' : ''} a ação (Quebra de Postura).</b> ` : '') + (firstAction ? '<b>Selecione um personagem e conecte uma habilidade ao alvo.</b> <small>(clique ou arraste · botão direito/✕ cancela · Esc desfaz)</small>'
+      : view.complete ? 'Tudo pronto. Passe o mouse nas correntes para ver os Clashes.' : 'Planeje os personagens restantes.');
     UI.setTop(battle, 'Planejamento', false);
     UI.renderBar(battle, view, () => { if (view.complete && fsm.state === Phase.PLAN) fsm.go(Phase.RESOLVE); });
   }
@@ -3733,6 +4232,10 @@ body.resolving #panel { opacity:.6; }
   document.getElementById('vol-sfx').oninput = e => { G.SFX.set('sfx', +e.target.value); G.SFX.play('uiSkill'); };
   document.getElementById('vol-mute').onchange = e => { G.SFX.set('muted', e.target.checked); document.getElementById('btn-audio').textContent = e.target.checked ? '🔇' : '🔊'; };
   document.getElementById('btn-audio').textContent = A.muted ? '🔇' : '🔊';
+  // reduzir animações: prévias não repetem, menos tremor, sem câmera lenta
+  try { G.reduceMotion = localStorage.getItem('duelo-reduce') === '1'; } catch (e) { /* ok */ }
+  document.getElementById('vol-reduce').checked = !!G.reduceMotion;
+  document.getElementById('vol-reduce').onchange = e => { G.reduceMotion = e.target.checked; try { localStorage.setItem('duelo-reduce', e.target.checked ? '1' : '0'); } catch (er) { /* ok */ } };
   document.getElementById('btn-audio').onclick = () => document.getElementById('audio-pop').classList.toggle('show');
   document.getElementById('btn-team').onclick = () => { if (fsm.state === 'TEAM' || confirm('Voltar para a formação de equipe? A batalha atual será encerrada.')) openTeam(); };
 

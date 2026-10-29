@@ -98,6 +98,13 @@
         case 'arrowHit': N(0.05, { type: 'bandpass', f0: 1800, q: 2, peak: 0.35 }); T(0.08, { type: 'sine', f0: 260, f1: 120, peak: 0.3 }); break;
         case 'thud': T(0.3, { type: 'sine', f0: 70, f1: 40, peak: 0.55 }); N(0.25, { type: 'lowpass', f0: 500, f1: 150, peak: 0.35 }); break; // queda
         case 'defeat': T(0.6, { type: 'triangle', f0: 220, f1: 110, peak: 0.15 }); break;
+        // postura e crítico
+        case 'pressure': T(0.16, { type: 'triangle', f0: 180, f1: 120, peak: 0.18 }); N(0.1, { type: 'bandpass', f0: 900, q: 2, peak: 0.18 }); break; // defesa pressionada
+        case 'postureBreak': // ruptura: estalo + estilhaço + grave
+          N(0.05, { type: 'highpass', f0: 3500, peak: 0.45 }); [1, 1.5, 2.3, 3.4].forEach((m, i) => T(0.3, { type: 'triangle', f0: 900 * m, f1: 600 * m, peak: 0.08 }, 0.02 * i));
+          T(0.45, { type: 'sine', f0: 95, f1: 45, peak: 0.55 }); break;
+        case 'recover': T(0.25, { type: 'sine', f0: 330, f1: 495, peak: 0.12, a: 0.05 }); T(0.3, { type: 'sine', f0: 495, f1: 660, peak: 0.08, a: 0.08 }, 0.08); break;
+        case 'crit': N(0.08, { type: 'highpass', f0: 2500, peak: 0.4 }); T(0.4, { type: 'sine', f0: 140, f1: 50, peak: 0.6 }); T(0.25, { type: 'square', f0: 1320, f1: 880, peak: 0.05 }); break;
         // interface
         case 'uiSelect': T(0.07, { type: 'triangle', f0: 660, peak: 0.1 }); break;
         case 'uiSkill': T(0.08, { type: 'triangle', f0: 880, peak: 0.09 }); break;

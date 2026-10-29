@@ -31,6 +31,39 @@
     archer:    { dash: 0.90, ease: 'inOut', reach: 70, knock: 1.10, width: 80 },
   };
   const LEVELS = ['light', 'medium', 'heavy', 'extreme'];
+  // Poses defensivas (bloqueio / aparo / esquiva) por classe — preparadas no planejamento
+  const DEF_POSE = {
+    knight:    { block: { guard: 1.15, arm: -0.25, crouch: 0.08, lean: 0.06 }, parry: { arm: -0.9, guard: 0.5, crouch: 0.05 } },
+    swordsman: { parry: { arm: -0.95, lean: 0.08, crouch: 0.06 }, dodge: { crouch: 0.12, lean: -0.1, arm: -0.3 }, block: { arm: -0.6, guard: 0.6, crouch: 0.06 } },
+    mage:      { dodge: { cast: 0.55, crouch: 0.07, lean: -0.06, arm: -0.3 }, block: { cast: 0.8, arm: -0.6 } },
+    lancer:    { parry: { arm: 0.9, crouch: 0.07, lean: 0.04 }, block: { arm: 0.9, crouch: 0.07 } },
+    brawler:   { dodge: { crouch: 0.14, lean: -0.12, arm: -0.25 }, block: { arm: -0.35, crouch: 0.1 } },
+    archer:    { dodge: { crouch: 0.13, lean: -0.12, cast: 0.15 } },
+    brute:     { block: { guard: 1, arm: -0.6, crouch: 0.1 } },
+    duelist:   { parry: { arm: -1.0, lean: 0.06, crouch: 0.05 } },
+    conjurer:  { dodge: { cast: 0.5, crouch: 0.06, lean: -0.08 } },
+  };
+  const DEF_GENERIC = { block: { guard: 1, crouch: 0.06 }, parry: { arm: -0.7 }, dodge: { cast: 0.4, crouch: 0.06 } };
+  // Quebra de Postura: cada um perde a guarda do seu jeito (armas nunca atravessam o corpo)
+  const BREAK_POSE = {
+    knight: { guard: -0.6, arm: 0.9, lean: -0.35, crouch: 0.08 }, swordsman: { arm: 1.5, lean: -0.38, crouch: 0.06 },
+    mage: { cast: 0, arm: 0.9, lean: -0.32, crouch: 0.08 }, lancer: { arm: -1.4, lean: -0.3, crouch: 0.06 },
+    brawler: { arm: -0.5, lean: -0.42, crouch: 0.1 }, archer: { cast: 0, lean: -0.34, crouch: 0.1, arm: 0.5 },
+    brute: { kneel: 1, tilt: 0.36, crouch: 0.3, arm: 0.9 }, duelist: { arm: 1.4, lean: -0.42, crouch: 0.06 },
+    conjurer: { cast: 0, arm: 1.0, lean: -0.35 },
+  };
+  // Gestos ocasionais de espera, por classe: [propriedades, duração] — sempre voltam à pose base
+  const GESTURES = {
+    knight:    [[[{ guard: 0.55 }, 260], [{ guard: 0 }, 300]], [[{ arm: -0.35 }, 240], [{ arm: 0 }, 300]], [[{ crouch: 0.07 }, 280], [{ crouch: 0 }, 320]]],
+    swordsman: [[[{ arm: -0.9 }, 160], [{ arm: 0.5 }, 180], [{ arm: 0 }, 220]], [[{ lean: 0.07 }, 260], [{ lean: -0.05 }, 260], [{ lean: 0 }, 200]], [[{ crouch: 0.06, lean: 0.08 }, 220], [{ crouch: 0, lean: 0 }, 260]]],
+    mage:      [[[{ cast: 0.45, arm: -0.3 }, 320], [{ cast: 0, arm: 0 }, 380]], [[{ arm: 0.25 }, 300], [{ arm: 0 }, 340]]],
+    lancer:    [[[{ arm: 0.45 }, 280], [{ arm: 0 }, 320]], [[{ arm: -0.25 }, 200], [{ arm: 0.1 }, 200], [{ arm: 0 }, 200]]],
+    brawler:   [[[{ arm: 0.35 }, 140], [{ arm: -0.15 }, 160], [{ arm: 0 }, 180]], [[{ lean: 0.06 }, 200], [{ lean: -0.06 }, 200], [{ lean: 0 }, 180]]],
+    archer:    [[[{ cast: 0.35 }, 260], [{ cast: 0 }, 300]], [[{ lean: -0.1 }, 260], [{ lean: 0 }, 280]], [[{ cast: 0.75, lean: -0.04 }, 380], [{ cast: 0.75 }, 500], [{ cast: 0, lean: 0 }, 300]]],
+    brute:     [[[{ arm: -0.55 }, 420], [{ arm: 0 }, 460]], [[{ crouch: 0.08 }, 320], [{ crouch: 0 }, 360]]],
+    duelist:   [[[{ arm: -0.4 }, 220], [{ arm: 0.2 }, 220], [{ arm: 0 }, 220]], [[{ lean: 0.08 }, 260], [{ lean: 0 }, 260]]],
+    conjurer:  [[[{ cast: 0.5 }, 380], [{ cast: 0 }, 420]]],
+  };
   const Z_MIN = 0.72; // menor zoom permitido (o cenário cobre essa área)
   const STANCE_STATE = { block: 'BLOCKING', parry: 'PARRYING', dodge: 'DODGING' };
   const ease = {
@@ -75,7 +108,8 @@
           barrier: 0, ready: 0, dead: u.hp <= 0, hp: u.hp, dispHp: u.hp, maxHp: u.maxHp,
           statuses: { ...u.statuses }, phase: i * 1.7, trail: [], stance: null,
           state: u.hp > 0 ? 'IDLE' : 'DEFEATED', tilt: 0, kneel: 0, busy: null,
-          formation: u.def.formation != null ? u.def.formation : u.slot, wound: 0, ambT: 1500 + i * 700 };
+          formation: u.def.formation != null ? u.def.formation : u.slot, wound: 0, ambT: 1500 + i * 700,
+          post: u.post, postMax: u.postMax, dispPost: u.post, broken: u.broken, stable: u.stable, prep: null, gestT: 2500 + i * 900 };
       });
       this.tweens = []; this.waits = []; this.particles = []; this.texts = []; this.fx = [];
       this.banner = null; this.caption = null; this.spot = null;
@@ -109,7 +143,7 @@
       if (this.skipping || ms <= 0) return Promise.resolve();
       return new Promise(res => this.waits.push({ t: ms, res }));
     }
-    slowMo(factor, realMs) { if (this.skipping) return; this.slow = factor; this.slowTimer = realMs; }
+    slowMo(factor, realMs) { if (this.skipping || G.reduceMotion) return; this.slow = factor; this.slowTimer = realMs; }
     hitStop(realMs) { if (this.skipping) return; this.freeze = Math.max(this.freeze, realMs); }
     skip() {
       this.skipping = true;
@@ -122,6 +156,7 @@
 
     _frame(now) {
       const real = Math.min(50, now - this._last); this._last = now;
+      if (this.paused) { requestAnimationFrame(t => this._frame(t)); return; }
       if (this.slowTimer > 0) { this.slowTimer -= real; if (this.slowTimer <= 0) this.slow = 1; }
       let dt = real * this.speed * this.slow;
       if (this.freeze > 0) { this.freeze -= real; dt = 0; }
@@ -155,6 +190,7 @@
         const v = this.vis[id];
         v.flash = Math.max(0, v.flash - dt * 0.005);
         v.dispHp = lerp(v.dispHp, v.hp, 1 - Math.exp(-dt * 0.008));
+        v.dispPost = lerp(v.dispPost, v.post, 1 - Math.exp(-dt * 0.006));
         if (v.trail.length && (this.time - v.trail[0].t > 160)) v.trail.shift();
         if (v.dashing) v.trail.push({ x: v.x, y: v.y, t: this.time });
       }
@@ -263,6 +299,7 @@
     // tremor pequeno e direcional (na direção do golpe); golpes leves quase não tremem
     hurtShake(amount, dir = 0) {
       if (this.skipping || amount < 3) return;
+      if (G.reduceMotion) amount *= 0.3; // opção "reduzir animações"
       if (amount >= this.shake) this.shakeDir = dir;
       this.shake = Math.max(this.shake, amount);
     }
@@ -341,25 +378,58 @@
       if (ui && ui.drag) return; // não mexe nada enquanto o jogador arrasta uma corrente
       for (const id in this.vis) {
         const v = this.vis[id];
+        // inimigo preparando o ataque: só gestos discretos sobre a pose de preparação (sem sair do lugar)
+        if (v.state === 'PREPARING' && !v.dead && !v.busy) {
+          v.gestT -= dt;
+          if (v.gestT <= 0) { v.gestT = 4200 + Math.random() * 4500; this._gesture(v, true); }
+          continue;
+        }
         if (v.dead || v.busy || busyIds.has(id) || !['IDLE', 'BLOCKING', 'PARRYING', 'DODGING'].includes(v.state)) continue;
+        // gestos de classe (intervalos variados; nunca com postura defensiva preparada)
+        v.gestT -= dt;
+        if (v.gestT <= 0 && v.state === 'IDLE' && !v.prep) { v.gestT = 3500 + Math.random() * 5000; this._gesture(v); continue; }
+        // postura comprometida: ajusta os pés com mais frequência
+        if (v.post / v.postMax < 0.5) v.ambT -= dt * 0.6;
         v.ambT -= dt;
         if (v.ambT > 0) continue;
         v.ambT = 2600 + Math.random() * 4200;
         const foe = this._nearestFoe(v);
         const sideDir = v.side === 'ally' ? 1 : -1;
         const pref = v.side === 'ally' ? [560, 420, 270][v.formation] : [740, 880, 1040][v.formation];
+        // profundidade preferida: frente mais à frente da tela, retaguarda mais ao fundo (só preferência)
+        const prefY = [612, 590, 562][v.formation] + (v.phase % 1 - 0.5) * 20;
+        let dy = clamp((prefY - v.y) * 0.35, -16, 16) + (Math.random() - 0.5) * 14;
         let dx = clamp((pref - v.x) * 0.3, -26, 26) + (Math.random() - 0.5) * 18;
         if (foe && Math.abs(foe.x - v.x) < 170) dx = -sideDir * 26;               // inimigo perto: recua
-        if (Math.abs(dx) < 6) { this.tween(v, { lean: (Math.random() - 0.5) * 0.06 }, 600, 'inOut'); continue; } // só ajusta postura
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 5) { this.tween(v, { lean: (Math.random() - 0.5) * 0.06 }, 600, 'inOut'); continue; } // só ajusta postura
         // respeita o espaço dos outros
-        const nx = clamp(v.x + dx, ARENA.minX, ARENA.maxX);
-        const crowded = Object.values(this.vis).some(o => o !== v && !o.dead && Math.abs(o.y - v.y) < 46 && Math.abs(o.x - nx) < (MOVE[o.art].width + MOVE[v.art].width) / 2);
+        const nx = clamp(v.x + dx, ARENA.minX, ARENA.maxX), ny = clamp(v.y + dy, ARENA.minY, ARENA.maxY);
+        const crowded = Object.values(this.vis).some(o => o !== v && !o.dead && Math.abs(o.y - ny) < 46 && Math.abs(o.x - nx) < (MOVE[o.art].width + MOVE[v.art].width) / 2);
         if (crowded) continue;
         this.setState(v, 'REPOSITIONING');
-        const dur = 420 + Math.abs(dx) * 10;
-        this.tween(v, { x: nx }, dur, 'inOut').then(() => { if (v.state === 'REPOSITIONING') this.setState(v, v.stance ? STANCE_STATE[v.stance] : 'IDLE'); if (foe) this.faceTo(v, foe); });
+        const dur = 420 + Math.hypot(dx, dy) * 10;
+        this.tween(v, { x: nx, y: ny }, dur, 'inOut').then(() => { if (v.state === 'REPOSITIONING') this.setState(v, v.stance ? STANCE_STATE[v.stance] : 'IDLE'); if (foe) this.faceTo(v, foe); });
         this.tween(v, { hop: 3 }, dur / 4, 'out').then(() => this.tween(v, { hop: 0 }, dur / 4, 'in')).then(() => this.tween(v, { hop: 2 }, dur / 4, 'out')).then(() => this.tween(v, { hop: 0 }, dur / 4, 'in'));
       }
+    }
+
+    _gesture(v, keepPose = false) {
+      const list = GESTURES[v.art];
+      if (!list) return;
+      const g = list[Math.floor(Math.random() * list.length)];
+      // base: pose de espera, ou a pose atual de preparação (o gesto volta exatamente a ela)
+      const base = keepPose ? { arm: v.arm, guard: v.guard, cast: v.cast, lean: v.lean, crouch: v.crouch } : this._stancePose(v);
+      const st = v.state;
+      this.routine(v, async () => {
+        for (const [props, dur] of g) {
+          if (v.state !== st || v.dead) break;
+          const target = {};
+          for (const k in props) target[k] = (base[k] || 0) + props[k];
+          await this.tween(v, target, dur, 'inOut');
+        }
+        if (!v.dead && v.state === st) await this.tween(v, base, 220, 'inOut');
+        if (v.art === 'mage' || v.art === 'conjurer') this.sparks(v.x + v.face * 26, v.y - 112, v.side === 'ally' ? 'rgba(160,220,255,0.5)' : 'rgba(210,150,255,0.5)', 3, 0.08, -0.0003);
+      });
     }
 
     // ------------------------------------------------------------ REAÇÕES FÍSICAS
@@ -446,8 +516,62 @@
       });
     }
     _stancePose(v) {
-      return { arm: v.stance === 'parry' ? -0.7 : 0, guard: v.stance === 'block' ? 1 : 0,
-        cast: v.stance === 'dodge' ? 0.4 : 0, lean: 0, crouch: v.stance === 'dodge' ? 0.06 : 0 };
+      const r = v.stance || v.prep;
+      const base = { arm: 0, guard: 0, cast: 0, lean: 0, crouch: 0 };
+      if (!r) return base;
+      return Object.assign(base, (DEF_POSE[v.art] || {})[r] || DEF_GENERIC[r] || {});
+    }
+    // Postura defensiva escolhida no planejamento (transição suave; null = cancelar)
+    setPrepStance(id, reaction) {
+      const v = this.vis && this.vis[id];
+      if (!v || v.dead || v.prep === reaction) return;
+      v.prep = reaction;
+      if (v.broken || v.busy || !['IDLE', 'BLOCKING', 'PARRYING', 'DODGING', 'PREPARING'].includes(v.state)) return;
+      this.setState(v, reaction ? STANCE_STATE[reaction] : 'IDLE');
+      this.tween(v, this._stancePose(v), 280, 'inOut');
+    }
+
+    // ------------------------------------------------------------ POSTURA (apresentação)
+    // Barra cai em etapas junto com os golpes; a Quebra acontece no golpe que zera a Postura.
+    _postureStep(v, value) { v.post = value; }
+    _postureBreak(v, dir) {
+      if (v.dead) return;
+      SFX('postureBreak');
+      this.flashAt(v.x, v.y - 80, '#ffd36a', 90);
+      this.addFx({ kind: 'shatter', dur: 520, x: v.x, y: v.y - 80, color: '#ffd36a' });
+      this.sparks(v.x, v.y - 80, '#ffd36a', 22, 0.6);
+      this.hurtShake(8, dir);
+      this.hitStop(90);
+      this.wait(160).then(() => this.float(v.x, v.y - 245, 'QUEBRA DE POSTURA', '#ffd36a', 24, 1500)); // depois do número de dano, acima dele
+      this.focusOn([v], 0.15);
+      // depois da reação física, fica na pose de guarda aberta até cumprir a penalidade
+      this.routine(v, async () => {
+        this.setState(v, 'BROKEN');
+        await this.tween(v, Object.assign({ guard: 0, cast: 0, lean: 0, crouch: 0, arm: 0, tilt: 0, kneel: 0 }, BREAK_POSE[v.art] || BREAK_POSE.swordsman), 260, 'out');
+      });
+    }
+    async playStagger(ev) {
+      for (const id of ev.unitIds) {
+        const v = this.vis[id];
+        if (!v || v.dead) continue;
+        await this.sync(v);
+        this.focusOn([v], 0.1);
+        this.caption = `${v.name} está desequilibrado e perde a ação`;
+        this.float(v.x, v.y - 185, 'AÇÃO PERDIDA', '#ff9a8a', 22, 1300);
+        if (ev.skillId) this.float(v.x, v.y - 160, G.SKILLS[ev.skillId].name, '#c9b', 14, 1100);
+        await this.wait(380);
+        // recuperação: ajusta os pés, ergue a guarda, Postura volta ao máximo
+        this.setState(v, 'REPOSITIONING');
+        this.tween(v, { hop: 6 }, 120, 'out').then(() => this.tween(v, { hop: 0 }, 140, 'in'));
+        await this.tween(v, Object.assign({ tilt: 0, kneel: 0 }, this._stancePose(v)), 360, 'inOut');
+        v.post = v.postMax; v.broken = false; v.stable = true;
+        SFX('recover');
+        this.addFx({ kind: 'ring', dur: 420, x: v.x, y: v.y - 70, color: '#ffd36a', r: 55 });
+        this.float(v.x, v.y - 175, 'POSTURA RESTAURADA', '#ffd36a', 16, 1100);
+        this.setState(v, 'IDLE');
+        await this.wait(220);
+      }
+      this.caption = null;
     }
 
     // ------------------------------------------------------------ intenções
@@ -461,7 +585,7 @@
         this.setState(A, 'PREPARING');
         if (sk.kind === 'defense') {
           this.focusOn([A], -0.25);
-          this.tween(A, { ready: 1, guard: 1, arm: -0.5 }, 240);
+          A.prep = sk.reaction; this.tween(A, Object.assign({ ready: 1 }, this._stancePose(A)), 360, 'inOut');
           this.caption = `${A.name} se prepara para defender (${sk.name})`;
         } else if (sk.combo) {
           // combinação anunciada: os dois membros assumem postura e ficam destacados
@@ -510,6 +634,7 @@
         else if (ev.type === 'stances') await this.playStances(ev);
         else if (ev.type === 'support') await this.playSupport(ev);
         else if (ev.type === 'fizzle') await this.playFizzle(ev);
+        else if (ev.type === 'stagger') await this.playStagger(ev);
         if (ev.after) this._applySnapshot(ev.after, false);
         this.settle();
       }
@@ -552,10 +677,11 @@
         const v = this.vis[id];
         v.stance = null;
         if (v.dead) continue;
-        v.ready = 0; v.barrier = 0;
-        this.setState(v, 'REPOSITIONING');
+        v.ready = 0; v.barrier = 0; v.prep = null;
         const tx = targets[id];
         this.faceTo(v, { x: v.side === 'ally' ? v.x + 100 : v.x - 100 });
+        if (v.broken) { this.tween(v, { x: tx }, clamp(Math.abs(tx - v.x) * 2.6, 200, 700), 'inOut'); continue; } // segue desequilibrado
+        this.setState(v, 'REPOSITIONING');
         this.tween(v, { x: tx, arm: 0, guard: 0, cast: 0, lean: 0, crouch: 0, tilt: 0, kneel: 0 }, clamp(Math.abs(tx - v.x) * 2.2, 200, 650), 'inOut')
           .then(() => { if (v.state === 'REPOSITIONING') this.setState(v, 'IDLE'); });
       }
@@ -566,7 +692,8 @@
       for (const id in snap) {
         const v = this.vis[id];
         v.hp = snap[id].hp; v.statuses = { ...snap[id].statuses };
-        if (this.skipping) v.dispHp = v.hp;
+        if (snap[id].post != null) { v.post = snap[id].post; v.postMax = snap[id].postMax; v.broken = snap[id].broken; v.stable = snap[id].stable; }
+        if (this.skipping) { v.dispHp = v.hp; v.dispPost = v.post; }
         // garantia: quem morreu na lógica fica derrotado mesmo se a animação foi pulada
         if (v.hp <= 0 && !v.dead && (final || this.skipping || !v.busy)) {
           v.dead = true; this.setState(v, 'DEFEATED');
@@ -599,6 +726,7 @@
           vs.push(T);
         }
         this.float(v.x, v.y - 180, st.protectId ? 'PROTEÇÃO' : NAME[st.reaction], '#9fd0ff', 18);
+        if (st.postHeal) { this.float(v.x, v.y - 205, `+${st.postHeal} POSTURA`, '#ffd36a', 16, 1200); this.addFx({ kind: 'ring', dur: 380, x: v.x, y: v.y - 70, color: '#ffd36a', r: 50 }); SFX('recover', { vol: 0.6 }); }
         moves.push(this.tween(v, this._stancePose(v), 220, 'out'));
         if (st.reaction === 'dodge') this.sparks(v.x, v.y - 60, '#cfe9ff', 8, 0.2, -0.0003);
       }
@@ -620,6 +748,7 @@
       this.addFx({ kind: 'ring', dur: 400, x: T.x, y: T.y - 70, color: '#7fe0a0', r: 60 });
       this.sparks(T.x, T.y - 70, '#7fe0a0', 14, 0.25, -0.0004);
       this.float(T.x, T.y - 165, `+${G.CONFIG.support.amount} FORÇA`, '#7fe0a0', 22);
+      if (ev.postHeal) { this.float(T.x, T.y - 192, `+${ev.postHeal} POSTURA`, '#ffd36a', 16, 1200); SFX('recover', { vol: 0.6 }); }
       this.followThrough(A);
       await this.wait(220);
       this.caption = null;
@@ -768,6 +897,18 @@
       }
       return dir;
     }
+    // Crítico: flash e partículas mais fortes, número destacado, som próprio (varia pelo tipo de golpe)
+    _critFx(L, dir, motion) {
+      SFX('crit');
+      const x = L.x - dir * 18, y = L.y - 74;
+      this.flashAt(x, y, '#ffcf6a', 120);
+      this.sparks(x, y, '#ffcf6a', 26, 0.8);
+      this.float(L.x, L.y - 168, 'CRÍTICO!', '#ffb347', 26, 1300);
+      if (motion === 'proj') this.addFx({ kind: 'ring', dur: 480, x, y, color: '#ffcf6a', r: 95 });
+      else if (motion === 'punch' || motion === 'punch2' || motion === 'upper') this.addFx({ kind: 'star', dur: 380, x, y, color: '#ffcf6a' });
+      else if (motion === 'arrow' || motion === 'arrowp' || motion === 'thrust' || motion === 'lunge') this.addFx({ kind: 'thrust', dur: 260, x0: x - dir * 120, y0: y, x1: x + dir * 40, y1: y, color: '#ffcf6a', w: 10 });
+      else this.addFx({ kind: 'slash', dur: 300, x: L.x - dir * 30, y: L.y - 70, dir, heavy: true, rot: 0.9, flip: true, color: '#ffcf6a' });
+    }
     // som do contato conforme o tipo de golpe
     _hitSound(motion, blocked, last, heavy) {
       if (blocked) return SFX('block');
@@ -782,6 +923,11 @@
       const dmgs = this._splitDamage(hit.damage, steps.map(s => s.share));
       const dmgColor = L.side === 'ally' ? '#ff6a5a' : '#ffe08a';
       let hp = hit.hpBefore, lv = finalLv;
+      // Postura: um único orçamento de Pressão, distribuído pelos golpes na ordem real
+      const pz = opts.posture && !hit.killed ? opts.posture : null;
+      const pDrops = pz ? this._splitDamage(pz.before - pz.after, steps.map(s => s.share)) : null;
+      let pNow = pz ? pz.before : 0, pBrokeShown = false;
+      if (pz) L.post = pz.before;
       for (let i = 0; i < steps.length; i++) {
         const st = steps[i], last = i === steps.length - 1;
         let A = attackers[st.by] || attackers[0];
@@ -801,10 +947,23 @@
         this.sparks(L.x - dir * 18, L.y - 72, opts.blocked ? '#cfe3ff' : (st.motion === 'proj' ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ff7a5a'), last ? 16 : 8, 0.5);
         if (st.motion === 'proj' || strong) this.flashAt(L.x - dir * 18, L.y - 72, st.motion === 'proj' ? (A.side === 'ally' ? '#8fd3ff' : '#c86bff') : '#ffe2b0', strong ? 90 : 60);
         const big = last && (hit.killed || steps.length === 1);
-        this.float(L.x + (i % 2 ? 14 : -14), L.y - 128 - i * 10, String(dmgs[i]), dmgColor, big ? (hit.killed ? 46 : 32) : 24, big ? 1400 : 900);
+        const crit = hit.crit && last; // crítico: decidido uma vez pela lógica; destacado no golpe final
+        if (crit) this._critFx(L, dir, st.motion);
+        this.float(L.x + (i % 2 ? 14 : -14), L.y - 128 - i * 10, String(dmgs[i]), crit ? '#ffb347' : dmgColor, crit ? 50 : big ? (hit.killed ? 46 : 32) : 24, big || crit ? 1400 : 900);
         // hit-stop: quase nada nos golpes intermediários, mais forte no golpe final pesado
-        this.hitStop(last ? (strong ? 110 : 65) : 22);
-        this.hurtShake(last ? 2 + dmgs[i] * 0.35 : 0, dir);
+        this.hitStop(crit ? G.CONFIG.crit.hitstop : last ? (strong ? 110 : 65) : 22);
+        this.hurtShake(last ? 2 + dmgs[i] * 0.35 + (crit ? 5 : 0) : 0, dir);
+        // Postura do perdedor do Clash cai junto com o contato
+        if (pz) {
+          pNow = last ? pz.after : Math.max(pz.after, pNow - pDrops[i]);
+          L.post = pNow;
+          if (pz.broke && !pBrokeShown && pNow <= 0) { pBrokeShown = true; this.wait(crit ? 140 : 0).then(() => this._postureBreak(L, dir)); }
+          if (last) {
+            this.float(L.x + 62, L.y - 140, `−${pz.before - pz.after}`, '#d9b85c', 15, 1100); // perto da barra de Postura
+            if (!pz.broke) SFX('pressure', { vol: 0.6 });
+            if (pz.held) this.float(L.x, L.y - 242, 'ESTABILIDADE SEGUROU', '#9fe0c8', 14, 1200);
+          }
+        }
         lv = lvHere;
         if (opts.blocked) lv = LEVELS[Math.max(0, LEVELS.indexOf(lv) - 1)];
         if (!last) {
@@ -961,7 +1120,7 @@
         const marginLv = margin >= 5 ? 'heavy' : margin >= 3 ? 'medium' : 'light';
         const lv = LEVELS[Math.max(LEVELS.indexOf(h.impact || 'light'), LEVELS.indexOf(marginLv))];
         this.tween(nW, { a: 0 }, 600);
-        await this._sequence([W, ...pW], L, skW, h, lv);
+        await this._sequence([W, ...pW], L, skW, h, lv, { posture: ev.posture });
         if (h.applied) { const st = G.STATUS[h.applied]; this.float(L.x, L.y - 165, st.name.toUpperCase(), st.color, 20, 1300); }
         if (h.killed || lv === 'extreme') await this._decisive(L, h.killed);
         await this.wait(lv === 'light' ? 220 : 320);
@@ -1351,10 +1510,33 @@
         ctx.font = '700 13px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
         ctx.fillStyle = '#e9dfcf'; ctx.fillText(`${v.name}  ${Math.max(0, Math.round(v.hp))}`, x, y - 6);
       }
+      // Postura: barra secundária âmbar, mais fina, logo abaixo da Vida
+      const pr = clamp(v.dispPost / v.postMax, 0, 1), preal = clamp(v.post / v.postMax, 0, 1), py = y + 9;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x - w / 2 - 2, py - 1, w + 4, 6);
+      ctx.fillStyle = 'rgba(255,240,200,0.55)'; ctx.fillRect(x - w / 2, py, w * pr, 4);
+      const pulse = preal < 0.25 && !v.broken ? 0.6 + 0.4 * Math.sin(this.time * 0.012) : 1;
+      ctx.fillStyle = v.broken ? '#8a5a3a' : `rgba(217,184,92,${pulse})`;
+      ctx.fillRect(x - w / 2, py, w * Math.min(pr, preal), 4);
+      if (v.broken) {
+        // barra rompida + ícone de Quebra
+        ctx.strokeStyle = '#ffd36a'; ctx.lineWidth = 1.5; ctx.beginPath();
+        ctx.moveTo(x - 6, py - 3); ctx.lineTo(x - 1, py + 3); ctx.lineTo(x + 3, py - 2); ctx.lineTo(x + 8, py + 5); ctx.stroke();
+        ctx.font = '900 10px "Trebuchet MS", sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#ffd36a';
+        ctx.fillText('QUEBRA', x + w / 2 + 5, py + 5);
+      } else if (v.stable) {
+        ctx.fillStyle = '#9fe0c8'; ctx.beginPath(); ctx.moveTo(x + w / 2 + 6, py - 3); ctx.lineTo(x + w / 2 + 11, py + 2); ctx.lineTo(x + w / 2 + 6, py + 7); ctx.lineTo(x + w / 2 + 1, py + 2); ctx.fill();
+      }
+      // indicador discreto: o golpe escolhido pode quebrar a Postura deste alvo (se vencer o Clash)
+      if (this.breakHint && this.breakHint.has(v.id)) {
+        ctx.globalAlpha = 0.6 + 0.4 * Math.sin(this.time * 0.01);
+        ctx.font = '800 10px "Trebuchet MS", sans-serif'; ctx.textAlign = 'right'; ctx.fillStyle = '#ffd36a';
+        ctx.fillText('⚡ QUEBRA?', x - w / 2 - 4, py + 5); ctx.globalAlpha = 1;
+      }
+      ctx.textAlign = 'center';
       let i = 0;
       for (const k in v.statuses) {
         const st = G.STATUS[k]; if (!st) continue;
-        const sx = x - w / 2 + 8 + i * 20, sy = y + 20;
+        const sx = x - w / 2 + 8 + i * 20, sy = y + 24;
         ctx.fillStyle = st.color; ctx.beginPath(); ctx.arc(sx, sy, 8, 0, 7); ctx.fill();
         ctx.fillStyle = '#140c14'; ctx.font = '900 11px sans-serif'; ctx.fillText(st.icon, sx, sy + 4);
         i++;
@@ -1399,6 +1581,14 @@
           ctx.fillStyle = f.heavy ? '#ffe9b0' : '#e8eef5'; ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(4, -4); ctx.lineTo(4, 4); ctx.fill();
           ctx.fillStyle = '#c84a4a'; ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(-38, -5); ctx.lineTo(-24, 0); ctx.lineTo(-38, 5); ctx.fill();
           if (f.heavy) { ctx.shadowColor = '#ffe9b0'; ctx.shadowBlur = 14; ctx.fillRect(2, -1, 10, 2); }
+        } else if (f.kind === 'shatter') {
+          // ruptura da guarda: estilhaços que se afastam do centro
+          ctx.globalAlpha = 1 - p; ctx.strokeStyle = f.color; ctx.lineWidth = 3;
+          for (let i = 0; i < 9; i++) {
+            const a = i * 0.7 + 0.3, r0 = 14 + p * 70, r1 = r0 + 14 * (1 - p);
+            ctx.beginPath(); ctx.moveTo(f.x + Math.cos(a) * r0, f.y + Math.sin(a) * r0); ctx.lineTo(f.x + Math.cos(a + 0.12) * r1, f.y + Math.sin(a + 0.12) * r1); ctx.stroke();
+          }
+          ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(f.x, f.y, 20 + p * 30, 0, 7); ctx.stroke();
         } else if (f.kind === 'flash') {
           ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55 * (1 - p);
           const gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
@@ -1446,9 +1636,12 @@
       }
       ctx.save();
       ctx.translate(v.x, v.y);
-      // sombra
+      // profundidade: mais abaixo na arena = levemente maior (e desenhado na frente)
+      const ds = 0.93 + clamp((v.y - ARENA.minY) / (ARENA.maxY - ARENA.minY), 0, 1) * 0.12;
+      ctx.scale(ds, ds);
+      // sombra (encolhe quando o personagem sai do chão)
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
-      ctx.beginPath(); ctx.ellipse(0, 2, 44 - v.hop * 0.3, 10, 0, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, 2, 44 - v.hop * 0.3, 10 - v.hop * 0.05, 0, 0, 7); ctx.fill();
       const down = v.dead || v.state === 'KNOCKDOWN';
       const idle = down ? 0 : Math.sin(t * 0.004 + v.phase);
       // animações secundárias contextuais
@@ -1459,7 +1652,10 @@
       ctx.translate(0, -v.hop);
       ctx.scale(v.face, 1);
       const wv = down ? 0 : v.wound;
-      ctx.rotate(v.lean * 0.6 + v.tilt + ctxLean + wv * 0.11 + (wv > 0.6 ? Math.sin(t * 0.0021 + v.phase) * 0.03 * wv : 0));
+      const pqv = down || v.broken ? 0 : clamp((0.5 - v.post / v.postMax) / 0.5, 0, 1);
+      const brokenWob = v.state === 'BROKEN' ? Math.sin(t * 0.007) * 0.04 : 0;
+      ctx.rotate(v.lean * 0.6 + v.tilt + ctxLean + wv * 0.11 + (wv > 0.6 ? Math.sin(t * 0.0021 + v.phase) * 0.03 * wv : 0)
+        - pqv * pqv * 0.05 * (0.5 + 0.5 * Math.sin(t * 0.0042 + v.phase)) + brokenWob); // postura baixa: recua o tronco (perde o equilíbrio)
       ctx.scale(1 + (v.crouch + ctxCrouch + wv * 0.05) * 0.5, 1 - v.crouch - ctxCrouch - wv * 0.05);
       const filters = [];
       if (v.flash > 0.05) filters.push(`brightness(${1 + v.flash * 1.1})`);
@@ -1468,12 +1664,16 @@
       ctx.filter = filters.length ? filters.join(' ') : 'none';
       ctx.globalAlpha = v.alpha;
       const threatGuard = v.threat && v.state === 'IDLE' ? 0.45 : 0;
+      // Postura comprometida (<50%) / crítica (<25%): guarda oscila, pequenos recuos de equilíbrio
+      const pq = down || v.broken ? 0 : clamp((0.5 - v.post / v.postMax) / 0.5, 0, 1);
+      const unsteady = pq * Math.sin(t * 0.0055 + v.phase * 2);
       // condição física: ferido (25–50%) e crítico (<25%) — curva, respira mais forte, arma pesa
       const w = down ? 0 : v.wound;
       const breath = Math.sin(t * (0.004 + w * 0.004) + v.phase);
       const pose = { idle: breath * (1 + w * 1.4), t, wound: w,
         arm: v.arm + (down ? 0 : breath * 0.05) + w * 0.3 + (v.ready ? Math.sin(t * 0.0035 + v.phase) * 0.04 : 0),
-        guard: Math.max(v.guard, threatGuard) * (1 - w * 0.25), cast: v.cast * (1 - w * 0.2) + (v.ready ? 0.12 * Math.sin(t * 0.004) : 0) };
+        guard: Math.max(v.guard, threatGuard) * (1 - w * 0.25) + unsteady * 0.18, cast: v.cast * (1 - w * 0.2) + (v.ready ? 0.12 * Math.sin(t * 0.004) : 0) };
+      pose.arm += unsteady * 0.12;
       ART[v.art](ctx, pose);
       // apoio da mão no chão durante o desequilíbrio
       if (v.kneel > 0.4 && !v.dead) { ctx.fillStyle = '#d9c3a8'; ctx.beginPath(); ctx.arc(30, -6, 6, 0, 7); ctx.fill(); }
@@ -1707,6 +1907,16 @@
       ctx.beginPath(); ctx.moveTo(-2, -92 + b); ctx.lineTo(pull.x, pull.y); ctx.stroke();       // braço da corda
     },
   });
+
+  // Boneco de treino (só nas prévias das fichas)
+  ART.dummy = function (ctx, p) {
+    ctx.fillStyle = '#5a3a24'; ctx.fillRect(-4, -40, 8, 40); ctx.fillRect(-22, -2, 44, 6);
+    ctx.fillStyle = '#c9a86a'; ctx.beginPath(); ctx.ellipse(0, -70, 20, 32, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#5a3a24'; ctx.fillRect(-34, -84, 68, 6);
+    ctx.fillStyle = '#d9b97a'; ctx.beginPath(); ctx.arc(0, -112, 13, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#a03a2a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(4, -70, 11, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(4, -70, 4, 0, 7); ctx.stroke();
+  };
+  MOVE.dummy = { dash: 1, ease: 'out', reach: 70, knock: 0.35, width: 70 };
 
   // Retrato para a tela de formação (usa a mesma arte do combate)
   G.drawPortrait = function (canvas, art, opts = {}) {

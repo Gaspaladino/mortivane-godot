@@ -83,15 +83,46 @@
         card.ondblclick = () => cb.toggle(id);
         roster.appendChild(card);
       }
-      // detalhes do personagem em foco
+      // FICHA do personagem em foco (retrato, atributos, habilidades, especialidade, prévia animada)
       const f = U[state.focus];
-      const defense = f.skills.map(k => G.SKILLS[k]).find(sk => sk.kind !== 'attack');
-      $('#detail').innerHTML = f ? `<h2>${f.name} <small>${f.role}</small></h2><p class="muted">${f.style || ''}</p>
-        <div class="muted">Vida <b>${f.hp}</b> · Velocidade <b>${f.spd}</b>${f.blockPower ? ` · Bloqueio ${Math.round(f.blockPower * 100)}%` : ''}${f.dodgeSkill ? ` · Esquiva +${Math.round(f.dodgeSkill * 100)}%` : ''}</div>
-        ${f.skills.map(k => G.SKILLS[k]).filter(sk => sk.kind === 'attack').map(sk => `<div class="sk"><em>F${sk.force} · D${sk.dmg}${sk.hits && sk.hits.length > 1 ? ` · ${sk.hits.length} golpes` : ''}</em><span><b>${sk.name}</b> — ${sk.desc}</span></div>`).join('')}
-        ${defense ? `<div class="sk"><em>Defesa</em><span><b>${defense.name}</b> — ${defense.desc}</span></div>` : ''}
-        <div class="muted">${f.trait}</div>
-        <button class="confirm" id="btn-toggle">${state.team.includes(state.focus) ? 'Remover da equipe' : state.team.length >= 3 ? 'Equipe cheia (remova alguém)' : 'Adicionar à equipe'}</button>` : '';
+      const det = $('#detail');
+      if (f) {
+        const sks = f.skills.map(k => [k, G.SKILLS[k]]);
+        const fx = sk => [sk.applies === 'weaken' ? 'enfraquece' : '', sk.impact === 'knockdown' ? 'derruba' : sk.impact === 'stagger' ? 'desequilibra' : sk.impact === 'push' ? 'empurra' : '',
+          sk.unblockable ? 'ignora bloqueio' : '', sk.tags.includes('magic') ? 'magia' : sk.tags.includes('ranged') ? 'à distância' : '', sk.cooldown ? `recarga ${sk.cooldown - 1}` : ''].filter(Boolean).join(' · ');
+        const chip = (lbl, v, cls = '') => `<span class="chipv ${cls}"><i>${lbl}</i>${v}</span>`;
+        const row = ([k, sk]) => `<div class="skrow" data-skill="${k}" tabindex="0">
+            <canvas class="skico" width="44" height="44" data-icon="${sk.icon}" data-kind="${sk.kind}"></canvas>
+            <div class="skbody"><b>${sk.name}</b><span>${sk.desc}</span>
+              <div class="chips">${sk.kind === 'attack' ? chip('Força', sk.force) + chip('Dano', sk.dmg) + chip('Pressão', sk.pressure || 0, 'p') + chip('Golpes', (sk.hits || [1]).length) : chip(sk.kind === 'support' ? 'Suporte' : 'Defesa', ' ')}${sk.postureHeal ? chip('Postura', '+' + sk.postureHeal, 'p') : ''}${fx(sk) ? `<em>${fx(sk)}</em>` : ''}</div></div></div>`;
+        det.innerHTML = `<div class="sheet" style="--acc:${f.accent || '#d8b45a'}">
+          <div class="sheet-head"><canvas class="sheet-portrait" width="150" height="170"></canvas>
+            <div class="sheet-title"><canvas class="sheet-glyph" width="70" height="70"></canvas><h2>${f.name}</h2><div class="cls">${f.role} · ${f.specialty || ''}</div><p>${f.style || ''}</p></div></div>
+          <div class="stats">
+            <div class="tile"><i>Vida</i><b>${f.hp}</b></div><div class="tile"><i>Postura</i><b>${f.posture}</b></div><div class="tile"><i>Velocidade</i><b>${f.spd}</b></div>
+            <div class="tile wide"><i>Ataque</i><span>${f.offense || ''}</span></div><div class="tile wide"><i>Defesa</i><span>${f.defense || ''}</span></div>
+          </div>
+          <div class="sh">Habilidades</div>
+          <div class="sklist">${sks.filter(([, sk]) => sk.kind === 'attack').map(row).join('')}</div>
+          <div class="sh">Especialidade · ${f.specialty || ''}</div>
+          <div class="sklist">${sks.filter(([, sk]) => sk.kind !== 'attack').map(row).join('')}</div>
+          <div class="sh">Prévia <small>passe o mouse ou clique numa habilidade</small></div>
+          <div id="pv-slot" class="pv-slot"></div>
+          <button class="confirm" id="btn-toggle">${state.team.includes(state.focus) ? 'Remover da equipe' : state.team.length >= 3 ? 'Equipe cheia (remova alguém)' : 'Adicionar à equipe'}</button></div>`;
+        G.drawPortrait(det.querySelector('.sheet-portrait'), f.art, { glow: f.accent ? f.accent + '55' : '#3a2a44' });
+        const gl = det.querySelector('.sheet-glyph'); G.drawIcon(gl.getContext('2d'), f.glyph || 'sword', 35, 35, 26, (f.accent || '#d8b45a') + '55');
+        det.querySelectorAll('.skico').forEach(c => { const g = c.getContext('2d'); g.fillStyle = '#140c14'; g.beginPath(); g.arc(22, 22, 20, 0, 7); g.fill(); g.strokeStyle = f.accent || '#d8b45a'; g.lineWidth = 2; g.stroke(); G.drawIcon(g, c.dataset.icon, 22, 22, 13, f.accent || '#d8b45a'); });
+        // prévia: hover, foco (teclado) ou clique/toque
+        if (cb.preview) {
+          cb.preview.mount(det.querySelector('#pv-slot'));
+          det.querySelectorAll('.skrow').forEach(r => {
+            const go = () => { det.querySelectorAll('.skrow').forEach(x => x.classList.toggle('on', x === r)); cb.preview.play(state.focus, r.dataset.skill); };
+            r.onmouseenter = go; r.onfocus = go; r.onclick = go;
+          });
+          const first = det.querySelector('.skrow');
+          if (first && !G.reduceMotion) { first.classList.add('on'); cb.preview.play(state.focus, first.dataset.skill); }
+        }
+      } else det.innerHTML = '';
       const tb = $('#btn-toggle');
       if (tb) { tb.disabled = !state.team.includes(state.focus) && state.team.length >= 3; tb.onclick = () => cb.toggle(state.focus); }
       // três espaços da equipe (frente → retaguarda definida pela especialidade)

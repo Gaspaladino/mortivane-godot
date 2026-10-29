@@ -27,6 +27,7 @@
     <label>Volume geral <input type="range" id="vol-master" min="0" max="1" step="0.05"></label>
     <label>Efeitos <input type="range" id="vol-sfx" min="0" max="1" step="0.05"></label>
     <label class="chk"><input type="checkbox" id="vol-mute"> Silenciar</label>
+    <label class="chk"><input type="checkbox" id="vol-reduce"> Reduzir animações</label>
   </div>
   <div id="team" class="team">
     <div class="team-box">
@@ -49,6 +50,8 @@
       <p><b>Leitura:</b> linhas vermelhas tracejadas = intenções inimigas. Correntes = suas ações (vermelha com ponta = ataque, verde = suporte, azul com escudo = proteção). O selo no meio da corrente mostra o Clash (Favorável / Equilibrado / Desfavorável); passe o mouse para ver as forças. Em interceptações, clique no selo para ligar/desligar.</p>
       <p><b>Clash:</b> cada lado rola <b>Força + (0 a 3)</b>; o maior interrompe o outro e acerta seu dano. Empate anula os dois. Interceptar exige velocidade (+ alcance do Cavaleiro) ≥ a do golpe inimigo.</p>
       <p><b>Defesas</b> agem antes de tudo: Postura de Escudo, Proteção (o Cavaleiro recebe os golpes no lugar de um aliado), Aparar (1º golpe físico), Passo Etéreo (esquiva). Enfraquecimento (−2 força) e Suporte (+2) afetam só o que vem depois deles.</p>
+      <p><b>Postura:</b> barra âmbar abaixo da vida. Perder um Clash tira Postura (a Pressão da habilidade vencedora). Em 0 ocorre a <b>Quebra</b>: o personagem perde a próxima ação, depois volta com a Postura cheia e fica protegido contra nova Quebra até agir. Firmar Guarda (+25) e Reforço Arcano (+15) recuperam Postura. ⚡ QUEBRA? indica que o golpe escolhido pode quebrar o alvo se vencer.</p>
+      <p><b>Críticos:</b> 10% por habilidade que acerta, 1,5× de dano; não interferem no Clash.</p>
       <p><b>Equipe:</b> 👥 volta à formação (6 combatentes, escolha 3). 🔊 ajusta o áudio.</p>
       <p><b>Controles:</b> 1×/2×, Pular (ou Espaço), Enter executa a rodada. Os resultados já estão decididos antes da animação.</p>
       <p class="muted">Clique para fechar.</p>
@@ -60,6 +63,7 @@
   <script src="js/ai.js"></script>
   <script src="js/presenter.js"></script>
   <script src="js/planner.js"></script>
+  <script src="js/preview.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>
 </body>
