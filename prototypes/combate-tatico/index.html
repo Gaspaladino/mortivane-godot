@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duelo Sombrio — protótipo de combate tático</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="top">
+    <div class="brand">DUELO SOMBRIO <small>protótipo</small></div>
+    <div id="round">Rodada 1</div>
+    <div id="phase"></div>
+    <div class="ctrl">
+      <button data-speed="1">1×</button>
+      <button data-speed="2.2">2×</button>
+      <button id="btn-skip" title="Pular animações (Espaço)">Pular ⏭</button>
+      <button id="btn-help">?</button>
+      <button id="btn-restart">↻</button>
+    </div>
+  </header>
+  <main id="arena"><canvas id="stage"></canvas><div id="overlay"></div></main>
+  <section id="panel"></section>
+  <div id="help">
+    <div class="box">
+      <h2>Como jogar</h2>
+      <p><b>Sua ofensiva:</b> escolha habilidade e alvo para cada personagem e confirme. A ordem segue a velocidade. Os inimigos reagem sozinhos.</p>
+      <p><b>Ofensiva inimiga:</b> os inimigos anunciam alvo e golpe. Escolha a reação de quem for atacado, ou mande o Cavaleiro <b>proteger</b> (1× por rodada).</p>
+      <p><b>Reações:</b> Bloquear/Barreira = sempre reduz o dano. Esquivar = evita tudo se der certo (golpes pesados são fáceis de esquivar, rápidos são difíceis). Aparar = anula e contra-ataca, mas falhar custa +25% (não funciona contra magia). Contra-ataques não podem ser reagidos.</p>
+      <p><b>Combinações:</b> Quebra-Guarda (Cavaleiro) deixa <span style="color:#ff9a3c">Vulnerável</span> → Estocada Precisa (Espadachim) causa dano dobrado nele. Marca Rúnica (Mago) → o próximo aliado a acertar ganha +40% e o alvo não pode esquivar nem aparar. Desafio (Cavaleiro) força o inimigo a atacá-lo.</p>
+      <p><b>Controles:</b> 1×/2× de velocidade, Pular (ou Espaço) termina as animações. O resultado nunca muda.</p>
+      <p class="muted">Clique para fechar.</p>
+    </div>
+  </div>
+  <script src="js/data.js"></script>
+  <script src="js/combat.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/presenter.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
