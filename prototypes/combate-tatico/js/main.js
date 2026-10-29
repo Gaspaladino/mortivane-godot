@@ -15,6 +15,15 @@
     plan: () => view.plan,
     preview: () => view.preview,
     commit(uid, skillId, targetId) {
+      const sk = SKILLS[skillId];
+      // trocar a ação de quem estava numa combinação desfaz a combinação inteira
+      dropCombo(uid);
+      if (sk.combo) {
+        // combinação: registrada no líder, consome a ação de todos os membros
+        sk.members.forEach(m => dropCombo(m));
+        uid = sk.members[0];
+        sk.members.slice(1).forEach(m => { view.choices[m] = { comboWith: uid }; });
+      }
       const prev = view.choices[uid];
       view.choices[uid] = { skillId, targetId, intercept: prev && prev.targetId === targetId ? prev.intercept : true };
       // interceptação ligada por padrão só quando for válida
@@ -23,9 +32,18 @@
       firstAction = false;
       refreshPlan();
     },
-    cancel(uid) { delete view.choices[uid]; refreshPlan(); },
+    cancel(uid) { dropCombo(uid); delete view.choices[uid]; refreshPlan(); },
     toggleIntercept(uid) { const c = view.choices[uid]; if (c) { c.intercept = !c.intercept; refreshPlan(); } },
   });
+
+  // Remove uma combinação que envolva este personagem (libera todos os membros).
+  function dropCombo(uid) {
+    const c = view.choices[uid];
+    const lead = c && (c.comboWith || (SKILLS[c.skillId] && SKILLS[c.skillId].combo ? uid : null));
+    if (!lead) return;
+    const sk = SKILLS[(view.choices[lead] || {}).skillId];
+    for (const m of (sk && sk.combo ? sk.members : [lead, uid])) delete view.choices[m];
+  }
 
   const Phase = { INTENTS: 'INTENTS', PLAN: 'PLAN', RESOLVE: 'RESOLVE', END: 'END' };
   const fsm = { state: null, go(s, data) { this.state = s; enter[s](data); } };
@@ -85,7 +103,8 @@
     const allies = battle.alive('ally');
     view.plan = battle.buildPlan(view.choices);
     view.preview = battle.previewPlan(view.plan);
-    view.complete = allies.every(u => view.plan.actions.some(a => a.actorId === u.id));
+    // completo: todo aliado vivo tem ação própria OU participa de uma combinação válida
+    view.complete = allies.every(u => view.plan.actions.some(a => a.actorId === u.id || (a.partners || []).includes(u.id)));
     const note = {};
     for (const a of view.plan.actions.filter(x => x.side === 'ally')) {
       const sk = SKILLS[a.skillId];

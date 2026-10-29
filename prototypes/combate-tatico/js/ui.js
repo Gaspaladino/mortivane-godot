@@ -22,6 +22,7 @@
     // view: { choices, plan, preview, complete, hint }
     renderBar(battle, view, onConfirm) {
       const n = id => battle.unit(id).name, sn = id => SKILLS[id].name;
+      const who = a => [a.actorId, ...(a.partners || [])].map(n).join(' + ');
       const chips = (view.preview || []).map((ev, i) => {
         let cls = '', txt = '';
         if (ev.type === 'stances') { cls = 'o-def'; txt = '🛡 ' + ev.actions.map(a => SKILLS[a.skillId].kind === 'protect' ? `${n(a.actorId)} protege ${n(a.targetId)}` : `${n(a.actorId)}: ${sn(a.skillId)}`).join(' · '); }
@@ -29,15 +30,15 @@
         else if (ev.type === 'clash') {
           const ally = ev.a.side === 'ally' ? ev.a : ev.b, foe = ally === ev.a ? ev.b : ev.a;
           const c = CAT[battle.category(ally === ev.a ? ev.odds.win : ev.odds.lose)];
-          cls = 'o-clash'; txt = `⚔ ${n(ally.actorId)} × ${n(foe.actorId)} <b style="color:${c[1]}">${c[0]}</b>`;
+          cls = 'o-clash'; txt = `⚔ ${who(ally)} × ${who(foe)} <b style="color:${c[1]}">${c[0]}</b>`;
         } else {
           const a = ev.a, sk = SKILLS[a.skillId];
           cls = a.side === 'enemy' ? 'o-foe' : 'o-ally';
-          txt = `${n(a.actorId)} → ${n(a.targetId)} <small>${sk.name} · D${sk.dmg}${a.side === 'enemy' ? (UI.defenseNote[a.targetId] ? ' · ' + UI.defenseNote[a.targetId] : ' · sem defesa') : ''}</small>`;
+          txt = `${who(a)} → ${n(a.targetId)} <small>${sk.name} · D${sk.dmg}${a.side === 'enemy' ? (UI.defenseNote[a.targetId] ? ' · ' + UI.defenseNote[a.targetId] : ' · sem defesa') : ''}</small>`;
         }
         return `<span class="ochip ${cls}"><i>${i + 1}</i>${txt}</span>`;
       }).join('');
-      const done = battle.alive('ally').filter(u => view.choices[u.id]).length;
+      const done = battle.alive('ally').filter(u => view.choices[u.id]).length; // parceiro de combinação conta
       $('#panel').innerHTML = `<div class="bar-hint">${view.hint}</div><div class="order-strip">${chips}</div>` +
         `<button class="confirm" ${view.complete ? '' : 'disabled'}>Executar rodada ▶ <small>${done}/${battle.alive('ally').length}</small></button>`;
       $('#panel .confirm').onclick = onConfirm;

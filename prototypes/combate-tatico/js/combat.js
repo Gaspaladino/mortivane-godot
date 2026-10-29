@@ -20,6 +20,8 @@
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const isAttack = sk => sk && sk.kind === 'attack';
+  // Participantes de uma ação (ataques combinados têm mais de um)
+  const members = act => [act.actorId, ...(act.partners || [])];
 
   class Battle {
     constructor(seed) {
@@ -44,6 +46,15 @@
       return null;
     }
     skillReady(u, id) { return !(u.cooldowns[id] > 0); }
+    allAlive(act) { return members(act).every(id => this.unit(id).hp > 0); }
+    // Combinação disponível para este aliado? (todos os membros vivos e sem recarga)
+    combosFor(uid) {
+      return Object.keys(G.COMBOS).filter(id => {
+        const c = G.COMBOS[id];
+        return c.side === 'ally' && c.members.includes(uid) && c.members.every(m => this.unit(m).hp > 0) &&
+          this.skillReady(this.unit(c.members[0]), id);
+      });
+    }
     snapshot() {
       const s = {};
       for (const u of this.units) s[u.id] = { hp: u.hp, statuses: JSON.parse(JSON.stringify(u.statuses)) };
@@ -52,7 +63,8 @@
 
     // ------------------------------------------------------------ velocidade
     actionSpeed(u, sk) {
-      let s = u.def.spd;
+      // combinação: anda no ritmo do membro mais lento
+      let s = sk.combo ? Math.min(...sk.members.map(id => this.unit(id).def.spd)) : u.def.spd;
       for (const t of sk.tags) s += CONFIG.speed[t] || 0;
       if (sk.kind === 'defense' || sk.kind === 'protect') s += CONFIG.speed.defense;
       if (sk.kind === 'support') s += 0; // a tag 'support' já dá prioridade
@@ -73,13 +85,17 @@
       const errors = [];
       for (const it of this.intents) {
         const a = this.unit(it.actorId);
-        if (a.hp > 0) actions.push({ ...it, speed: this.actionSpeed(a, SKILLS[it.skillId]) });
+        if (this.allAlive(it)) actions.push({ ...it, speed: this.actionSpeed(a, SKILLS[it.skillId]) });
       }
       for (const u of this.alive('ally')) {
         const c = choices[u.id];
-        if (!c || !c.skillId) continue;
+        if (!c || !c.skillId) continue; // (parceiro de combinação: c.comboWith, sem ação própria)
         const sk = SKILLS[c.skillId];
-        if (!u.def.skills.includes(c.skillId) || !this.skillReady(u, c.skillId)) { errors.push(`${u.name}: habilidade indisponível`); continue; }
+        const own = sk.combo ? sk.members[0] === u.id : u.def.skills.includes(c.skillId);
+        if (!own || !this.skillReady(u, c.skillId)) { errors.push(`${u.name}: habilidade indisponível`); continue; }
+        const partners = sk.combo ? sk.members.slice(1) : undefined;
+        // a combinação consome a ação de todos os membros: precisam estar vivos e reservados
+        if (partners && !partners.every(id => this.unit(id).hp > 0 && choices[id] && choices[id].comboWith === u.id)) { errors.push(`${sk.name}: parceiro indisponível`); continue; }
         let targetId = c.targetId;
         if (sk.kind === 'defense') targetId = u.id;
         const t = this.unit(targetId);
@@ -89,7 +105,7 @@
           (sk.kind === 'protect' && t.side === 'ally' && t !== u) ||
           sk.kind === 'defense');
         if (!okTarget) continue; // ainda incompleto
-        actions.push({ id: 'a_' + u.id, side: 'ally', actorId: u.id, skillId: c.skillId, targetId,
+        actions.push({ id: 'a_' + u.id, side: 'ally', actorId: u.id, skillId: c.skillId, targetId, partners,
           wantIntercept: !!c.intercept, speed: this.actionSpeed(u, sk) });
       }
 
@@ -98,7 +114,8 @@
       const enemyAttacks = actions.filter(x => x.side === 'enemy' && isAttack(SKILLS[x.skillId]));
       const allyAttacks = actions.filter(x => x.side === 'ally' && isAttack(SKILLS[x.skillId]));
       for (const aa of allyAttacks) {
-        const ea = enemyAttacks.find(e => e.actorId === aa.targetId && e.targetId === aa.actorId);
+        // direto: o inimigo-alvo (ou sua combinação) mira algum membro desta ação
+        const ea = enemyAttacks.find(e => members(e).includes(aa.targetId) && members(aa).includes(e.targetId));
         if (ea && !links[ea.id]) { links[aa.id] = { partner: ea.id, type: 'direct' }; links[ea.id] = { partner: aa.id, type: 'direct' }; }
       }
       for (const aa of allyAttacks) {
@@ -116,8 +133,8 @@
 
     // Pode este ataque aliado interceptar o ataque do inimigo-alvo contra outro aliado?
     interceptInfo(aa, enemyAttacks) {
-      const ea = enemyAttacks.find(e => e.actorId === aa.targetId);
-      if (!ea || ea.targetId === aa.actorId) return null;
+      const ea = enemyAttacks.find(e => members(e).includes(aa.targetId));
+      if (!ea || members(aa).includes(ea.targetId)) return null;
       const ally = this.unit(aa.actorId);
       const reach = ally.def.interceptReach || 0;
       return { enemyActionId: ea.id, protects: ea.targetId, valid: aa.speed + reach >= ea.speed,
@@ -205,7 +222,7 @@
         if (this.outcome()) break;
         if (ev.type === 'stances') { const e = this._stances(ev.actions); if (e) events.push(e); continue; }
         if (ev.type === 'support') { events.push(this._support(ev.a)); continue; }
-        if (ev.type === 'clash') { events.push(this._clashOrFallback(ev, done)); continue; }
+        if (ev.type === 'clash') { events.push(...this._clashOrFallback(ev, done)); continue; }
         events.push(this._attack(ev.a));
       }
       return events.filter(Boolean);
@@ -245,15 +262,22 @@
 
     _clashOrFallback(ev, done) {
       const A = this.unit(ev.a.actorId), B = this.unit(ev.b.actorId);
-      // se um lado caiu antes, o outro age sem oposição (sem executar duas vezes)
-      if (A.hp <= 0 && B.hp <= 0) return null;
-      if (B.hp <= 0) return this._attack(ev.a);
-      if (A.hp <= 0) return this._attack(ev.b); // interceptador caiu: o golpe segue para o alvo original
+      // se um lado caiu (ou perdeu um membro da combinação), o outro age sem oposição
+      const okA = this.allAlive(ev.a), okB = this.allAlive(ev.b);
+      if (!okA || !okB) {
+        // o lado incompleto vira "fizzle" (_attack detecta); o lado inteiro age normalmente
+        const out = [];
+        if (!okA) out.push(this._attack(ev.a));
+        if (!okB) out.push(this._attack(ev.b));
+        if (okA) out.push(this._attack(ev.a));
+        if (okB) out.push(this._attack(ev.b));
+        return out.filter(Boolean);
+      }
       const skA = SKILLS[ev.a.skillId], skB = SKILLS[ev.b.skillId];
       const side = (u, act, sk) => {
         const mod = this.forceMods(u, true);
         const roll = this._roll();
-        return { actorId: u.id, skillId: act.skillId, base: sk.force, mod, roll, total: sk.force + mod + roll };
+        return { actorId: u.id, skillId: act.skillId, partners: act.partners || [], base: sk.force, mod, roll, total: sk.force + mod + roll };
       };
       const sa = side(A, ev.a, skA), sb = side(B, ev.b, skB);
       // a: sempre o aliado quando há um (para a apresentação ser previsível)
@@ -270,7 +294,7 @@
       if (A.side === 'enemy') { const t = res.a; res.a = res.b; res.b = t; } // a = aliado
       res.decisive = !!(res.hit && res.hit.killed);
       res.after = this.snapshot();
-      return res;
+      return [res];
     }
 
     _applyHit(att, def, skillId, dmgMult = 1) {
@@ -316,6 +340,8 @@
     _attack(act) {
       const a = this.unit(act.actorId), sk = SKILLS[act.skillId];
       if (a.hp <= 0) return null;
+      // combinação sem todos os membros não acontece (nada de ação extra pela metade)
+      if (!this.allAlive(act)) return { type: 'fizzle', actorId: a.id, skillId: act.skillId, reason: 'combinação interrompida' };
       const t = this.unit(act.targetId);
       if (!t || t.hp <= 0) return { type: 'fizzle', actorId: a.id, skillId: act.skillId, reason: 'alvo já caído' };
       this.forceMods(a, true); // gasta o Suporte, se houver
@@ -343,7 +369,7 @@
         a.hp = Math.max(0, a.hp - cd);
         counter = { damage: cd, hpBefore: before, hpAfter: a.hp, killed: a.hp <= 0, consumed: [] };
       }
-      return { type: 'attack', attackerId: a.id, skillId: act.skillId, skill: sk, targetId: t.id, defenderId: d.id,
+      return { type: 'attack', attackerId: a.id, partners: act.partners || [], skillId: act.skillId, skill: sk, targetId: t.id, defenderId: d.id,
         protectorId, reaction, chance: ch, success, outcome, damage: hit.damage, hpBefore: hit.hpBefore, hpAfter: hit.hpAfter,
         killed: hit.killed, applied: hit.applied, impact: hit.impact, consumed: [], counter,
         decisive: hit.killed || !!(counter && counter.killed), after: this.snapshot() };

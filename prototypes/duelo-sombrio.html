@@ -166,23 +166,23 @@ body.resolving #panel { opacity:.6; }
       desc: 'Golpe de espada equilibrado.' },
     k_shield: { name: 'Golpe de Escudo', icon: 'shieldbash', kind: 'attack', force: 8, dmg: 6, tags: ['melee'],
       desc: 'Muito confiável em Clashes, pouco dano.' },
-    k_heavy: { name: 'Golpe Pesado', icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 14, tags: ['melee', 'heavy'], cooldown: 2,
+    k_heavy: { name: 'Golpe Pesado', windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 14, tags: ['melee', 'heavy'], cooldown: 2,
       desc: 'Lento e devastador. Arriscado em Clashes.' },
     k_guard: { name: 'Postura de Escudo', icon: 'shield', kind: 'defense', reaction: 'block', tags: [],
       desc: 'Bloqueia todos os golpes recebidos nesta rodada (-60% de dano).' },
     k_protect: { name: 'Proteção', icon: 'protect', kind: 'protect', reaction: 'block', tags: [],
       desc: 'Fica na frente de um aliado: recebe e bloqueia os golpes sem oposição destinados a ele.' },
     // --- Espadachim
-    s_basic: { name: 'Corte Rápido', icon: 'slash', kind: 'attack', force: 6, dmg: 7, tags: ['melee', 'fast'],
+    s_basic: { name: 'Corte Rápido', hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'light' }], icon: 'slash', kind: 'attack', force: 6, dmg: 7, tags: ['melee', 'fast'],
       desc: 'Corte veloz: age cedo na rodada.' },
     s_precise: { name: 'Golpe Preciso', icon: 'precise', kind: 'attack', force: 9, dmg: 6, tags: ['melee'],
       desc: 'Força alta: vence a maioria dos Clashes.' },
-    s_risky: { name: 'Ataque Arriscado', icon: 'risky', impact: 'stagger', kind: 'attack', force: 4, dmg: 15, tags: ['melee'], cooldown: 2,
+    s_risky: { name: 'Ataque Arriscado', hits: [{ share: 0.25, motion: 'h', react: 'light' }, { share: 0.3, motion: 'd', react: 'medium' }, { share: 0.45, motion: 'over', react: 'final' }], icon: 'risky', impact: 'stagger', kind: 'attack', force: 4, dmg: 15, tags: ['melee'], cooldown: 2,
       desc: 'Força baixa, dano enorme. Ótimo contra quem não vai reagir.' },
     s_parry: { name: 'Aparar', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [],
       desc: 'Tenta aparar o primeiro golpe físico recebido; se der certo, anula e contra-ataca. Não funciona contra magia.' },
     // --- Mago
-    m_bolt: { name: 'Projétil Mágico', icon: 'bolt', kind: 'attack', force: 6, dmg: 7, tags: ['magic'],
+    m_bolt: { name: 'Projétil Mágico', hits: [{ share: 0.5, motion: 'proj', react: 'light' }, { share: 0.5, motion: 'proj', react: 'final' }], icon: 'bolt', kind: 'attack', force: 6, dmg: 7, tags: ['magic'],
       desc: 'Ataque à distância.' },
     m_blast: { name: 'Explosão Arcana', icon: 'blast', impact: 'knockdown', kind: 'attack', force: 5, dmg: 13, tags: ['magic'], cooldown: 2,
       desc: 'Magia de dano elevado.' },
@@ -194,11 +194,11 @@ body.resolving #panel { opacity:.6; }
       desc: 'Tenta esquivar de cada golpe recebido nesta rodada.' },
 
     // --- Brutamontes (prioriza ataques fortes)
-    b_smash: { name: 'Esmagar', icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 16, tags: ['melee', 'heavy'], cooldown: 2 },
+    b_smash: { name: 'Esmagar', windup: 1.5, icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 16, tags: ['melee', 'heavy'], cooldown: 2 },
     b_bash: { name: 'Pancada', icon: 'hammer', kind: 'attack', force: 8, dmg: 9, tags: ['melee'] },
     b_guard: { name: 'Couraça', icon: 'shield', kind: 'defense', reaction: 'block', tags: [] },
     // --- Duelista (prefere alvos vulneráveis)
-    d_flurry: { name: 'Lâmina Veloz', icon: 'slash', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'] },
+    d_flurry: { name: 'Lâmina Veloz', hits: [{ share: 0.5, motion: 'h', react: 'light' }, { share: 0.5, motion: 'h2', react: 'final' }], icon: 'slash', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'] },
     d_lunge: { name: 'Investida Feroz', icon: 'precise', impact: 'stagger', kind: 'attack', force: 6, dmg: 12, tags: ['melee'], cooldown: 2 },
     d_parry: { name: 'Contra-guarda', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [] },
     // --- Conjurador (magias e suporte)
@@ -206,6 +206,24 @@ body.resolving #panel { opacity:.6; }
     c_curse: { name: 'Maldição', icon: 'weaken', kind: 'attack', force: 6, dmg: 4, tags: ['magic', 'support'], applies: 'weaken', cooldown: 2 },
     c_veil: { name: 'Véu Sombrio', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [] },
   };
+
+  // ATAQUES COMBINADOS — uma ação que consome a ação principal dos dois membros,
+  // disputa UM Clash e, se vencer, executa a sequência coreografada.
+  // members[0] lidera (é quem aparece como autor da ação).
+  //   by: índice do membro que executa o golpe; share: fração do dano total; react: reação daquele impacto
+  const COMBOS = {
+    combo_ks: { name: 'Investida Conjunta', kind: 'attack', icon: 'combo', tags: ['melee'], combo: true,
+      side: 'ally', members: ['knight', 'swordsman'], force: 10, dmg: 15, impact: 'knockdown', cooldown: 3,
+      desc: 'Cavaleiro + Espadachim: escudo abre a guarda, dois cortes e o golpe final. Gasta a ação dos dois. Força alta e derruba; dano um pouco menor que dois ataques separados.',
+      hits: [{ by: 0, share: 0.3, motion: 'bash', react: 'medium' }, { by: 1, share: 0.2, motion: 'h', react: 'light' },
+             { by: 1, share: 0.2, motion: 'd', react: 'light' }, { by: 0, share: 0.3, motion: 'over', react: 'final' }] },
+    combo_bd: { name: 'Pressão Brutal', kind: 'attack', icon: 'combo', tags: ['melee'], combo: true,
+      side: 'enemy', members: ['brute', 'duelist'], force: 10, dmg: 17, impact: 'knockdown', cooldown: 3,
+      hits: [{ by: 0, share: 0.4, motion: 'over', react: 'medium' }, { by: 1, share: 0.15, motion: 'h', react: 'light' },
+             { by: 1, share: 0.15, motion: 'h2', react: 'light' }, { by: 0, share: 0.3, motion: 'bash', react: 'final' }] },
+  };
+  Object.assign(SKILLS, COMBOS);
+  const AI_COMBO_CHANCE = 0.3; // frequência moderada de combinações inimigas
 
   const REACTIONS = {
     block: { name: 'Bloqueio' }, dodge: { name: 'Esquiva' }, parry: { name: 'Aparo' }, none: { name: '—' },
@@ -250,7 +268,7 @@ body.resolving #panel { opacity:.6; }
   const FOES = ['brute', 'duelist', 'conjurer'];
   const AI_THREAT = { mage: 0.6, swordsman: 0.4, knight: 0.0 };
 
-  Object.assign(G, { CONFIG, REACTIONS, STATUS, SKILLS, UNITS, PARTY, FOES, AI_THREAT });
+  Object.assign(G, { CONFIG, REACTIONS, STATUS, SKILLS, COMBOS, AI_COMBO_CHANCE, UNITS, PARTY, FOES, AI_THREAT });
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -277,6 +295,8 @@ body.resolving #panel { opacity:.6; }
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const isAttack = sk => sk && sk.kind === 'attack';
+  // Participantes de uma ação (ataques combinados têm mais de um)
+  const members = act => [act.actorId, ...(act.partners || [])];
 
   class Battle {
     constructor(seed) {
@@ -301,6 +321,15 @@ body.resolving #panel { opacity:.6; }
       return null;
     }
     skillReady(u, id) { return !(u.cooldowns[id] > 0); }
+    allAlive(act) { return members(act).every(id => this.unit(id).hp > 0); }
+    // Combinação disponível para este aliado? (todos os membros vivos e sem recarga)
+    combosFor(uid) {
+      return Object.keys(G.COMBOS).filter(id => {
+        const c = G.COMBOS[id];
+        return c.side === 'ally' && c.members.includes(uid) && c.members.every(m => this.unit(m).hp > 0) &&
+          this.skillReady(this.unit(c.members[0]), id);
+      });
+    }
     snapshot() {
       const s = {};
       for (const u of this.units) s[u.id] = { hp: u.hp, statuses: JSON.parse(JSON.stringify(u.statuses)) };
@@ -309,7 +338,8 @@ body.resolving #panel { opacity:.6; }
 
     // ------------------------------------------------------------ velocidade
     actionSpeed(u, sk) {
-      let s = u.def.spd;
+      // combinação: anda no ritmo do membro mais lento
+      let s = sk.combo ? Math.min(...sk.members.map(id => this.unit(id).def.spd)) : u.def.spd;
       for (const t of sk.tags) s += CONFIG.speed[t] || 0;
       if (sk.kind === 'defense' || sk.kind === 'protect') s += CONFIG.speed.defense;
       if (sk.kind === 'support') s += 0; // a tag 'support' já dá prioridade
@@ -330,13 +360,17 @@ body.resolving #panel { opacity:.6; }
       const errors = [];
       for (const it of this.intents) {
         const a = this.unit(it.actorId);
-        if (a.hp > 0) actions.push({ ...it, speed: this.actionSpeed(a, SKILLS[it.skillId]) });
+        if (this.allAlive(it)) actions.push({ ...it, speed: this.actionSpeed(a, SKILLS[it.skillId]) });
       }
       for (const u of this.alive('ally')) {
         const c = choices[u.id];
-        if (!c || !c.skillId) continue;
+        if (!c || !c.skillId) continue; // (parceiro de combinação: c.comboWith, sem ação própria)
         const sk = SKILLS[c.skillId];
-        if (!u.def.skills.includes(c.skillId) || !this.skillReady(u, c.skillId)) { errors.push(`${u.name}: habilidade indisponível`); continue; }
+        const own = sk.combo ? sk.members[0] === u.id : u.def.skills.includes(c.skillId);
+        if (!own || !this.skillReady(u, c.skillId)) { errors.push(`${u.name}: habilidade indisponível`); continue; }
+        const partners = sk.combo ? sk.members.slice(1) : undefined;
+        // a combinação consome a ação de todos os membros: precisam estar vivos e reservados
+        if (partners && !partners.every(id => this.unit(id).hp > 0 && choices[id] && choices[id].comboWith === u.id)) { errors.push(`${sk.name}: parceiro indisponível`); continue; }
         let targetId = c.targetId;
         if (sk.kind === 'defense') targetId = u.id;
         const t = this.unit(targetId);
@@ -346,7 +380,7 @@ body.resolving #panel { opacity:.6; }
           (sk.kind === 'protect' && t.side === 'ally' && t !== u) ||
           sk.kind === 'defense');
         if (!okTarget) continue; // ainda incompleto
-        actions.push({ id: 'a_' + u.id, side: 'ally', actorId: u.id, skillId: c.skillId, targetId,
+        actions.push({ id: 'a_' + u.id, side: 'ally', actorId: u.id, skillId: c.skillId, targetId, partners,
           wantIntercept: !!c.intercept, speed: this.actionSpeed(u, sk) });
       }
 
@@ -355,7 +389,8 @@ body.resolving #panel { opacity:.6; }
       const enemyAttacks = actions.filter(x => x.side === 'enemy' && isAttack(SKILLS[x.skillId]));
       const allyAttacks = actions.filter(x => x.side === 'ally' && isAttack(SKILLS[x.skillId]));
       for (const aa of allyAttacks) {
-        const ea = enemyAttacks.find(e => e.actorId === aa.targetId && e.targetId === aa.actorId);
+        // direto: o inimigo-alvo (ou sua combinação) mira algum membro desta ação
+        const ea = enemyAttacks.find(e => members(e).includes(aa.targetId) && members(aa).includes(e.targetId));
         if (ea && !links[ea.id]) { links[aa.id] = { partner: ea.id, type: 'direct' }; links[ea.id] = { partner: aa.id, type: 'direct' }; }
       }
       for (const aa of allyAttacks) {
@@ -373,8 +408,8 @@ body.resolving #panel { opacity:.6; }
 
     // Pode este ataque aliado interceptar o ataque do inimigo-alvo contra outro aliado?
     interceptInfo(aa, enemyAttacks) {
-      const ea = enemyAttacks.find(e => e.actorId === aa.targetId);
-      if (!ea || ea.targetId === aa.actorId) return null;
+      const ea = enemyAttacks.find(e => members(e).includes(aa.targetId));
+      if (!ea || members(aa).includes(ea.targetId)) return null;
       const ally = this.unit(aa.actorId);
       const reach = ally.def.interceptReach || 0;
       return { enemyActionId: ea.id, protects: ea.targetId, valid: aa.speed + reach >= ea.speed,
@@ -462,7 +497,7 @@ body.resolving #panel { opacity:.6; }
         if (this.outcome()) break;
         if (ev.type === 'stances') { const e = this._stances(ev.actions); if (e) events.push(e); continue; }
         if (ev.type === 'support') { events.push(this._support(ev.a)); continue; }
-        if (ev.type === 'clash') { events.push(this._clashOrFallback(ev, done)); continue; }
+        if (ev.type === 'clash') { events.push(...this._clashOrFallback(ev, done)); continue; }
         events.push(this._attack(ev.a));
       }
       return events.filter(Boolean);
@@ -502,15 +537,22 @@ body.resolving #panel { opacity:.6; }
 
     _clashOrFallback(ev, done) {
       const A = this.unit(ev.a.actorId), B = this.unit(ev.b.actorId);
-      // se um lado caiu antes, o outro age sem oposição (sem executar duas vezes)
-      if (A.hp <= 0 && B.hp <= 0) return null;
-      if (B.hp <= 0) return this._attack(ev.a);
-      if (A.hp <= 0) return this._attack(ev.b); // interceptador caiu: o golpe segue para o alvo original
+      // se um lado caiu (ou perdeu um membro da combinação), o outro age sem oposição
+      const okA = this.allAlive(ev.a), okB = this.allAlive(ev.b);
+      if (!okA || !okB) {
+        // o lado incompleto vira "fizzle" (_attack detecta); o lado inteiro age normalmente
+        const out = [];
+        if (!okA) out.push(this._attack(ev.a));
+        if (!okB) out.push(this._attack(ev.b));
+        if (okA) out.push(this._attack(ev.a));
+        if (okB) out.push(this._attack(ev.b));
+        return out.filter(Boolean);
+      }
       const skA = SKILLS[ev.a.skillId], skB = SKILLS[ev.b.skillId];
       const side = (u, act, sk) => {
         const mod = this.forceMods(u, true);
         const roll = this._roll();
-        return { actorId: u.id, skillId: act.skillId, base: sk.force, mod, roll, total: sk.force + mod + roll };
+        return { actorId: u.id, skillId: act.skillId, partners: act.partners || [], base: sk.force, mod, roll, total: sk.force + mod + roll };
       };
       const sa = side(A, ev.a, skA), sb = side(B, ev.b, skB);
       // a: sempre o aliado quando há um (para a apresentação ser previsível)
@@ -527,7 +569,7 @@ body.resolving #panel { opacity:.6; }
       if (A.side === 'enemy') { const t = res.a; res.a = res.b; res.b = t; } // a = aliado
       res.decisive = !!(res.hit && res.hit.killed);
       res.after = this.snapshot();
-      return res;
+      return [res];
     }
 
     _applyHit(att, def, skillId, dmgMult = 1) {
@@ -573,6 +615,8 @@ body.resolving #panel { opacity:.6; }
     _attack(act) {
       const a = this.unit(act.actorId), sk = SKILLS[act.skillId];
       if (a.hp <= 0) return null;
+      // combinação sem todos os membros não acontece (nada de ação extra pela metade)
+      if (!this.allAlive(act)) return { type: 'fizzle', actorId: a.id, skillId: act.skillId, reason: 'combinação interrompida' };
       const t = this.unit(act.targetId);
       if (!t || t.hp <= 0) return { type: 'fizzle', actorId: a.id, skillId: act.skillId, reason: 'alvo já caído' };
       this.forceMods(a, true); // gasta o Suporte, se houver
@@ -600,7 +644,7 @@ body.resolving #panel { opacity:.6; }
         a.hp = Math.max(0, a.hp - cd);
         counter = { damage: cd, hpBefore: before, hpAfter: a.hp, killed: a.hp <= 0, consumed: [] };
       }
-      return { type: 'attack', attackerId: a.id, skillId: act.skillId, skill: sk, targetId: t.id, defenderId: d.id,
+      return { type: 'attack', attackerId: a.id, partners: act.partners || [], skillId: act.skillId, skill: sk, targetId: t.id, defenderId: d.id,
         protectorId, reaction, chance: ch, success, outcome, damage: hit.damage, hpBefore: hit.hpBefore, hpAfter: hit.hpAfter,
         killed: hit.killed, applied: hit.applied, impact: hit.impact, consumed: [], counter,
         decisive: hit.killed || !!(counter && counter.killed), after: this.snapshot() };
@@ -649,6 +693,23 @@ body.resolving #panel { opacity:.6; }
           .sort((x, y) => y.s - x.s);
         const target = scored[0].u;
         intents.push({ actorId: e.id, skillId: this.pickSkill(battle, e, target, attacks, ai.prefers), targetId: target.id });
+      }
+      return this.maybeCombo(battle, intents);
+    },
+
+    // Combinação inimiga: só com os dois membros vivos, ambos atacando, sem recarga
+    // e com frequência moderada. Substitui as duas ações por uma (sem ação extra).
+    maybeCombo(battle, intents) {
+      for (const id in G.COMBOS) {
+        const c = G.COMBOS[id];
+        if (c.side !== 'enemy') continue;
+        const lead = battle.unit(c.members[0]);
+        const its = c.members.map(m => intents.find(i => i.actorId === m));
+        if (its.some(i => !i || SKILLS[i.skillId].kind !== 'attack')) continue;
+        if (!battle.skillReady(lead, id) || battle.rand() >= G.AI_COMBO_CHANCE) continue;
+        const lead_it = its[0];
+        intents = intents.filter(i => !c.members.includes(i.actorId));
+        intents.unshift({ actorId: lead.id, skillId: id, targetId: lead_it.targetId, partners: c.members.slice(1) });
       }
       return intents;
     },
@@ -1074,6 +1135,14 @@ body.resolving #panel { opacity:.6; }
           this.focusOn([A], -0.25);
           this.tween(A, { ready: 1, guard: 1, arm: -0.5 }, 240);
           this.caption = `${A.name} se prepara para defender (${sk.name})`;
+        } else if (sk.combo) {
+          // combinação anunciada: os dois membros assumem postura e ficam destacados
+          const Ps = (it.partners || []).map(id => this.vis[id]);
+          this.focusOn([A, ...Ps, T], -0.25);
+          for (const v of [A, ...Ps]) { this.faceTo(v, T); this.setState(v, 'PREPARING'); this.tween(v, { ready: 1, arm: -1.1, lean: -0.1 }, 240); this.sparks(v.x, v.y - 150, '#ffb36a', 8, 0.2, -0.0004); }
+          this.showBanner('ATAQUE COMBINADO', '#ff9a5a', 1000, `${[A, ...Ps].map(v => v.name).join(' + ')} → ${T.name}`);
+          this.caption = `${[A, ...Ps].map(v => v.name).join(' e ')} preparam ${sk.name} contra ${T.name}!`;
+          await this.wait(350);
         } else {
           this.focusOn([A, T], -0.2);
           this.faceTo(A, T);
@@ -1228,19 +1297,134 @@ body.resolving #panel { opacity:.6; }
       await this.wait(300);
     }
 
+    // ============================================================ SEQUÊNCIAS DE GOLPES
+    // Divide o dano total entre os impactos (inteiros que SOMAM exatamente o total).
+    _splitDamage(total, shares) {
+      const out = []; let acc = 0, sum = shares.reduce((a, b) => a + b, 0);
+      shares.forEach((sh, i) => {
+        const v = i === shares.length - 1 ? total - acc : Math.round(total * sh / sum);
+        out.push(Math.max(0, v)); acc += out[i];
+      });
+      return out;
+    }
+    _steps(sk) {
+      return sk.hits || [{ by: 0, share: 1, motion: sk.tags.includes('magic') ? 'proj' : (sk.tags.includes('heavy') ? 'over' : 'h'), react: 'final' }];
+    }
+    // Leva os parceiros de uma combinação para perto, sem ocupar o lugar do líder.
+    _bringPartners(partners, lead, tx, ty) {
+      return Promise.all(partners.filter(p => p && !p.dead).map(async (p, i) => {
+        await this.sync(p);
+        const dir = tx >= lead.x ? 1 : -1;
+        this.setState(p, 'APPROACHING'); p.dashing = true;
+        this.faceTo(p, { x: tx });
+        const lane = (ty > (ARENA.minY + ARENA.maxY) / 2 ? -1 : 1) * (40 + i * 20);
+        await this.moveTo(p, tx - dir * (MOVE[p.art].reach + 95), ty + lane, 240 * MOVE[p.art].dash, 'out');
+        p.dashing = false;
+        this.tween(p, { lean: -0.15, arm: -1.2 }, 140);
+      }));
+    }
+    // Um golpe individual (cosmético: varia por "motion"; não muda nada da lógica).
+    async _strikeMotion(A, L, motion, others = []) {
+      const dir = L.x >= A.x ? 1 : -1;
+      this.faceTo(A, L);
+      this.setState(A, 'ATTACKING');
+      if (motion === 'proj') {
+        const up = this.time % 2 < 1 ? 1 : -1; // pequena variação no arco do lançamento
+        await this.tween(A, { cast: 1, arm: -0.6 + up * 0.15 }, 90);
+        this.tween(A, { arm: 0.3, lean: 0.08 }, 90);
+        this.addFx({ kind: 'proj', dur: 240, x0: A.x + A.face * 30, y0: A.y - 115, x1: L.x - dir * 18, y1: L.y - 70, color: A.side === 'ally' ? '#8fd3ff' : '#c86bff', arc: 22 * up });
+        await this.wait(240);
+        return dir;
+      }
+      // abre espaço: outro atacante no ponto de golpe dá um passo atrás (coreografia)
+      const standX = L.x - dir * MOVE[A.art].reach;
+      let standY = A.y;
+      for (const o of others) {
+        if (o === A || o.dead || Math.abs(o.x - standX) > 60) continue;
+        this.tween(o, { x: o.x - dir * 55, lean: -0.1 }, 160, 'out');
+        standY = clamp(L.y + (L.y > (ARENA.minY + ARENA.maxY) / 2 ? -34 : 34), ARENA.minY, ARENA.maxY);
+      }
+      if (Math.abs(A.x - standX) > 18 || Math.abs(A.y - standY) > 10) {
+        A.dashing = true;
+        await this.moveTo(A, standX, standY, 130 * MOVE[A.art].dash, 'in');
+        A.dashing = false;
+      }
+      const heavy = motion === 'over';
+      await this.tween(A, { arm: heavy ? -1.7 : -1.2, lean: heavy ? -0.2 : 0.05 }, heavy ? 120 : 60, 'out');
+      this.tween(A, { arm: 1.3, lean: 0.25 }, 70, 'in');
+      await this.wait(45);
+      if (motion === 'bash') {
+        this.tween(A, { x: A.x + dir * 20, guard: 1 }, 80, 'out');
+        this.addFx({ kind: 'ring', dur: 260, x: L.x - dir * 28, y: L.y - 72, color: '#cfe3ff', r: 40 });
+      } else {
+        const rot = motion === 'd' ? 0.55 : motion === 'over' ? -0.85 : 0;
+        this.addFx({ kind: 'slash', dur: 240, x: L.x - dir * 30, y: L.y - 70, dir, heavy, rot, flip: motion === 'h2', color: '#fff3d6' });
+      }
+      return dir;
+    }
+    // Executa a sequência de golpes de uma habilidade (ou combinação) já vencida/acertada.
+    // total/hpBefore/hpAfter vêm da lógica: a soma dos impactos é exatamente o dano real.
+    async _sequence(attackers, L, sk, hit, finalLv, opts = {}) {
+      const steps = this._steps(sk);
+      const dmgs = this._splitDamage(hit.damage, steps.map(s => s.share));
+      const dmgColor = L.side === 'ally' ? '#ff6a5a' : '#ffe08a';
+      let hp = hit.hpBefore, lv = finalLv;
+      for (let i = 0; i < steps.length; i++) {
+        const st = steps[i], last = i === steps.length - 1;
+        let A = attackers[st.by] || attackers[0];
+        if (!A || A.dead) A = attackers.find(a => a && !a.dead) || attackers[0];
+        if (attackers.length > 1) this.focusOn([...attackers.filter(a => !a.dead), L], 0.05);
+        let dir = L.x >= A.x ? 1 : -1;
+        if (i > 0 || !opts.firstDone) dir = await this._strikeMotion(A, L, st.motion, attackers);
+        hp = last ? hit.hpAfter : Math.max(hit.hpAfter, hp - dmgs[i]);
+        L.hp = hp;
+        L.flash = 1;
+        this.sparks(L.x - dir * 18, L.y - 72, opts.blocked ? '#cfe3ff' : (st.motion === 'proj' ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ff7a5a'), last ? 16 : 9, 0.5);
+        const big = last && (hit.killed || steps.length === 1);
+        this.float(L.x + (i % 2 ? 14 : -14), L.y - 128 - i * 10, String(dmgs[i]), dmgColor, big ? (hit.killed ? 46 : 32) : 24, big ? 1400 : 900);
+        this.hitStop(last ? 70 : 40);
+        this.hurtShake(2 + dmgs[i] * 0.3);
+        lv = st.react === 'final' ? finalLv : st.react;
+        if (opts.blocked) lv = LEVELS[Math.max(0, LEVELS.indexOf(lv) - 1)];
+        if (!last) {
+          // reação intermediária sincronizada com o contato (sem travar a sequência)
+          const push = lv === 'light' ? 14 : 34;
+          this.tween(L, { x: clamp(L.x + dir * push * MOVE[L.art].knock, ARENA.minX, ARENA.maxX), lean: lv === 'light' ? -0.25 : -0.4 }, 90, 'out')
+            .then(() => this.tween(L, { lean: -0.1 }, 120));
+          if (lv !== 'light') this.dust(L, 4);
+          await this.wait(70);
+        } else if (opts.blocked) {
+          const slide = lv === 'heavy' || lv === 'extreme' ? 60 : lv === 'medium' ? 35 : 18;
+          this.routine(L, async () => {
+            this.dust(L, 5);
+            await this.tween(L, { x: clamp(L.x + dir * slide * MOVE[L.art].knock, ARENA.minX, ARENA.maxX), lean: -0.12, crouch: 0.08 }, 220, 'out');
+            await this.tween(L, { lean: 0, crouch: 0 }, 200);
+            this.setState(L, 'BLOCKING');
+          });
+          if (hit.killed) this.react(L, 'heavy', dir, true);
+        } else this.react(L, lv, dir, hit.killed);
+      }
+      if (steps.length > 1) this.float(L.x, L.y - 205, `Total ${hit.damage}`, '#ffe9b0', 18, 1200);
+      for (const a of attackers) if (a && !a.dead) this.followThrough(a);
+      return lv;
+    }
+
     // ------------------------------------------------------------ CLASH
     async playClash(ev) {
       const A = this.vis[ev.a.actorId], B = this.vis[ev.b.actorId];
       const skA = G.SKILLS[ev.a.skillId], skB = G.SKILLS[ev.b.skillId];
       const magA = skA.tags.includes('magic'), magB = skB.tags.includes('magic');
       const T = ev.intercept ? this.vis[ev.originalTargetId] : null;
+      const pA = (ev.a.partners || []).map(id => this.vis[id]), pB = (ev.b.partners || []).map(id => this.vis[id]);
       const margin = ev.winner ? Math.abs(ev.a.total - ev.b.total) : 0;
       const variant = (this._eventIndex * 7 + (ev.a.roll + ev.b.roll)) % 3; // variação visual estável
-      this.caption = `CLASH  ·  ${A.name} (${skA.name})  ×  ${B.name} (${skB.name})`;
+      const names = (v, ps) => [v, ...ps].map(x => x.name).join(' + ');
+      this.caption = `${skA.combo || skB.combo ? 'CLASH COMBINADO' : 'CLASH'}  ·  ${names(A, pA)} (${skA.name})  ×  ${names(B, pB)} (${skB.name})`;
+      if (skA.combo || skB.combo) this.showBanner('ATAQUE COMBINADO', '#ffd36a', 900, (skA.combo ? names(A, pA) : names(B, pB)));
 
       // 1-2. participantes e posições ATUAIS
-      this.focusOn(T ? [A, B, T] : [A, B]);
-      await this.sync(A, B);
+      this.focusOn([...(T ? [A, B, T] : [A, B]), ...pA, ...pB]);
+      await this.sync(A, B, ...pA, ...pB);
       this.faceTo(A, B); this.faceTo(B, A);
 
       // 3. ponto de choque calculado dinamicamente
@@ -1279,6 +1463,9 @@ body.resolving #panel { opacity:.6; }
             .then(() => { v.dashing = false; this.tween(v, { arm: variant === 1 ? 0.6 : 1.1, lean: 0.25 }, 70, 'in'); }));
         }
       }
+      // parceiros de combinação chegam junto, logo atrás do líder
+      if (pA.length) go.push(this._bringPartners(pA, A, P.x, P.y));
+      if (pB.length) go.push(this._bringPartners(pB, B, P.x, P.y));
       await Promise.all(go);
       for (const v of [A, B]) this.setState(v, 'CLASHING');
       this.focusOn([A, B], 0.1);
@@ -1318,10 +1505,12 @@ body.resolving #panel { opacity:.6; }
         this.sparks(P.x, hy, '#ffe28a', 14, 0.5);
         this.react(A, 'medium', A.x < P.x ? -1 : 1);
         this.react(B, 'medium', B.x < P.x ? -1 : 1);
+        [...pA, ...pB].forEach(p => this.react(p, 'light', p.x < P.x ? -1 : 1));
         await this.wait(380);
       } else {
         const aWins = ev.winner === A.id;
-        const [W, L, nW, nL, skW] = aWins ? [A, B, nA, nB, skA] : [B, A, nB, nA, skB];
+        const [W, L, nW, nL, skW, pW, pL] = aWins ? [A, B, nA, nB, skA, pA, pB] : [B, A, nB, nA, skB, pB, pA];
+        pL.forEach(p => this.react(p, 'light', p.x < P.x ? -1 : 1)); // a combinação perdida é interrompida
         const dirL = L.x >= W.x ? 1 : -1;
         nW.color = '#ffe08a';
         this.tween(nW, { s: 1.45 }, 160, 'back');
@@ -1339,33 +1528,12 @@ body.resolving #panel { opacity:.6; }
           this.hurtShake(6);
           await this.tween(L, { x: clamp(L.x + dirL * 70, ARENA.minX, ARENA.maxX), lean: -0.6, arm: 0.4, crouch: 0.12 }, 160, 'out');
         }
-        // golpe do vencedor
+        // golpe(s) do vencedor: sequência configurada da habilidade/combinação
         const h = ev.hit;
-        this.setState(W, 'ATTACKING');
-        if (skW.tags.includes('magic')) {
-          this.tween(W, { cast: 1, arm: 0.3 }, 120);
-          this.addFx({ kind: 'proj', dur: 240, x0: W.x + W.face * 30, y0: W.y - 115, x1: L.x, y1: L.y - 70, color: W.side === 'ally' ? '#8fd3ff' : '#c86bff' });
-          await this.wait(240);
-        } else {
-          W.dashing = true;
-          await this.moveTo(W, L.x - dirL * MOVE[W.art].reach, W.y, 130 * MOVE[W.art].dash, 'in');
-          W.dashing = false;
-          this.tween(W, { arm: 1.3 }, 80, 'in');
-          await this.wait(55);
-          this.addFx({ kind: 'slash', dur: 260, x: L.x - dirL * 30, y: L.y - 70, dir: dirL, heavy: skW.tags.includes('heavy'), color: '#fff3d6' });
-        }
-        // 8. impacto + reação física
-        this.hitStop(h.killed ? 140 : 70);
-        L.flash = 1;
-        this.sparks(L.x, L.y - 70, '#ff7a5a', 16, 0.55);
-        this.float(L.x, L.y - 130, String(h.damage), L.side === 'ally' ? '#ff6a5a' : '#ffe08a', h.killed ? 46 : 34, h.killed ? 1500 : 1100);
-        L.hp = h.hpAfter;
         const marginLv = margin >= 5 ? 'heavy' : margin >= 3 ? 'medium' : 'light';
         const lv = LEVELS[Math.max(LEVELS.indexOf(h.impact || 'light'), LEVELS.indexOf(marginLv))];
-        this.hurtShake(3 + h.damage * 0.35);
-        this.react(L, lv, dirL, h.killed);
-        this.followThrough(W);
-        this.tween(nW, { a: 0 }, 420);
+        this.tween(nW, { a: 0 }, 600);
+        await this._sequence([W, ...pW], L, skW, h, lv);
         if (h.applied) { const st = G.STATUS[h.applied]; this.float(L.x, L.y - 165, st.name.toUpperCase(), st.color, 20, 1300); }
         if (h.killed || lv === 'extreme') await this._decisive(L, h.killed);
         await this.wait(lv === 'light' ? 220 : 320);
@@ -1379,11 +1547,13 @@ body.resolving #panel { opacity:.6; }
       const sk = c.skill;
       const A = this.vis[c.attackerId], T = this.vis[c.targetId], D = this.vis[c.defenderId];
       const P = c.protectorId ? this.vis[c.protectorId] : null;
+      const partners = (c.partners || []).map(id => this.vis[id]);
       const magic = sk.tags.includes('magic'), heavy = sk.tags.includes('heavy'), fast = sk.tags.includes('fast');
-      this.caption = `${A.name}  ·  ${sk.name}  →  ${T.name}`;
+      this.caption = `${[A, ...partners].map(v => v.name).join(' + ')}  ·  ${sk.name}  →  ${T.name}`;
+      if (sk.combo) this.showBanner('ATAQUE COMBINADO', '#ffd36a', 900, [A, ...partners].map(v => v.name).join(' + '));
 
-      this.focusOn([A, T]);
-      await this.sync(A);
+      this.focusOn([A, T, ...partners]);
+      await this.sync(A, ...partners);
       this.faceTo(A, T);
 
       // antecipação
@@ -1392,8 +1562,11 @@ body.resolving #panel { opacity:.6; }
         this.tween(A, { cast: 1, lean: -0.1, arm: -0.5 }, 260);
         for (let i = 0; i < 3; i++) { this.sparks(A.x + A.face * 26, A.y - 112, '#9ad8ff', 6, 0.18, -0.0005); await this.wait(90); }
       } else {
-        await this.tween(A, { lean: -0.22, arm: -1.5, crouch: 0.08 }, (heavy ? 380 : fast ? 130 : 220) * MOVE[A.art].dash, 'out');
-        if (heavy) await this.wait(90);
+        // variação cosmética da preparação (o peso do personagem é mantido)
+        const vr = (this._eventIndex % 3) * 0.04;
+        const wu = (sk.windup || 1) * (heavy ? 380 : fast ? 130 : 220) * MOVE[A.art].dash;
+        await this.tween(A, { lean: -0.18 - vr, arm: -1.4 - vr * 2, crouch: 0.06 + vr }, wu, 'out');
+        if (heavy) await this.wait(90 * (sk.windup || 1));
       }
 
       // intervenção: o protetor entra fisicamente no caminho
@@ -1427,6 +1600,7 @@ body.resolving #panel { opacity:.6; }
         const dash = this.moveTo(A, D.x - dirD * MOVE[A.art].reach, D.y + 2, (fast ? 130 : heavy ? 230 : 175) * MOVE[A.art].dash, 'in');
         this.tween(A, { lean: 0.25, crouch: 0 }, 150);
         this._react(c, D, A, fast ? 80 : 120);
+        if (partners.length) this._bringPartners(partners, A, D.x, D.y);
         await dash;
         A.dashing = false;
         this.setState(A, 'ATTACKING');
@@ -1435,7 +1609,7 @@ body.resolving #panel { opacity:.6; }
         this.addFx({ kind: 'slash', dur: 260, x: D.x - dirD * 30, y: D.y - 70, dir: dirD, heavy, color: c.outcome === 'dodged' ? 'rgba(255,255,255,0.5)' : '#fff3d6' });
       }
 
-      await this._impact(c, A, D, magic, dirD);
+      await this._impact(c, A, D, magic, dirD, [A, ...partners]);
 
       this._applySnapshot(c.after, false);
       if (c.applied) {
@@ -1443,7 +1617,7 @@ body.resolving #panel { opacity:.6; }
         this.float(D.x, D.y - 150, st.name.toUpperCase(), st.color, 20, 1300);
         this.sparks(D.x, D.y - 70, st.color, 10, 0.2, -0.0003);
       }
-      if (!A.dead && A.state !== 'HIT_LIGHT' && A.state !== 'HIT_HEAVY') this.followThrough(A);
+      if (!['blocked', 'hit', 'dodgeFail', 'parryFail', 'guardBroken'].includes(c.outcome) && !A.dead && A.state !== 'HIT_LIGHT' && A.state !== 'HIT_HEAVY') this.followThrough(A);
       this.caption = null;
     }
 
@@ -1467,7 +1641,7 @@ body.resolving #panel { opacity:.6; }
       }
     }
 
-    async _impact(c, A, D, magic, dir) {
+    async _impact(c, A, D, magic, dir, attackers = [A]) {
       const hx = D.x - dir * 18, hy = D.y - 72;
       const dmgColor = D.side === 'ally' ? '#ff6a5a' : '#ffe08a';
       const showDamage = (v, n, big) => this.float(v.x + (Math.random() * 20 - 10), v.y - 130, String(n), dmgColor, big ? 46 : 32, big ? 1500 : 1100);
@@ -1514,37 +1688,19 @@ body.resolving #panel { opacity:.6; }
         }
         case 'blocked': {
           this.addFx({ kind: 'ring', dur: 260, x: hx + D.face * 12, y: hy, color: '#cfe3ff', r: 36 });
-          this.sparks(hx, hy, '#cfe3ff', 16, 0.55);
           this.float(D.x, D.y - 165, 'BLOQUEIO', '#9fd0ff', 18);
-          showDamage(D, c.damage, false);
-          D.hp = c.hpAfter;
-          this.hitStop(60);
-          this.hurtShake(2 + c.damage * 0.15);
-          // bloqueio: desliza para trás pelo peso do golpe, sem perder a guarda
-          const slide = c.impact === 'extreme' || c.impact === 'heavy' ? 60 : c.impact === 'medium' ? 35 : 18;
-          this.routine(D, async () => {
-            this.dust(D, 5);
-            await this.tween(D, { x: clamp(D.x + dir * slide * MOVE[D.art].knock, ARENA.minX, ARENA.maxX), lean: -0.12, crouch: 0.08 }, 220, 'out');
-            await this.tween(D, { lean: 0, crouch: 0 }, 200);
-            this.setState(D, 'BLOCKING');
-          });
-          if (c.killed) { this.react(D, 'heavy', dir, true); await this._decisive(D, true); }
-          await this.wait(200);
+          await this._sequence(attackers, D, c.skill, c, c.impact || 'light', { firstDone: true, blocked: true });
+          if (c.killed) await this._decisive(D, true);
+          await this.wait(180);
           return;
         }
-        default: { // hit, dodgeFail, parryFail, guardBroken
+        default: { // hit, dodgeFail, parryFail, guardBroken — todos os golpes da sequência acertam
           if (c.outcome === 'parryFail') this.float(D.x, D.y - 165, 'APARO FALHOU', '#ff8a6a', 18);
           else if (c.outcome === 'dodgeFail') this.float(D.x, D.y - 165, 'ESQUIVA FALHOU', '#ff8a6a', 18);
-          D.flash = 1;
           if (magic) this.addFx({ kind: 'ring', dur: 360, x: hx, y: hy, color: A.side === 'ally' ? '#8fd3ff' : '#c86bff', r: 50 });
-          this.sparks(hx, hy, magic ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ff7a5a', 18, 0.55);
-          showDamage(D, c.damage, c.decisive);
-          D.hp = c.hpAfter;
-          this.hitStop(c.killed ? 0 : 70);
-          this.hurtShake(3 + c.damage * 0.3);
-          this.react(D, c.impact || 'light', dir, c.killed);
-          if (c.killed || c.impact === 'extreme') await this._decisive(D, c.killed);
-          await this.wait(c.impact === 'light' ? 200 : 300);
+          const lv = await this._sequence(attackers, D, c.skill, c, c.impact || 'light', { firstDone: true });
+          if (c.killed || lv === 'extreme') await this._decisive(D, c.killed);
+          await this.wait(lv === 'light' ? 180 : 280);
         }
       }
     }
@@ -1726,7 +1882,7 @@ body.resolving #panel { opacity:.6; }
         const p = f.t / f.dur;
         ctx.save();
         if (f.kind === 'slash') {
-          ctx.translate(f.x, f.y); ctx.scale(f.dir, 1);
+          ctx.translate(f.x, f.y); ctx.scale(f.dir, f.flip ? -1 : 1); ctx.rotate(f.rot || 0);
           ctx.globalAlpha = 1 - p;
           ctx.strokeStyle = f.color; ctx.lineWidth = (f.heavy ? 16 : 9) * (1 - p * 0.6); ctx.lineCap = 'round';
           const r = f.heavy ? 85 : 65, a0 = -1.9, a1 = -1.9 + 2.6 * Math.min(1, p * 2.5);
@@ -1744,10 +1900,10 @@ body.resolving #panel { opacity:.6; }
           ctx.fill();
         } else if (f.kind === 'proj') {
           const e = ease.in(p);
-          const x = lerp(f.x0, f.x1, e), y = lerp(f.y0, f.y1, e) - Math.sin(p * Math.PI) * 30;
+          const x = lerp(f.x0, f.x1, e), y = lerp(f.y0, f.y1, e) - Math.sin(p * Math.PI) * (f.arc == null ? 30 : f.arc);
           for (let i = 6; i >= 0; i--) {
             const q = Math.max(0, e - i * 0.04);
-            const tx = lerp(f.x0, f.x1, q), ty = lerp(f.y0, f.y1, q) - Math.sin(Math.max(0, p - i * 0.04) * Math.PI) * 30;
+            const tx = lerp(f.x0, f.x1, q), ty = lerp(f.y0, f.y1, q) - Math.sin(Math.max(0, p - i * 0.04) * Math.PI) * (f.arc == null ? 30 : f.arc);
             ctx.globalAlpha = 0.5 * (1 - i / 7); ctx.fillStyle = f.color;
             ctx.beginPath(); ctx.arc(tx, ty, 12 - i * 1.3, 0, 7); ctx.fill();
           }
@@ -1991,7 +2147,9 @@ body.resolving #panel { opacity:.6; }
     support: { color: '#72d18f', dark: '#16452a', link: 'round',  label: 'Suporte' },
     protect: { color: '#8fc0ec', dark: '#1a3552', link: 'square', label: 'Proteção' },
     defense: { color: '#8fc0ec', dark: '#1a3552', link: 'square', label: 'Defesa' },
+    combo:   { color: '#e8c060', dark: '#4a3810', link: 'double', label: 'Ataque combinado' },
   };
+  const styleOf = sk => sk.combo ? 'combo' : sk.kind;
   const CAT_COLOR = { favorable: '#6fd890', even: '#ffd36a', unfavorable: '#ff7a6a' };
   const CAT_NAME = { favorable: 'Favorável', even: 'Equilibrado', unfavorable: 'Desfavorável' };
 
@@ -2028,6 +2186,12 @@ body.resolving #panel { opacity:.6; }
       return []; // defesa: sem alvo
     }
     needsTarget(skillId) { return SKILLS[skillId].kind !== 'defense'; }
+    // habilidade planejada deste personagem (parceiro de combinação mostra a combinação)
+    _plannedSkill(uid) {
+      const c = this.cb.choices()[uid];
+      if (!c) return null;
+      return c.comboWith ? (this.cb.choices()[c.comboWith] || {}).skillId : c.skillId;
+    }
     _activeSkill() { return this.drag ? this.drag.skillId : this.sel && this.sel.skillId; }
     _activeUid() { return this.drag ? this.drag.uid : this.sel && this.sel.uid; }
     _applyHighlights() {
@@ -2043,37 +2207,47 @@ body.resolving #panel { opacity:.6; }
     }
 
     // ------------------------------------------------------------ RadialAbilityMenu
+    // Leque À FRENTE do personagem: as três ofensivas num arco vertical (a do meio
+    // mais à frente), extras (defesa/suporte/proteção/combinação) num arco externo menor.
     _layoutMenu() {
       this.items = [];
       if (!this.enabled || !this.sel) return;
       const b = this.battle, u = b.unit(this.sel.uid), v = this.p.vis[this.sel.uid];
       if (!u || u.hp <= 0) { this.sel = null; return; }
       const k = this.p.pxPerWorld;
-      const c = { x: v.x, y: v.y - 88 };
-      const s = this.p.toScreen(c.x, c.y);
-      const cw = this.p.canvas.clientWidth;
-      // adapta à borda: perto da esquerda abre para a direita, etc.
-      let base = -90;
-      if (s.x < 200) base = -35; else if (s.x > cw - 200) base = -145;
-      if (s.y < 190) base = s.x < cw / 2 ? 10 : 170;
-      const ids = u.def.skills;
-      const hasPlan = !!this.cb.choices()[u.id];
-      const n = ids.length + (hasPlan ? 1 : 0);
-      const step = 36, R = 96;
-      const open = clamp((this.p.time - this.sel.openAt) / 160, 0, 1);
+      const cw = this.p.canvas.clientWidth, ch = this.p.canvas.clientHeight;
+      let f = v.face || 1;
+      const hand = dir => ({ x: v.x + dir * 26, y: v.y - 84 });
+      // perto da borda: abre para o lado que tem espaço
+      const sx = this.p.toScreen(hand(f).x, 0).x;
+      if (f > 0 && sx + 210 > cw) f = -1; else if (f < 0 && sx - 210 < 0) f = 1;
+      const H = hand(f);
+      const own = u.def.skills;
+      const main = own.filter(id => SKILLS[id].kind === 'attack');
+      const extras = [...own.filter(id => SKILLS[id].kind !== 'attack'), ...b.combosFor(u.id)];
+      const slots = [];
+      const mainA = [-72, -28, 16], mainR = [86, 108, 86];
+      main.forEach((id, i) => slots.push({ id, ang: mainA[i] ?? (i - 1) * 52, R: mainR[i] ?? 90, r: 25 }));
+      extras.forEach((id, i) => slots.push({ id, ang: -28 + (i - (extras.length - 1) / 2) * 28, R: 168, r: SKILLS[id].combo ? 21 : 18 }));
+      if (this.cb.choices()[u.id]) slots.push({ cancel: true, ang: -90, R: 70, r: 14 });
+      const open = clamp((this.p.time - this.sel.openAt) / 170, 0, 1);
       const eo = 1 - Math.pow(1 - open, 3);
-      for (let i = 0; i < n; i++) {
-        const ang = (base + (i - (n - 1) / 2) * step) * Math.PI / 180;
-        const cancel = hasPlan && i === n - 1;
-        const id = cancel ? null : ids[i];
-        const sk = id && SKILLS[id];
-        const main = sk && sk.kind === 'attack';
-        const rr = (cancel ? 14 : main ? 25 : 20) / k;
-        this.items.push({ cancel, skillId: id, kind: sk ? sk.kind : 'cancel', main,
-          x: c.x + Math.cos(ang) * (R / k) * eo, y: c.y + Math.sin(ang) * (R / k) * eo, r: rr * (0.4 + 0.6 * eo),
-          // indisponível: em recarga, ou sem nenhum alvo válido (ex.: Proteção sem aliados vivos)
-          disabled: !!(sk && (!b.skillReady(u, id) || (this.needsTarget(id) && !this.validTargets(u.id, id).length))),
-          cd: sk ? u.cooldowns[id] : 0, open });
+      const pts = slots.map(sl => {
+        const a = sl.ang * Math.PI / 180;
+        return { sl, x: H.x + f * Math.cos(a) * sl.R / k, y: H.y + Math.sin(a) * sl.R / k };
+      });
+      // mantém o leque dentro da área útil (desloca na vertical se preciso)
+      const ys = pts.map(q => this.p.toScreen(q.x, q.y).y);
+      let dy = 0;
+      if (Math.min(...ys) < 26) dy = (26 - Math.min(...ys)) / k;
+      else if (Math.max(...ys) > ch - 26) dy = (ch - 26 - Math.max(...ys)) / k;
+      for (const { sl, x, y } of pts) {
+        const id = sl.id, sk = id && SKILLS[id];
+        this.items.push({ cancel: !!sl.cancel, skillId: id || null, kind: sk ? styleOf(sk) : 'cancel', main: !!(sk && sk.kind === 'attack' && !sk.combo),
+          // surge a partir da mão/arma e se abre no arco
+          x: lerp(H.x, x, eo), y: lerp(H.y, y + dy, eo), r: (sl.r / k) * (0.4 + 0.6 * eo),
+          disabled: !!(sk && (!b.skillReady(b.unit(sk.combo ? sk.members[0] : u.id), id) || (this.needsTarget(id) && !this.validTargets(u.id, id).length))),
+          cd: sk ? b.unit(sk.combo ? sk.members[0] : u.id).cooldowns[id] : 0, open });
       }
     }
 
@@ -2229,6 +2403,12 @@ body.resolving #panel { opacity:.6; }
       if (this.previewCache.key === key) return this.previewCache.lines;
       const b = this.battle, sk = SKILLS[skillId];
       const choices = JSON.parse(JSON.stringify(this.cb.choices()));
+      if (sk.combo) {
+        // combinação: registrada no líder; os parceiros ficam reservados
+        for (const m of sk.members) { if (choices[m] && choices[m].comboWith) delete choices[m]; }
+        uid = sk.members[0];
+        sk.members.slice(1).forEach(m => { choices[m] = { comboWith: uid }; });
+      }
       choices[uid] = { skillId, targetId, intercept: intercept == null ? true : intercept };
       let plan = b.buildPlan(choices);
       const mine = plan.actions.find(a => a.actorId === uid);
@@ -2237,14 +2417,16 @@ body.resolving #panel { opacity:.6; }
       const me = plan.actions.find(a => a.actorId === uid);
       const lines = [];
       const ev = me && prev.find(e => e.type === 'clash' && (e.a.id === me.id || e.b.id === me.id));
+      if (ev && sk.combo) lines.push({ t: `Custa a ação de ${sk.members.map(m => b.unit(m).name).join(' e ')}`, c: KIND_STYLE.combo.color });
       if (ev) {
         const meFirst = ev.a.id === me.id, other = meFirst ? ev.b : ev.a;
         const fMe = meFirst ? ev.fa : ev.fb, fOt = meFirst ? ev.fb : ev.fa;
         const p = meFirst ? ev.odds.win : ev.odds.lose;
         const cat = b.category(p);
         lines.push({ t: ev.link.type === 'intercept' ? `⚔ INTERCEPTAÇÃO (protege ${b.unit(this.battle.intents.find(i => i.id === other.id).targetId).name})` : '⚔ CLASH', c: '#ffe9b0' });
-        lines.push({ t: `${b.unit(uid).name} — ${sk.name}   F ${fMe} + 0–3`, c: '#9fd8ff' });
-        lines.push({ t: `${b.unit(other.actorId).name} — ${SKILLS[other.skillId].name}   F ${fOt} + 0–3`, c: '#ff9a8a' });
+        const who = act => [act.actorId, ...(act.partners || [])].map(id => b.unit(id).name).join(' + ');
+        lines.push({ t: `${who(me)} — ${sk.name}   F ${fMe} + 0–3`, c: '#9fd8ff' });
+        lines.push({ t: `${who(other)} — ${SKILLS[other.skillId].name}   F ${fOt} + 0–3`, c: '#ff9a8a' });
         lines.push({ t: `Previsão: ${CAT_NAME[cat]}  (vence ${Math.round(p * 100)}%, empata ${Math.round(ev.odds.tie * 100)}%)`, c: CAT_COLOR[cat] });
       } else if (sk.kind === 'attack') {
         const info = me && me.interceptInfo;
@@ -2253,7 +2435,8 @@ body.resolving #panel { opacity:.6; }
         else if (info && !choices[uid].intercept) lines.push({ t: 'Interceptação desligada', c: '#c9b' });
         const it = b.intents.find(i => i.actorId === targetId);
         if (it && SKILLS[it.skillId].kind === 'defense') lines.push({ t: `Alvo vai se defender (${SKILLS[it.skillId].name})`, c: '#9fd0ff' });
-        lines.push({ t: `Sem Clash · dano ${sk.dmg} se não houver defesa`, c: '#e8dccb' });
+        lines.push({ t: `Sem Clash · dano ${sk.dmg}${sk.hits ? ` em ${sk.hits.length} golpes` : ''} se não houver defesa`, c: '#e8dccb' });
+        if (sk.combo) lines.push({ t: `Custa a ação de ${sk.members.map(m => b.unit(m).name).join(' e ')}`, c: KIND_STYLE.combo.color });
       } else {
         lines.push({ t: `${sk.name} → ${b.unit(targetId).name}`, c: '#ffe9b0' });
         lines.push({ t: sk.desc, c: '#e8dccb' });
@@ -2264,18 +2447,49 @@ body.resolving #panel { opacity:.6; }
 
     // ============================================================ ChainRenderer
     _chest(v) { return { x: v.x, y: v.y - 80 + (Math.abs(v.tilt) > 1 ? 60 : 0) }; }
-    _curve(p0, p1, lift, seed) {
-      const sway = Math.sin(this.p.time * 0.002 + seed) * 5;
-      return { p0, p1, c: { x: (p0.x + p1.x) / 2, y: Math.min(p0.y, p1.y) - lift + sway } };
+    _head(v) { return { x: v.x, y: v.y - 138 + (Math.abs(v.tilt) > 1 ? 100 : 0) }; }
+    // Arco suspenso: sobe a partir da origem, percorre o alto da arena e desce no alvo.
+    _arc(p0, p1, height, seed = 0) {
+      const top = this._clampTop(Math.min(p0.y, p1.y) - height);
+      const sway = Math.sin(this.p.time * 0.0018 + seed) * 3;
+      const dx = p1.x - p0.x;
+      return { p0, p1, c1: { x: p0.x + dx * 0.06, y: top + sway }, c2: { x: p1.x - dx * 0.06, y: top - sway } };
     }
+    _clampTop(y) { const wt = this.p.toWorld(0, 30).y; return Math.max(y, wt); }
     _at(cv, t) {
-      const { p0, c, p1 } = cv, u = 1 - t;
-      return { x: u * u * p0.x + 2 * u * t * c.x + t * t * p1.x, y: u * u * p0.y + 2 * u * t * c.y + t * t * p1.y,
-        a: Math.atan2(2 * u * (c.y - p0.y) + 2 * t * (p1.y - c.y), 2 * u * (c.x - p0.x) + 2 * t * (p1.x - c.x)) };
+      const { p0, c1, c2, p1 } = cv, u = 1 - t;
+      const x = u * u * u * p0.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * p1.x;
+      const y = u * u * u * p0.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * p1.y;
+      const dx = 3 * u * u * (c1.x - p0.x) + 6 * u * t * (c2.x - c1.x) + 3 * t * t * (p1.x - c2.x);
+      const dy = 3 * u * u * (c1.y - p0.y) + 6 * u * t * (c2.y - c1.y) + 3 * t * t * (p1.y - c2.y);
+      return { x, y, a: Math.atan2(dy, dx) };
+    }
+    _len(cv) { let L = 0, q = this._at(cv, 0); for (let i = 1; i <= 12; i++) { const r = this._at(cv, i / 12); L += Math.hypot(r.x - q.x, r.y - q.y); q = r; } return L; }
+    // Faixas de altura: o arco mais curto fica embaixo; quem "abraça" outro sobe uma faixa.
+    // Pontas que compartilham origem/destino ganham pequenos deslocamentos horizontais.
+    _routesFor(conns) {
+      const vis = this.p.vis;
+      const fromN = {}, toN = {};
+      for (const c of conns) { (fromN[c.from] = fromN[c.from] || []).push(c); (toN[c.to] = toN[c.to] || []).push(c); }
+      for (const c of conns) {
+        const A = vis[c.from], T = vis[c.to];
+        const fi = fromN[c.from].indexOf(c), fn = fromN[c.from].length, ti = toN[c.to].indexOf(c), tn = toN[c.to].length;
+        c.p0 = this._head(A); c.p0.x += (fi - (fn - 1) / 2) * 16;
+        c.p1 = this._head(T); c.p1.x += (ti - (tn - 1) / 2) * 18;
+        c.lo = Math.min(c.p0.x, c.p1.x); c.hi = Math.max(c.p0.x, c.p1.x); c.span = c.hi - c.lo;
+      }
+      const placed = [];
+      for (const c of conns.slice().sort((a, b) => a.span - b.span)) {
+        c.lane = 0;
+        for (const p of placed) if (p.hi > c.lo - 30 && p.lo < c.hi + 30) c.lane = Math.max(c.lane, p.lane + 1);
+        placed.push(c);
+      }
+      for (const c of conns) c.cv = this._arc(c.p0, c.p1, 90 + c.span * 0.16 + c.lane * 46 - (c.tension || 0) * 18, c.seed || 0);
+      return conns;
     }
     drawChain(ctx, cv, kind, alpha, opts = {}) {
       const st = KIND_STYLE[kind] || KIND_STYLE.attack;
-      const len = Math.hypot(cv.p1.x - cv.p0.x, cv.p1.y - cv.p0.y) + Math.abs(cv.c.y - (cv.p0.y + cv.p1.y) / 2) * 0.6;
+      const len = this._len(cv);
       const tEnd = opts.tEnd == null ? 1 : opts.tEnd;
       const n = Math.max(4, Math.floor(len * tEnd / 13));
       ctx.save();
@@ -2303,7 +2517,7 @@ body.resolving #panel { opacity:.6; }
         ctx.translate(q.x, q.y); ctx.rotate(q.a);
         ctx.fillStyle = st.color; ctx.strokeStyle = 'rgba(8,4,10,0.7)'; ctx.lineWidth = 1.5;
         ctx.beginPath();
-        if (kind === 'attack') { ctx.moveTo(6, 0); ctx.lineTo(-7, -6); ctx.lineTo(-4, 0); ctx.lineTo(-7, 6); }      // ponta de lança
+        if (kind === 'attack' || kind === 'combo') { ctx.moveTo(6, 0); ctx.lineTo(-7, -6); ctx.lineTo(-4, 0); ctx.lineTo(-7, 6); }      // ponta de lança
         else if (kind === 'support') { ctx.moveTo(6, 0); ctx.lineTo(0, -6); ctx.lineTo(-6, 0); ctx.lineTo(0, 6); } // losango
         else { ctx.moveTo(-6, -6); ctx.lineTo(6, -6); ctx.lineTo(6, 2); ctx.lineTo(0, 8); ctx.lineTo(-6, 2); }    // escudo
         ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -2313,6 +2527,7 @@ body.resolving #panel { opacity:.6; }
     _link(ctx, type) {
       ctx.beginPath();
       if (type === 'oval') ctx.ellipse(0, 0, 6.5, 3.4, 0, 0, 7);
+      else if (type === 'double') { ctx.ellipse(0, -2, 6.5, 2.6, 0, 0, 7); ctx.moveTo(6.5, 2.4); ctx.ellipse(0, 2.4, 6.5, 2.6, 0, 0, 7); }
       else if (type === 'round') ctx.arc(0, 0, 3.6, 0, 7);
       else ctx.rect(-5, -3.2, 10, 6.4);
     }
@@ -2327,41 +2542,46 @@ body.resolving #panel { opacity:.6; }
       const plan = this.cb.plan(), choices = this.cb.choices();
       const rel = (a, t) => !focus || a === focus || t === focus;
 
-      // intenções inimigas: linhas discretas e tracejadas (diferentes das correntes)
-      if (this.showIntents) {
-        for (const it of b.intents) {
-          const A = vis[it.actorId], sk = SKILLS[it.skillId];
-          if (!A || A.dead) continue;
-          if (sk.kind !== 'attack') continue;
-          const l = plan && plan.links[it.id];
-          if (l && l.type === 'direct') continue; // vira o Clash da corrente aliada
-          const T = vis[it.targetId];
-          const cv = this._curve(this._chest(A), this._chest(T), 40 + b.unit(it.actorId).slot * 22, A.phase);
-          const on = rel(it.actorId, it.targetId);
-          ctx.save();
-          ctx.globalAlpha = this.fade * (on ? 0.7 : 0.18);
-          ctx.strokeStyle = '#ff5a5a'; ctx.lineWidth = 2; ctx.setLineDash([7, 7]); ctx.lineDashOffset = -this.p.time * 0.04;
-          ctx.beginPath(); ctx.moveTo(cv.p0.x, cv.p0.y); ctx.quadraticCurveTo(cv.c.x, cv.c.y, cv.p1.x, cv.p1.y); ctx.stroke();
-          ctx.restore();
-        }
+      // rotas: intenções inimigas + ações aliadas compartilham as faixas de altura
+      const conns = [];
+      const membersOf = a => [a.actorId, ...(a.partners || [])];
+      if (this.showIntents) for (const it of b.intents) {
+        const A = vis[it.actorId], sk = SKILLS[it.skillId];
+        if (!A || A.dead || sk.kind !== 'attack') continue;
+        const l = plan && plan.links[it.id];
+        if (l && l.type === 'direct') continue; // vira o Clash da corrente aliada
+        conns.push({ key: it.id, from: it.actorId, to: it.targetId, enemy: true, it, seed: A.phase, members: membersOf(it) });
       }
-
-      // correntes aliadas confirmadas (agrupadas por alvo para não se sobreporem)
-      if (plan) {
-        const byTarget = {};
-        const acts = plan.actions.filter(a => a.side === 'ally' && SKILLS[a.skillId].kind !== 'defense');
-        acts.forEach(a => { (byTarget[a.targetId] = byTarget[a.targetId] || []).push(a); });
-        for (const a of acts) {
-          if (this.drag && this.drag.uid === a.actorId) continue;
-          const A = vis[a.actorId], T = vis[a.targetId], sk = SKILLS[a.skillId];
-          const grp = byTarget[a.targetId], k = grp.indexOf(a);
-          const end = this._chest(T); end.y += (k - (grp.length - 1) / 2) * 20;
-          const since = this.p.time - (this.connectAt[a.actorId] || -1e9);
-          const tension = since < 350 ? Math.sin(Math.PI * since / 350) : 0;
-          const cv = this._curve(this._chest(A), end, (70 + k * 42) * (1 - tension * 0.5), A.phase + k);
-          const on = rel(a.actorId, a.targetId);
-          this.drawChain(ctx, cv, sk.kind, this.fade * (on ? 0.95 : 0.3), { tension });
-          a._cv = cv;
+      const acts = plan ? plan.actions.filter(a => a.side === 'ally' && SKILLS[a.skillId].kind !== 'defense') : [];
+      for (const a of acts) {
+        if (this.drag && membersOf(a).includes(this.drag.uid)) continue;
+        const since = this.p.time - (this.connectAt[a.actorId] || -1e9);
+        conns.push({ key: a.id, from: a.actorId, to: a.targetId, a, seed: vis[a.actorId].phase, members: membersOf(a),
+          tension: since < 350 ? Math.sin(Math.PI * since / 350) : 0 });
+      }
+      if (this.showIntents) for (const it of b.intents) {
+        if (!it.partners || !vis[it.actorId] || vis[it.actorId].dead) continue;
+        const on = !focus || [it.actorId, ...it.partners, it.targetId].includes(focus);
+        this._tether(ctx, [it.actorId, ...it.partners].map(id => vis[id]), '#ff7a5a', this.fade * (on ? 0.8 : 0.25), true);
+      }
+      this.routes = {};
+      for (const c of this._routesFor(conns)) {
+        this.routes[c.key] = c.cv;
+        const on = !focus || c.members.includes(focus) || c.to === focus;
+        if (c.enemy) {
+          // intenções: tracejado fino e semitransparente (nunca confundir com corrente aliada)
+          const cv = c.cv;
+          ctx.save();
+          ctx.globalAlpha = this.fade * (on ? 0.6 : 0.16);
+          ctx.strokeStyle = SKILLS[c.it.skillId].combo ? '#ff9a5a' : '#ff5a5a'; ctx.lineWidth = 2; ctx.setLineDash([7, 7]); ctx.lineDashOffset = -this.p.time * 0.04;
+          ctx.beginPath(); ctx.moveTo(cv.p0.x, cv.p0.y); ctx.bezierCurveTo(cv.c1.x, cv.c1.y, cv.c2.x, cv.c2.y, cv.p1.x, cv.p1.y); ctx.stroke();
+          ctx.restore();
+        } else {
+          const sk = SKILLS[c.a.skillId];
+          const editing = this.sel && c.members.includes(this.sel.uid);
+          this.drawChain(ctx, c.cv, styleOf(sk), this.fade * (editing ? 1 : on ? 0.92 : 0.28), { tension: c.tension, glow: editing });
+          c.a._cv = c.cv;
+          if (sk.combo) this._tether(ctx, c.members.map(id => vis[id]), KIND_STYLE.combo.color, this.fade * (on ? 0.9 : 0.3), false);
         }
       }
 
@@ -2371,28 +2591,44 @@ body.resolving #panel { opacity:.6; }
         const A = vis[uid];
         const hoverValid = sid && this.hover.unit && this.validTargets(uid, sid).includes(this.hover.unit);
         const p1 = hoverValid ? this._chest(vis[this.hover.unit]) : { x: this.mouse.x, y: this.mouse.y };
-        const kind = sid ? SKILLS[sid].kind : 'attack';
+        const kind = sid ? styleOf(SKILLS[sid]) : 'attack';
         let p0 = this._chest(A);
-        // passa pelo círculo da habilidade escolhida
+        // passa pelo círculo da habilidade escolhida e sobe num arco até o alvo
         const it = sid && this.items.find(x => x.skillId === sid);
-        if (it) this.drawChain(ctx, this._curve(p0, { x: it.x, y: it.y }, 10, 0), kind, 0.9, { noEnd: true, glow: true });
+        if (it) this.drawChain(ctx, this._arc(p0, { x: it.x, y: it.y }, 14, 0), kind, 0.9, { noEnd: true, glow: true });
         if (it) p0 = { x: it.x, y: it.y };
-        if (!it || this.needsTarget(sid)) this.drawChain(ctx, this._curve(p0, p1, hoverValid ? 50 : 20, 1), kind, 0.95, { glow: true });
+        const tgt = hoverValid ? this._head(vis[this.hover.unit]) : p1;
+        if (!it || this.needsTarget(sid)) this.drawChain(ctx, this._arc(p0, tgt, 60 + Math.abs(tgt.x - p0.x) * 0.14, 1), kind, 0.97, { glow: true });
       }
 
       // correntes se recolhendo
       this.retracts = this.retracts.filter(r => this.p.time - r.start < 220);
       for (const r of this.retracts) {
         const q = 1 - (this.p.time - r.start) / 220;
-        this.drawChain(ctx, this._curve({ x: r.x0, y: r.y0 }, { x: r.x1, y: r.y1 }, 20, 0), r.kind, 0.7 * q, { tEnd: Math.max(0.05, q), noEnd: true });
+        this.drawChain(ctx, this._arc({ x: r.x0, y: r.y0 }, { x: r.x1, y: r.y1 }, 30, 0), r.kind, 0.7 * q, { tEnd: Math.max(0.05, q), noEnd: true });
       }
 
       // destaque do alvo sob o cursor
       if (this.enabled && sid && this.hover.unit && this.validTargets(uid, sid).includes(this.hover.unit)) {
         const T = vis[this.hover.unit];
         ctx.save(); ctx.translate(T.x, T.y + 4); ctx.scale(1, 0.32);
-        ctx.strokeStyle = KIND_STYLE[SKILLS[sid].kind].color; ctx.lineWidth = 9; ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = KIND_STYLE[styleOf(SKILLS[sid])].color; ctx.lineWidth = 9; ctx.globalAlpha = 0.9;
         ctx.beginPath(); ctx.arc(0, 0, 62, 0, 7); ctx.stroke(); ctx.restore();
+      }
+    }
+
+    // Ligação secundária discreta entre os membros de uma combinação
+    _tether(ctx, vs, color, alpha, dashed) {
+      vs = vs.filter(Boolean);
+      for (let i = 1; i < vs.length; i++) {
+        const a = this._chest(vs[0]), b2 = this._chest(vs[i]);
+        const top = Math.min(a.y, b2.y) - 45;
+        ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = 2.2;
+        ctx.setLineDash(dashed ? [5, 5] : [2, 4]); ctx.lineDashOffset = -this.p.time * 0.03;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo((a.x + b2.x) / 2, top, b2.x, b2.y); ctx.stroke();
+        ctx.setLineDash([]);
+        drawIcon(ctx, 'combo', (a.x + b2.x) / 2, (a.y + b2.y) / 2 - 22, 7, color);
+        ctx.restore();
       }
     }
 
@@ -2414,14 +2650,13 @@ body.resolving #panel { opacity:.6; }
           let x, y;
           if (sk.kind !== 'attack') { x = A.x; y = A.y - 200; }
           else {
-            const l = plan && plan.links[it.id];
-            if (l && l.type === 'direct') continue;
-            const cv = this._curve(this._chest(A), this._chest(vis[it.targetId]), 40 + b.unit(it.actorId).slot * 22, A.phase);
-            const q = this._at(cv, 0.3); x = q.x; y = q.y;
+            const cv = this.routes && this.routes[it.id];
+            if (!cv) continue;
+            const q = this._at(cv, 0.5); x = q.x; y = q.y;
           }
           ctx.globalAlpha = this.fade * (on ? 0.95 : 0.35);
-          this._disk(ctx, x, y, 12 / k, '#2a1216', '#ff6a5a', sk.icon, false);
-          this._tag(ctx, x + 15 / k, y + 4 / k, `F${sk.force}`, '#ffb0a8', 11 / k);
+          this._disk(ctx, x, y, 12 / k, '#2a1216', sk.combo ? '#ff9a5a' : '#ff6a5a', sk.icon, false);
+          this._tag(ctx, x + 15 / k, y + 4 / k, sk.combo ? `COMBO F${sk.force}` : `F${sk.force}`, '#ffb0a8', 11 / k);
         }
         ctx.globalAlpha = this.fade;
       }
@@ -2432,16 +2667,16 @@ body.resolving #panel { opacity:.6; }
         preview.forEach((ev, i) => { [ev.a, ev.b].forEach(x => { if (x) orderOf[x.id] = i + 1; }); (ev.actions || []).forEach(x => { orderOf[x.id] = i + 1; }); });
         for (const a of plan.actions.filter(x => x.side === 'ally')) {
           const A = vis[a.actorId], sk = SKILLS[a.skillId];
-          const on = !focus || a.actorId === focus || a.targetId === focus;
+          const on = !focus || [a.actorId, ...(a.partners || [])].includes(focus) || a.targetId === focus;
           ctx.globalAlpha = this.fade * (on ? 1 : 0.4);
           if (sk.kind === 'defense') {
             this._disk(ctx, A.x, A.y - 200, 14 / k, '#13202e', KIND_STYLE.defense.color, sk.icon, true);
             this._tag(ctx, A.x - 22 / k, A.y - 208, String(orderOf[a.id] || ''), '#ffe9b0', 12 / k);
             continue;
           }
-          if (!a._cv || (this.drag && this.drag.uid === a.actorId)) continue;
-          const m = this._at(a._cv, 0.28);
-          this._disk(ctx, m.x, m.y, 13 / k, '#140c14', KIND_STYLE[sk.kind].color, sk.icon, true);
+          if (!a._cv || !this.routes || !this.routes[a.id]) continue;
+          const m = this._at(a._cv, 0.16);
+          this._disk(ctx, m.x, m.y, 13 / k, '#140c14', KIND_STYLE[styleOf(sk)].color, sk.icon, true);
           this._tag(ctx, m.x - 18 / k, m.y - 12 / k, String(orderOf[a.id] || ''), '#ffe9b0', 12 / k);
           // selo de Clash / interceptação
           const link = plan.links[a.id];
@@ -2450,7 +2685,7 @@ body.resolving #panel { opacity:.6; }
             const ev = link && preview.find(e => e.type === 'clash' && (e.a.id === a.id || e.b.id === a.id));
             let col = '#888', label = '';
             if (ev) { const p = ev.a.id === a.id ? ev.odds.win : ev.odds.lose; const cat = b.category(p); col = CAT_COLOR[cat]; label = CAT_NAME[cat]; }
-            const q = this._at(a._cv, 0.62);
+            const q = this._at(a._cv, 0.5);
             const toggle = !!(info && info.valid && (!link || link.type === 'intercept'));
             this._disk(ctx, q.x, q.y, 14 / k, '#140c14', col, link ? (link.type === 'intercept' ? 'protect' : 'clash') : 'clash', !!link);
             if (label) this._tag(ctx, q.x + 18 / k, q.y + 4 / k, label, col, 12 / k);
@@ -2461,12 +2696,25 @@ body.resolving #panel { opacity:.6; }
         ctx.globalAlpha = this.fade;
       }
 
+      // indicador: combinação disponível para estes personagens
+      if (this.enabled) for (const id in G.COMBOS) {
+        const c = G.COMBOS[id];
+        if (c.side !== 'ally' || !this.battle.combosFor(c.members[0]).includes(id)) continue;
+        const used = this._plannedSkill(c.members[0]) === id;
+        for (const m of c.members) {
+          const v = vis[m];
+          ctx.globalAlpha = this.fade * (used ? 1 : 0.55 + 0.25 * Math.sin(this.p.time * 0.005));
+          this._disk(ctx, v.x + 38, v.y - 152, 9 / k, '#2a2010', KIND_STYLE.combo.color, 'combo', false);
+        }
+      }
+      ctx.globalAlpha = this.fade;
+
       // menu radial
       this._layoutMenu();
       if (this.items.length) {
         const sel = this.sel;
         const active = this._activeSkill();
-        const planned = choices[sel.uid] && choices[sel.uid].skillId;
+        const planned = this._plannedSkill(sel.uid);
         for (const it of this.items) {
           const hov = this.hover.item && this.hover.item === it || (this.hover.item && this.hover.item.skillId === it.skillId && !it.cancel && this.hover.item.skillId);
           const r = it.r * (hov ? 1.15 : 1);
@@ -2475,6 +2723,7 @@ body.resolving #panel { opacity:.6; }
           const st = KIND_STYLE[it.kind];
           const chosen = active === it.skillId || (!active && planned === it.skillId);
           this._disk(ctx, it.x, it.y, r, chosen ? '#2b2118' : '#140c14', chosen ? '#ffe9b0' : st.color, SKILLS[it.skillId].icon, it.kind !== 'attack', it.kind);
+          if (it.kind === 'combo') this._tag(ctx, it.x, it.y + r + 12 / k, 'COMBO', st.color, 10 / k, true);
           if (it.disabled) this._tag(ctx, it.x, it.y + r + 12 / k, it.cd ? `recarga ${it.cd}` : 'sem alvo', '#ff9a8a', 11 / k, true);
         }
         ctx.globalAlpha = this.fade;
@@ -2485,11 +2734,12 @@ body.resolving #panel { opacity:.6; }
       if (this.enabled) {
         const hi = this.hover.item;
         if (hi && !hi.cancel && hi.skillId && this.sel) {
-          const sk = SKILLS[hi.skillId], u = b.unit(this.sel.uid);
-          const lines = [{ t: sk.name, c: '#ffe9b0' },
+          const sk = SKILLS[hi.skillId], u = b.unit(sk.combo ? sk.members[0] : this.sel.uid);
+          const lines = [{ t: sk.name + (sk.hits ? `  ·  ${sk.hits.length} golpes` : ''), c: '#ffe9b0' },
             sk.kind === 'attack' ? { t: `Força ${sk.force} · Dano ${sk.dmg} · Vel ${b.actionSpeed(u, sk)}`, c: '#e8dccb' } : { t: KIND_STYLE[sk.kind].label + (sk.kind === 'defense' ? ' · age antes de tudo' : ` · Vel ${b.actionSpeed(u, sk)}`), c: '#9fd0ff' },
             { t: sk.desc, c: '#bdb0a8', wrap: true }];
-          if (hi.disabled) lines.push({ t: `Em recarga (${hi.cd})`, c: '#ff9a8a' });
+          if (sk.combo) lines.push({ t: `Participantes: ${sk.members.map(m => b.unit(m).name).join(' + ')} · custa a ação dos dois`, c: KIND_STYLE.combo.color, wrap: true });
+          if (hi.disabled) lines.push({ t: hi.cd ? `Em recarga (${hi.cd})` : 'Sem alvo válido', c: '#ff9a8a' });
           this._tooltip(ctx, hi.x, hi.y - hi.r - 10 / k2, lines);
         } else {
           const uid = this._activeUid(), sid = this._activeSkill();
@@ -2502,11 +2752,11 @@ body.resolving #panel { opacity:.6; }
             if (this.hover.badge.toggle) lines.push({ t: 'Clique para ligar/desligar a interceptação', c: '#9fd0ff' });
             this._tooltip(ctx, this.hover.badge.x, this.hover.badge.y - 22 / k2, lines);
           } else if (!uid && this.hover.unit && this.showIntents) {
-            const it = b.intents.find(i => i.actorId === this.hover.unit);
+            const it = b.intents.find(i => i.actorId === this.hover.unit || (i.partners || []).includes(this.hover.unit));
             if (it) {
               const sk = SKILLS[it.skillId], A = vis[it.actorId];
               this._tooltip(ctx, A.x, A.y - 215, sk.kind === 'attack'
-                ? [{ t: `${b.unit(it.actorId).name} → ${b.unit(it.targetId).name}`, c: '#ff9a8a' }, { t: `${sk.name} · Força ${sk.force} · Dano ${sk.dmg} · Vel ${b.actionSpeed(b.unit(it.actorId), sk)}`, c: '#e8dccb' }]
+                ? [{ t: `${[it.actorId, ...(it.partners || [])].map(id => b.unit(id).name).join(' + ')} → ${b.unit(it.targetId).name}${sk.combo ? '  (ATAQUE COMBINADO)' : ''}`, c: '#ff9a8a' }, { t: `${sk.name} · Força ${sk.force} · Dano ${sk.dmg} · Vel ${b.actionSpeed(b.unit(it.actorId), sk)}`, c: '#e8dccb' }]
                 : [{ t: `${b.unit(it.actorId).name} vai se defender`, c: '#9fd0ff' }, { t: sk.name, c: '#e8dccb' }]);
             }
           }
@@ -2584,6 +2834,7 @@ body.resolving #panel { opacity:.6; }
       case 'support': L([0, -0.8, 0, 0.8]); L([-0.8, 0, 0.8, 0]); ctx.beginPath(); ctx.arc(0, 0, 0.95 * s, 0, 7); ctx.globalAlpha *= 0.5; ctx.stroke(); break;
       case 'dodge': L([-0.85, -0.45, 0.2, -0.45]); L([-0.65, 0, 0.45, 0]); L([-0.85, 0.45, 0.2, 0.45]); L([0.35, -0.7, 0.85, 0, 0.35, 0.7], false); break;
       case 'cancel': L([-0.6, -0.6, 0.6, 0.6]); L([0.6, -0.6, -0.6, 0.6]); break;
+      case 'combo': L([-0.8, 0.7, 0.35, -0.45]); L([0.8, 0.7, -0.35, -0.45]); ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 - Math.PI / 2, r = (i % 2 ? 0.14 : 0.36) * s; ctx.lineTo(Math.cos(a) * r, -0.62 * s + Math.sin(a) * r); } ctx.closePath(); ctx.fill(); break;
       default: ctx.beginPath(); ctx.arc(0, 0, 0.5 * s, 0, 7); ctx.fill();
     }
     ctx.restore();
@@ -2619,6 +2870,7 @@ body.resolving #panel { opacity:.6; }
     // view: { choices, plan, preview, complete, hint }
     renderBar(battle, view, onConfirm) {
       const n = id => battle.unit(id).name, sn = id => SKILLS[id].name;
+      const who = a => [a.actorId, ...(a.partners || [])].map(n).join(' + ');
       const chips = (view.preview || []).map((ev, i) => {
         let cls = '', txt = '';
         if (ev.type === 'stances') { cls = 'o-def'; txt = '🛡 ' + ev.actions.map(a => SKILLS[a.skillId].kind === 'protect' ? `${n(a.actorId)} protege ${n(a.targetId)}` : `${n(a.actorId)}: ${sn(a.skillId)}`).join(' · '); }
@@ -2626,15 +2878,15 @@ body.resolving #panel { opacity:.6; }
         else if (ev.type === 'clash') {
           const ally = ev.a.side === 'ally' ? ev.a : ev.b, foe = ally === ev.a ? ev.b : ev.a;
           const c = CAT[battle.category(ally === ev.a ? ev.odds.win : ev.odds.lose)];
-          cls = 'o-clash'; txt = `⚔ ${n(ally.actorId)} × ${n(foe.actorId)} <b style="color:${c[1]}">${c[0]}</b>`;
+          cls = 'o-clash'; txt = `⚔ ${who(ally)} × ${who(foe)} <b style="color:${c[1]}">${c[0]}</b>`;
         } else {
           const a = ev.a, sk = SKILLS[a.skillId];
           cls = a.side === 'enemy' ? 'o-foe' : 'o-ally';
-          txt = `${n(a.actorId)} → ${n(a.targetId)} <small>${sk.name} · D${sk.dmg}${a.side === 'enemy' ? (UI.defenseNote[a.targetId] ? ' · ' + UI.defenseNote[a.targetId] : ' · sem defesa') : ''}</small>`;
+          txt = `${who(a)} → ${n(a.targetId)} <small>${sk.name} · D${sk.dmg}${a.side === 'enemy' ? (UI.defenseNote[a.targetId] ? ' · ' + UI.defenseNote[a.targetId] : ' · sem defesa') : ''}</small>`;
         }
         return `<span class="ochip ${cls}"><i>${i + 1}</i>${txt}</span>`;
       }).join('');
-      const done = battle.alive('ally').filter(u => view.choices[u.id]).length;
+      const done = battle.alive('ally').filter(u => view.choices[u.id]).length; // parceiro de combinação conta
       $('#panel').innerHTML = `<div class="bar-hint">${view.hint}</div><div class="order-strip">${chips}</div>` +
         `<button class="confirm" ${view.complete ? '' : 'disabled'}>Executar rodada ▶ <small>${done}/${battle.alive('ally').length}</small></button>`;
       $('#panel .confirm').onclick = onConfirm;
@@ -2674,6 +2926,15 @@ body.resolving #panel { opacity:.6; }
     plan: () => view.plan,
     preview: () => view.preview,
     commit(uid, skillId, targetId) {
+      const sk = SKILLS[skillId];
+      // trocar a ação de quem estava numa combinação desfaz a combinação inteira
+      dropCombo(uid);
+      if (sk.combo) {
+        // combinação: registrada no líder, consome a ação de todos os membros
+        sk.members.forEach(m => dropCombo(m));
+        uid = sk.members[0];
+        sk.members.slice(1).forEach(m => { view.choices[m] = { comboWith: uid }; });
+      }
       const prev = view.choices[uid];
       view.choices[uid] = { skillId, targetId, intercept: prev && prev.targetId === targetId ? prev.intercept : true };
       // interceptação ligada por padrão só quando for válida
@@ -2682,9 +2943,18 @@ body.resolving #panel { opacity:.6; }
       firstAction = false;
       refreshPlan();
     },
-    cancel(uid) { delete view.choices[uid]; refreshPlan(); },
+    cancel(uid) { dropCombo(uid); delete view.choices[uid]; refreshPlan(); },
     toggleIntercept(uid) { const c = view.choices[uid]; if (c) { c.intercept = !c.intercept; refreshPlan(); } },
   });
+
+  // Remove uma combinação que envolva este personagem (libera todos os membros).
+  function dropCombo(uid) {
+    const c = view.choices[uid];
+    const lead = c && (c.comboWith || (SKILLS[c.skillId] && SKILLS[c.skillId].combo ? uid : null));
+    if (!lead) return;
+    const sk = SKILLS[(view.choices[lead] || {}).skillId];
+    for (const m of (sk && sk.combo ? sk.members : [lead, uid])) delete view.choices[m];
+  }
 
   const Phase = { INTENTS: 'INTENTS', PLAN: 'PLAN', RESOLVE: 'RESOLVE', END: 'END' };
   const fsm = { state: null, go(s, data) { this.state = s; enter[s](data); } };
@@ -2744,7 +3014,8 @@ body.resolving #panel { opacity:.6; }
     const allies = battle.alive('ally');
     view.plan = battle.buildPlan(view.choices);
     view.preview = battle.previewPlan(view.plan);
-    view.complete = allies.every(u => view.plan.actions.some(a => a.actorId === u.id));
+    // completo: todo aliado vivo tem ação própria OU participa de uma combinação válida
+    view.complete = allies.every(u => view.plan.actions.some(a => a.actorId === u.id || (a.partners || []).includes(u.id)));
     const note = {};
     for (const a of view.plan.actions.filter(x => x.side === 'ally')) {
       const sk = SKILLS[a.skillId];

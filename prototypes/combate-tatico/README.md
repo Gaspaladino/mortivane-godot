@@ -3,15 +3,25 @@
 Protótipo jogável e independente do projeto Godot. Basta abrir `index.html` no navegador; não precisa de servidor nem de build.
 
 ## Planejamento na arena
-- **Seleção direta:** clique num aliado e as habilidades dele surgem em círculos ao redor. As três ofensivas ficam maiores; defesa, suporte e proteção ficam menores. O menu acompanha a posição atual do personagem e se adapta às bordas da tela.
+- **Seleção direta:** clique num aliado e as habilidades dele surgem num leque **à frente** dele, abrindo a partir da mão. As três ofensivas formam um arco, com a do meio mais à frente. Defesa, suporte, proteção e combinação ficam num arco externo menor. Perto da borda, o leque vira para o lado que tem espaço e se desloca na vertical para continuar visível.
 - **Correntes:** arraste do personagem até uma habilidade e continue até o alvo, num único gesto. A primeira habilidade tocada é a escolhida; para trocar no meio do gesto, pare cerca de 0,25 s sobre outra. Também funciona só com cliques: personagem → habilidade → alvo. Habilidades de defesa confirmam no próprio círculo.
 - **Leitura:**
   - Intenções inimigas aparecem como linhas vermelhas tracejadas e discretas.
   - As ações aliadas são correntes: elos ovais com ponta de lança para ataque, elos redondos com losango para suporte e elos quadrados com escudo para proteção.
   - O medalhão perto do início mostra a habilidade e a ordem; o selo no meio mostra o Clash (Favorável, Equilibrado ou Desfavorável).
-  - Passar o mouse destaca só as conexões daquele personagem. Correntes para o mesmo alvo se abrem em leque.
+  - As correntes sobem acima dos personagens e descem no alvo (Bézier cúbica). A altura depende da distância e de uma faixa: o arco mais curto fica embaixo e quem passa por cima de outro sobe uma faixa. Pontas que compartilham origem ou destino ganham pequenos deslocamentos.
+  - Passar o mouse destaca só as conexões daquele personagem; a corrente em edição brilha.
 - **Prévia de Clash:** aparece ao mirar um inimigo ou ao passar o mouse no selo. Usa as regras reais, com modificadores e ordem. Clicar no selo liga ou desliga a interceptação.
 - **Alterar e cancelar:** clique de novo no personagem para trocar; ✕ no menu ou botão direito cancela; Esc desfaz o passo atual. Soltar a corrente fora de um alvo válido não muda nada.
+
+## Golpes múltiplos e ataques combinados
+- **Sequências de golpes** (`hits` em `data.js`): Corte Rápido e Lâmina Veloz dão 2 cortes; Ataque Arriscado dá 3 golpes; Projétil Mágico lança 2 projéteis. Golpe Pesado e Esmagar continuam com um golpe só, com preparação mais longa (`windup`). Cada golpe tem uma fração do dano (`share`), um movimento (`motion`) e uma reação (`react`). O dano é dividido em inteiros que somam exatamente o dano da lógica, e no fim aparece "Total N". A habilidade disputa um único Clash: se perder, nenhum golpe da sequência acontece.
+- **Variações cosméticas:** corte horizontal, invertido, diagonal ou de cima; preparação levemente diferente; arco do projétil. Nada disso muda dano, força, alvo ou efeito.
+- **Ataques combinados** (`COMBOS` em `data.js`): uma ação que gasta a ação principal dos dois membros e disputa um único Clash.
+  - **Investida Conjunta** (Cavaleiro + Espadachim): F10, dano 15 em 4 golpes, derruba, recarga 3. Fica disponível no leque dos dois personagens.
+  - **Pressão Brutal** (Brutamontes + Duelista): F10, dano 17, derruba. A IA usa com 30% de chance quando os dois iam atacar e a combinação não está em recarga; é anunciada na preparação inimiga.
+  - Se um membro cair antes da vez da combinação, ela é interrompida e ninguém ganha uma ação extra.
+  - Cancelar libera os dois membros, e trocar a ação de um membro desfaz a combinação.
 
 ## Execução contínua
 - **Posições persistentes:** ninguém volta à formação depois de agir. Golpes empurram, interceptadores ficam no caminho e esquivas mudam a profundidade. Entre rodadas, cada lado só recua o necessário para voltar à sua metade, com espaçamento mínimo e dentro da arena.
@@ -49,7 +59,7 @@ Enfraquecimento tira 2 de força do alvo e Suporte dá +2 de força para a próx
 ## Arquitetura
 | Arquivo | Papel |
 |---|---|
-| `js/data.js` | **Balanceamento:** fórmulas (`CONFIG`), personagens, habilidades, reações e status. Edite aqui. |
+| `js/data.js` | **Balanceamento:** fórmulas (`CONFIG`), personagens, habilidades (com `hits`, `windup` e `impact`), combinações (`COMBOS`), reações e status. Edite aqui. |
 | `js/combat.js` | Lógica pura (`Battle`): intenções, `buildPlan` (valida as ações e liga os Clashes e as interceptações), `previewPlan` (prévia), `resolveRound` (fila de eventos com o resultado completo e um snapshot do estado). Usa RNG com semente. |
 | `js/ai.js` | IA: Brutamontes prefere golpes fortes, Duelista prefere alvos frágeis ou enfraquecidos e Conjurador usa magias e Maldição. Com pouca vida, às vezes eles se defendem. |
 | `js/presenter.js` | Apresentação: estados visuais, rotinas paralelas de recuperação, reações físicas, espaçamento (`settle`), câmera que acompanha, e reprodução dos eventos `stances`, `support`, `clash` e `attack`. |

@@ -26,6 +26,23 @@
         const target = scored[0].u;
         intents.push({ actorId: e.id, skillId: this.pickSkill(battle, e, target, attacks, ai.prefers), targetId: target.id });
       }
+      return this.maybeCombo(battle, intents);
+    },
+
+    // Combinação inimiga: só com os dois membros vivos, ambos atacando, sem recarga
+    // e com frequência moderada. Substitui as duas ações por uma (sem ação extra).
+    maybeCombo(battle, intents) {
+      for (const id in G.COMBOS) {
+        const c = G.COMBOS[id];
+        if (c.side !== 'enemy') continue;
+        const lead = battle.unit(c.members[0]);
+        const its = c.members.map(m => intents.find(i => i.actorId === m));
+        if (its.some(i => !i || SKILLS[i.skillId].kind !== 'attack')) continue;
+        if (!battle.skillReady(lead, id) || battle.rand() >= G.AI_COMBO_CHANCE) continue;
+        const lead_it = its[0];
+        intents = intents.filter(i => !c.members.includes(i.actorId));
+        intents.unshift({ actorId: lead.id, skillId: id, targetId: lead_it.targetId, partners: c.members.slice(1) });
+      }
       return intents;
     },
 

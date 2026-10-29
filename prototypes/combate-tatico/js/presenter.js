@@ -385,6 +385,14 @@
           this.focusOn([A], -0.25);
           this.tween(A, { ready: 1, guard: 1, arm: -0.5 }, 240);
           this.caption = `${A.name} se prepara para defender (${sk.name})`;
+        } else if (sk.combo) {
+          // combinação anunciada: os dois membros assumem postura e ficam destacados
+          const Ps = (it.partners || []).map(id => this.vis[id]);
+          this.focusOn([A, ...Ps, T], -0.25);
+          for (const v of [A, ...Ps]) { this.faceTo(v, T); this.setState(v, 'PREPARING'); this.tween(v, { ready: 1, arm: -1.1, lean: -0.1 }, 240); this.sparks(v.x, v.y - 150, '#ffb36a', 8, 0.2, -0.0004); }
+          this.showBanner('ATAQUE COMBINADO', '#ff9a5a', 1000, `${[A, ...Ps].map(v => v.name).join(' + ')} → ${T.name}`);
+          this.caption = `${[A, ...Ps].map(v => v.name).join(' e ')} preparam ${sk.name} contra ${T.name}!`;
+          await this.wait(350);
         } else {
           this.focusOn([A, T], -0.2);
           this.faceTo(A, T);
@@ -539,19 +547,134 @@
       await this.wait(300);
     }
 
+    // ============================================================ SEQUÊNCIAS DE GOLPES
+    // Divide o dano total entre os impactos (inteiros que SOMAM exatamente o total).
+    _splitDamage(total, shares) {
+      const out = []; let acc = 0, sum = shares.reduce((a, b) => a + b, 0);
+      shares.forEach((sh, i) => {
+        const v = i === shares.length - 1 ? total - acc : Math.round(total * sh / sum);
+        out.push(Math.max(0, v)); acc += out[i];
+      });
+      return out;
+    }
+    _steps(sk) {
+      return sk.hits || [{ by: 0, share: 1, motion: sk.tags.includes('magic') ? 'proj' : (sk.tags.includes('heavy') ? 'over' : 'h'), react: 'final' }];
+    }
+    // Leva os parceiros de uma combinação para perto, sem ocupar o lugar do líder.
+    _bringPartners(partners, lead, tx, ty) {
+      return Promise.all(partners.filter(p => p && !p.dead).map(async (p, i) => {
+        await this.sync(p);
+        const dir = tx >= lead.x ? 1 : -1;
+        this.setState(p, 'APPROACHING'); p.dashing = true;
+        this.faceTo(p, { x: tx });
+        const lane = (ty > (ARENA.minY + ARENA.maxY) / 2 ? -1 : 1) * (40 + i * 20);
+        await this.moveTo(p, tx - dir * (MOVE[p.art].reach + 95), ty + lane, 240 * MOVE[p.art].dash, 'out');
+        p.dashing = false;
+        this.tween(p, { lean: -0.15, arm: -1.2 }, 140);
+      }));
+    }
+    // Um golpe individual (cosmético: varia por "motion"; não muda nada da lógica).
+    async _strikeMotion(A, L, motion, others = []) {
+      const dir = L.x >= A.x ? 1 : -1;
+      this.faceTo(A, L);
+      this.setState(A, 'ATTACKING');
+      if (motion === 'proj') {
+        const up = this.time % 2 < 1 ? 1 : -1; // pequena variação no arco do lançamento
+        await this.tween(A, { cast: 1, arm: -0.6 + up * 0.15 }, 90);
+        this.tween(A, { arm: 0.3, lean: 0.08 }, 90);
+        this.addFx({ kind: 'proj', dur: 240, x0: A.x + A.face * 30, y0: A.y - 115, x1: L.x - dir * 18, y1: L.y - 70, color: A.side === 'ally' ? '#8fd3ff' : '#c86bff', arc: 22 * up });
+        await this.wait(240);
+        return dir;
+      }
+      // abre espaço: outro atacante no ponto de golpe dá um passo atrás (coreografia)
+      const standX = L.x - dir * MOVE[A.art].reach;
+      let standY = A.y;
+      for (const o of others) {
+        if (o === A || o.dead || Math.abs(o.x - standX) > 60) continue;
+        this.tween(o, { x: o.x - dir * 55, lean: -0.1 }, 160, 'out');
+        standY = clamp(L.y + (L.y > (ARENA.minY + ARENA.maxY) / 2 ? -34 : 34), ARENA.minY, ARENA.maxY);
+      }
+      if (Math.abs(A.x - standX) > 18 || Math.abs(A.y - standY) > 10) {
+        A.dashing = true;
+        await this.moveTo(A, standX, standY, 130 * MOVE[A.art].dash, 'in');
+        A.dashing = false;
+      }
+      const heavy = motion === 'over';
+      await this.tween(A, { arm: heavy ? -1.7 : -1.2, lean: heavy ? -0.2 : 0.05 }, heavy ? 120 : 60, 'out');
+      this.tween(A, { arm: 1.3, lean: 0.25 }, 70, 'in');
+      await this.wait(45);
+      if (motion === 'bash') {
+        this.tween(A, { x: A.x + dir * 20, guard: 1 }, 80, 'out');
+        this.addFx({ kind: 'ring', dur: 260, x: L.x - dir * 28, y: L.y - 72, color: '#cfe3ff', r: 40 });
+      } else {
+        const rot = motion === 'd' ? 0.55 : motion === 'over' ? -0.85 : 0;
+        this.addFx({ kind: 'slash', dur: 240, x: L.x - dir * 30, y: L.y - 70, dir, heavy, rot, flip: motion === 'h2', color: '#fff3d6' });
+      }
+      return dir;
+    }
+    // Executa a sequência de golpes de uma habilidade (ou combinação) já vencida/acertada.
+    // total/hpBefore/hpAfter vêm da lógica: a soma dos impactos é exatamente o dano real.
+    async _sequence(attackers, L, sk, hit, finalLv, opts = {}) {
+      const steps = this._steps(sk);
+      const dmgs = this._splitDamage(hit.damage, steps.map(s => s.share));
+      const dmgColor = L.side === 'ally' ? '#ff6a5a' : '#ffe08a';
+      let hp = hit.hpBefore, lv = finalLv;
+      for (let i = 0; i < steps.length; i++) {
+        const st = steps[i], last = i === steps.length - 1;
+        let A = attackers[st.by] || attackers[0];
+        if (!A || A.dead) A = attackers.find(a => a && !a.dead) || attackers[0];
+        if (attackers.length > 1) this.focusOn([...attackers.filter(a => !a.dead), L], 0.05);
+        let dir = L.x >= A.x ? 1 : -1;
+        if (i > 0 || !opts.firstDone) dir = await this._strikeMotion(A, L, st.motion, attackers);
+        hp = last ? hit.hpAfter : Math.max(hit.hpAfter, hp - dmgs[i]);
+        L.hp = hp;
+        L.flash = 1;
+        this.sparks(L.x - dir * 18, L.y - 72, opts.blocked ? '#cfe3ff' : (st.motion === 'proj' ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ff7a5a'), last ? 16 : 9, 0.5);
+        const big = last && (hit.killed || steps.length === 1);
+        this.float(L.x + (i % 2 ? 14 : -14), L.y - 128 - i * 10, String(dmgs[i]), dmgColor, big ? (hit.killed ? 46 : 32) : 24, big ? 1400 : 900);
+        this.hitStop(last ? 70 : 40);
+        this.hurtShake(2 + dmgs[i] * 0.3);
+        lv = st.react === 'final' ? finalLv : st.react;
+        if (opts.blocked) lv = LEVELS[Math.max(0, LEVELS.indexOf(lv) - 1)];
+        if (!last) {
+          // reação intermediária sincronizada com o contato (sem travar a sequência)
+          const push = lv === 'light' ? 14 : 34;
+          this.tween(L, { x: clamp(L.x + dir * push * MOVE[L.art].knock, ARENA.minX, ARENA.maxX), lean: lv === 'light' ? -0.25 : -0.4 }, 90, 'out')
+            .then(() => this.tween(L, { lean: -0.1 }, 120));
+          if (lv !== 'light') this.dust(L, 4);
+          await this.wait(70);
+        } else if (opts.blocked) {
+          const slide = lv === 'heavy' || lv === 'extreme' ? 60 : lv === 'medium' ? 35 : 18;
+          this.routine(L, async () => {
+            this.dust(L, 5);
+            await this.tween(L, { x: clamp(L.x + dir * slide * MOVE[L.art].knock, ARENA.minX, ARENA.maxX), lean: -0.12, crouch: 0.08 }, 220, 'out');
+            await this.tween(L, { lean: 0, crouch: 0 }, 200);
+            this.setState(L, 'BLOCKING');
+          });
+          if (hit.killed) this.react(L, 'heavy', dir, true);
+        } else this.react(L, lv, dir, hit.killed);
+      }
+      if (steps.length > 1) this.float(L.x, L.y - 205, `Total ${hit.damage}`, '#ffe9b0', 18, 1200);
+      for (const a of attackers) if (a && !a.dead) this.followThrough(a);
+      return lv;
+    }
+
     // ------------------------------------------------------------ CLASH
     async playClash(ev) {
       const A = this.vis[ev.a.actorId], B = this.vis[ev.b.actorId];
       const skA = G.SKILLS[ev.a.skillId], skB = G.SKILLS[ev.b.skillId];
       const magA = skA.tags.includes('magic'), magB = skB.tags.includes('magic');
       const T = ev.intercept ? this.vis[ev.originalTargetId] : null;
+      const pA = (ev.a.partners || []).map(id => this.vis[id]), pB = (ev.b.partners || []).map(id => this.vis[id]);
       const margin = ev.winner ? Math.abs(ev.a.total - ev.b.total) : 0;
       const variant = (this._eventIndex * 7 + (ev.a.roll + ev.b.roll)) % 3; // variação visual estável
-      this.caption = `CLASH  ·  ${A.name} (${skA.name})  ×  ${B.name} (${skB.name})`;
+      const names = (v, ps) => [v, ...ps].map(x => x.name).join(' + ');
+      this.caption = `${skA.combo || skB.combo ? 'CLASH COMBINADO' : 'CLASH'}  ·  ${names(A, pA)} (${skA.name})  ×  ${names(B, pB)} (${skB.name})`;
+      if (skA.combo || skB.combo) this.showBanner('ATAQUE COMBINADO', '#ffd36a', 900, (skA.combo ? names(A, pA) : names(B, pB)));
 
       // 1-2. participantes e posições ATUAIS
-      this.focusOn(T ? [A, B, T] : [A, B]);
-      await this.sync(A, B);
+      this.focusOn([...(T ? [A, B, T] : [A, B]), ...pA, ...pB]);
+      await this.sync(A, B, ...pA, ...pB);
       this.faceTo(A, B); this.faceTo(B, A);
 
       // 3. ponto de choque calculado dinamicamente
@@ -590,6 +713,9 @@
             .then(() => { v.dashing = false; this.tween(v, { arm: variant === 1 ? 0.6 : 1.1, lean: 0.25 }, 70, 'in'); }));
         }
       }
+      // parceiros de combinação chegam junto, logo atrás do líder
+      if (pA.length) go.push(this._bringPartners(pA, A, P.x, P.y));
+      if (pB.length) go.push(this._bringPartners(pB, B, P.x, P.y));
       await Promise.all(go);
       for (const v of [A, B]) this.setState(v, 'CLASHING');
       this.focusOn([A, B], 0.1);
@@ -629,10 +755,12 @@
         this.sparks(P.x, hy, '#ffe28a', 14, 0.5);
         this.react(A, 'medium', A.x < P.x ? -1 : 1);
         this.react(B, 'medium', B.x < P.x ? -1 : 1);
+        [...pA, ...pB].forEach(p => this.react(p, 'light', p.x < P.x ? -1 : 1));
         await this.wait(380);
       } else {
         const aWins = ev.winner === A.id;
-        const [W, L, nW, nL, skW] = aWins ? [A, B, nA, nB, skA] : [B, A, nB, nA, skB];
+        const [W, L, nW, nL, skW, pW, pL] = aWins ? [A, B, nA, nB, skA, pA, pB] : [B, A, nB, nA, skB, pB, pA];
+        pL.forEach(p => this.react(p, 'light', p.x < P.x ? -1 : 1)); // a combinação perdida é interrompida
         const dirL = L.x >= W.x ? 1 : -1;
         nW.color = '#ffe08a';
         this.tween(nW, { s: 1.45 }, 160, 'back');
@@ -650,33 +778,12 @@
           this.hurtShake(6);
           await this.tween(L, { x: clamp(L.x + dirL * 70, ARENA.minX, ARENA.maxX), lean: -0.6, arm: 0.4, crouch: 0.12 }, 160, 'out');
         }
-        // golpe do vencedor
+        // golpe(s) do vencedor: sequência configurada da habilidade/combinação
         const h = ev.hit;
-        this.setState(W, 'ATTACKING');
-        if (skW.tags.includes('magic')) {
-          this.tween(W, { cast: 1, arm: 0.3 }, 120);
-          this.addFx({ kind: 'proj', dur: 240, x0: W.x + W.face * 30, y0: W.y - 115, x1: L.x, y1: L.y - 70, color: W.side === 'ally' ? '#8fd3ff' : '#c86bff' });
-          await this.wait(240);
-        } else {
-          W.dashing = true;
-          await this.moveTo(W, L.x - dirL * MOVE[W.art].reach, W.y, 130 * MOVE[W.art].dash, 'in');
-          W.dashing = false;
-          this.tween(W, { arm: 1.3 }, 80, 'in');
-          await this.wait(55);
-          this.addFx({ kind: 'slash', dur: 260, x: L.x - dirL * 30, y: L.y - 70, dir: dirL, heavy: skW.tags.includes('heavy'), color: '#fff3d6' });
-        }
-        // 8. impacto + reação física
-        this.hitStop(h.killed ? 140 : 70);
-        L.flash = 1;
-        this.sparks(L.x, L.y - 70, '#ff7a5a', 16, 0.55);
-        this.float(L.x, L.y - 130, String(h.damage), L.side === 'ally' ? '#ff6a5a' : '#ffe08a', h.killed ? 46 : 34, h.killed ? 1500 : 1100);
-        L.hp = h.hpAfter;
         const marginLv = margin >= 5 ? 'heavy' : margin >= 3 ? 'medium' : 'light';
         const lv = LEVELS[Math.max(LEVELS.indexOf(h.impact || 'light'), LEVELS.indexOf(marginLv))];
-        this.hurtShake(3 + h.damage * 0.35);
-        this.react(L, lv, dirL, h.killed);
-        this.followThrough(W);
-        this.tween(nW, { a: 0 }, 420);
+        this.tween(nW, { a: 0 }, 600);
+        await this._sequence([W, ...pW], L, skW, h, lv);
         if (h.applied) { const st = G.STATUS[h.applied]; this.float(L.x, L.y - 165, st.name.toUpperCase(), st.color, 20, 1300); }
         if (h.killed || lv === 'extreme') await this._decisive(L, h.killed);
         await this.wait(lv === 'light' ? 220 : 320);
@@ -690,11 +797,13 @@
       const sk = c.skill;
       const A = this.vis[c.attackerId], T = this.vis[c.targetId], D = this.vis[c.defenderId];
       const P = c.protectorId ? this.vis[c.protectorId] : null;
+      const partners = (c.partners || []).map(id => this.vis[id]);
       const magic = sk.tags.includes('magic'), heavy = sk.tags.includes('heavy'), fast = sk.tags.includes('fast');
-      this.caption = `${A.name}  ·  ${sk.name}  →  ${T.name}`;
+      this.caption = `${[A, ...partners].map(v => v.name).join(' + ')}  ·  ${sk.name}  →  ${T.name}`;
+      if (sk.combo) this.showBanner('ATAQUE COMBINADO', '#ffd36a', 900, [A, ...partners].map(v => v.name).join(' + '));
 
-      this.focusOn([A, T]);
-      await this.sync(A);
+      this.focusOn([A, T, ...partners]);
+      await this.sync(A, ...partners);
       this.faceTo(A, T);
 
       // antecipação
@@ -703,8 +812,11 @@
         this.tween(A, { cast: 1, lean: -0.1, arm: -0.5 }, 260);
         for (let i = 0; i < 3; i++) { this.sparks(A.x + A.face * 26, A.y - 112, '#9ad8ff', 6, 0.18, -0.0005); await this.wait(90); }
       } else {
-        await this.tween(A, { lean: -0.22, arm: -1.5, crouch: 0.08 }, (heavy ? 380 : fast ? 130 : 220) * MOVE[A.art].dash, 'out');
-        if (heavy) await this.wait(90);
+        // variação cosmética da preparação (o peso do personagem é mantido)
+        const vr = (this._eventIndex % 3) * 0.04;
+        const wu = (sk.windup || 1) * (heavy ? 380 : fast ? 130 : 220) * MOVE[A.art].dash;
+        await this.tween(A, { lean: -0.18 - vr, arm: -1.4 - vr * 2, crouch: 0.06 + vr }, wu, 'out');
+        if (heavy) await this.wait(90 * (sk.windup || 1));
       }
 
       // intervenção: o protetor entra fisicamente no caminho
@@ -738,6 +850,7 @@
         const dash = this.moveTo(A, D.x - dirD * MOVE[A.art].reach, D.y + 2, (fast ? 130 : heavy ? 230 : 175) * MOVE[A.art].dash, 'in');
         this.tween(A, { lean: 0.25, crouch: 0 }, 150);
         this._react(c, D, A, fast ? 80 : 120);
+        if (partners.length) this._bringPartners(partners, A, D.x, D.y);
         await dash;
         A.dashing = false;
         this.setState(A, 'ATTACKING');
@@ -746,7 +859,7 @@
         this.addFx({ kind: 'slash', dur: 260, x: D.x - dirD * 30, y: D.y - 70, dir: dirD, heavy, color: c.outcome === 'dodged' ? 'rgba(255,255,255,0.5)' : '#fff3d6' });
       }
 
-      await this._impact(c, A, D, magic, dirD);
+      await this._impact(c, A, D, magic, dirD, [A, ...partners]);
 
       this._applySnapshot(c.after, false);
       if (c.applied) {
@@ -754,7 +867,7 @@
         this.float(D.x, D.y - 150, st.name.toUpperCase(), st.color, 20, 1300);
         this.sparks(D.x, D.y - 70, st.color, 10, 0.2, -0.0003);
       }
-      if (!A.dead && A.state !== 'HIT_LIGHT' && A.state !== 'HIT_HEAVY') this.followThrough(A);
+      if (!['blocked', 'hit', 'dodgeFail', 'parryFail', 'guardBroken'].includes(c.outcome) && !A.dead && A.state !== 'HIT_LIGHT' && A.state !== 'HIT_HEAVY') this.followThrough(A);
       this.caption = null;
     }
 
@@ -778,7 +891,7 @@
       }
     }
 
-    async _impact(c, A, D, magic, dir) {
+    async _impact(c, A, D, magic, dir, attackers = [A]) {
       const hx = D.x - dir * 18, hy = D.y - 72;
       const dmgColor = D.side === 'ally' ? '#ff6a5a' : '#ffe08a';
       const showDamage = (v, n, big) => this.float(v.x + (Math.random() * 20 - 10), v.y - 130, String(n), dmgColor, big ? 46 : 32, big ? 1500 : 1100);
@@ -825,37 +938,19 @@
         }
         case 'blocked': {
           this.addFx({ kind: 'ring', dur: 260, x: hx + D.face * 12, y: hy, color: '#cfe3ff', r: 36 });
-          this.sparks(hx, hy, '#cfe3ff', 16, 0.55);
           this.float(D.x, D.y - 165, 'BLOQUEIO', '#9fd0ff', 18);
-          showDamage(D, c.damage, false);
-          D.hp = c.hpAfter;
-          this.hitStop(60);
-          this.hurtShake(2 + c.damage * 0.15);
-          // bloqueio: desliza para trás pelo peso do golpe, sem perder a guarda
-          const slide = c.impact === 'extreme' || c.impact === 'heavy' ? 60 : c.impact === 'medium' ? 35 : 18;
-          this.routine(D, async () => {
-            this.dust(D, 5);
-            await this.tween(D, { x: clamp(D.x + dir * slide * MOVE[D.art].knock, ARENA.minX, ARENA.maxX), lean: -0.12, crouch: 0.08 }, 220, 'out');
-            await this.tween(D, { lean: 0, crouch: 0 }, 200);
-            this.setState(D, 'BLOCKING');
-          });
-          if (c.killed) { this.react(D, 'heavy', dir, true); await this._decisive(D, true); }
-          await this.wait(200);
+          await this._sequence(attackers, D, c.skill, c, c.impact || 'light', { firstDone: true, blocked: true });
+          if (c.killed) await this._decisive(D, true);
+          await this.wait(180);
           return;
         }
-        default: { // hit, dodgeFail, parryFail, guardBroken
+        default: { // hit, dodgeFail, parryFail, guardBroken — todos os golpes da sequência acertam
           if (c.outcome === 'parryFail') this.float(D.x, D.y - 165, 'APARO FALHOU', '#ff8a6a', 18);
           else if (c.outcome === 'dodgeFail') this.float(D.x, D.y - 165, 'ESQUIVA FALHOU', '#ff8a6a', 18);
-          D.flash = 1;
           if (magic) this.addFx({ kind: 'ring', dur: 360, x: hx, y: hy, color: A.side === 'ally' ? '#8fd3ff' : '#c86bff', r: 50 });
-          this.sparks(hx, hy, magic ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ff7a5a', 18, 0.55);
-          showDamage(D, c.damage, c.decisive);
-          D.hp = c.hpAfter;
-          this.hitStop(c.killed ? 0 : 70);
-          this.hurtShake(3 + c.damage * 0.3);
-          this.react(D, c.impact || 'light', dir, c.killed);
-          if (c.killed || c.impact === 'extreme') await this._decisive(D, c.killed);
-          await this.wait(c.impact === 'light' ? 200 : 300);
+          const lv = await this._sequence(attackers, D, c.skill, c, c.impact || 'light', { firstDone: true });
+          if (c.killed || lv === 'extreme') await this._decisive(D, c.killed);
+          await this.wait(lv === 'light' ? 180 : 280);
         }
       }
     }
@@ -1037,7 +1132,7 @@
         const p = f.t / f.dur;
         ctx.save();
         if (f.kind === 'slash') {
-          ctx.translate(f.x, f.y); ctx.scale(f.dir, 1);
+          ctx.translate(f.x, f.y); ctx.scale(f.dir, f.flip ? -1 : 1); ctx.rotate(f.rot || 0);
           ctx.globalAlpha = 1 - p;
           ctx.strokeStyle = f.color; ctx.lineWidth = (f.heavy ? 16 : 9) * (1 - p * 0.6); ctx.lineCap = 'round';
           const r = f.heavy ? 85 : 65, a0 = -1.9, a1 = -1.9 + 2.6 * Math.min(1, p * 2.5);
@@ -1055,10 +1150,10 @@
           ctx.fill();
         } else if (f.kind === 'proj') {
           const e = ease.in(p);
-          const x = lerp(f.x0, f.x1, e), y = lerp(f.y0, f.y1, e) - Math.sin(p * Math.PI) * 30;
+          const x = lerp(f.x0, f.x1, e), y = lerp(f.y0, f.y1, e) - Math.sin(p * Math.PI) * (f.arc == null ? 30 : f.arc);
           for (let i = 6; i >= 0; i--) {
             const q = Math.max(0, e - i * 0.04);
-            const tx = lerp(f.x0, f.x1, q), ty = lerp(f.y0, f.y1, q) - Math.sin(Math.max(0, p - i * 0.04) * Math.PI) * 30;
+            const tx = lerp(f.x0, f.x1, q), ty = lerp(f.y0, f.y1, q) - Math.sin(Math.max(0, p - i * 0.04) * Math.PI) * (f.arc == null ? 30 : f.arc);
             ctx.globalAlpha = 0.5 * (1 - i / 7); ctx.fillStyle = f.color;
             ctx.beginPath(); ctx.arc(tx, ty, 12 - i * 1.3, 0, 7); ctx.fill();
           }

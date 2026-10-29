@@ -14,6 +14,11 @@ function smartChoices(b) {
     if (threat) choices[u.id] = { skillId: atk.sort((x, y) => SKILLS[y].force - SKILLS[x].force)[0], targetId: threat.actorId };
     else choices[u.id] = { skillId: atk[Math.floor(b.rand() * atk.length)], targetId: enemies.sort((x, y) => x.hp - y.hp)[0].id, intercept: true };
   }
+  // às vezes usa a combinação Cavaleiro + Espadachim no inimigo mais fraco
+  if (b.combosFor('knight').length && b.rand() < 0.35) {
+    choices.knight = { skillId: 'combo_ks', targetId: enemies.sort((x, y) => x.hp - y.hp)[0].id };
+    choices.swordsman = { comboWith: 'knight' };
+  }
   return choices;
 }
 function randomChoices(b) {
@@ -33,8 +38,15 @@ for (const [label, pick] of [['aleatório', randomChoices], ['simples', smartCho
     while (!b.outcome() && b.round < 40) {
       b.planEnemyIntents();
       const plan = b.buildPlan(pick(b));
+      const acted = new Set();
       for (const ev of b.resolveRound(plan)) {
         types[ev.type] = (types[ev.type] || 0) + 1;
+        // integridade: cada personagem age no máximo uma vez por rodada (combinação conta para os dois)
+        const actors = ev.type === 'clash' ? [ev.a, ev.b].flatMap(x => [x.actorId, ...x.partners])
+          : ev.type === 'attack' ? [ev.attackerId, ...ev.partners] : ev.type === 'support' ? [ev.actorId] : [];
+        for (const id of actors) { if (acted.has(id)) throw new Error('ação duplicada: ' + id); acted.add(id); }
+        if (ev.skillId && SKILLS[ev.skillId].combo) types.combo = (types.combo || 0) + 1;
+        if (ev.type === 'clash' && [ev.a, ev.b].some(x => SKILLS[x.skillId].combo)) types.comboClash = (types.comboClash || 0) + 1;
         // integridade: ninguém morto age, hp nunca negativo
         for (const u of b.units) if (u.hp < 0) throw new Error('hp negativo');
       }
