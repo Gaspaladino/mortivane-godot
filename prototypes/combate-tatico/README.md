@@ -2,29 +2,31 @@
 
 Protótipo jogável e independente do projeto Godot. Basta abrir `index.html` no navegador; não precisa de servidor nem de build.
 
-## Ciclo da batalha
-1. **Sua ofensiva:** escolha habilidade e alvo para cada personagem. As setas e a lista mostram a ordem prevista (por velocidade). Confirme para executar.
-2. Os confrontos acontecem **um por vez**, com câmera, preparação, avanço, reação, impacto e retorno. Os inimigos reagem sozinhos (bloqueio, esquiva ou aparo).
-3. **Ofensiva inimiga:** cada inimigo anuncia o que vai fazer e quem é o alvo. Escolha a reação de cada alvo (o padrão já vem marcado) ou mande o **Cavaleiro proteger** um aliado (uma vez por rodada).
-4. A resolução é exibida e as fases se alternam até a vitória ou a derrota. Use **↻** ou o botão do fim de jogo para reiniciar.
+## Rodada compartilhada
+1. **Preparação inimiga:** cada inimigo escolhe a ação e o alvo, e a escolha fica fixa durante a rodada. A arena mostra linhas tracejadas com habilidade, força (F) e dano (D), além das poses de preparação.
+2. **Planejamento:** escolha uma ação para cada personagem. Pode ser atacar, usar uma habilidade especial, interceptar, assumir uma postura defensiva, proteger um aliado ou dar suporte.
+3. **Prévia:** mostra os Clashes como Favorável, Equilibrado ou Desfavorável, com as chances calculadas a partir de todas as rolagens possíveis. Também mostra os ataques sem oposição e a ordem prevista dos acontecimentos.
+4. **Execução:** um acontecimento por vez, sempre na ordem prevista.
 
-Controles: **1×/2×** para a velocidade, **Pular** (ou Espaço) para terminar as animações e **?** para ver as regras. Velocidade e pulo não mudam o resultado, porque tudo é decidido antes de a animação começar.
+### Clash
+Cada lado calcula **Força da habilidade + modificadores + rolagem de 0 a 3**. Quem tiver o total maior interrompe o golpe do outro e causa o próprio dano. Em caso de empate, os dois golpes se anulam. Força e dano são valores separados: força alta ajuda a vencer Clashes, e dano alto rende mais contra quem não reage.
+- **Direto:** acontece quando você ataca o inimigo que está atacando você.
+- **Interceptação:** atacar um inimigo que mira outro aliado permite entrar na frente dele. Só vale se `velocidade da ação (+ alcance) ≥ velocidade do golpe inimigo`. O Cavaleiro tem +4 de alcance.
+- Velocidade = velocidade do personagem + prioridade da habilidade (rápido +2, lento −2, suporte +3). As defesas agem antes de tudo.
+
+### Defesas (duram a rodada e gastam a ação)
+Postura de Escudo bloqueia o dano. Proteção faz o Cavaleiro receber e bloquear os golpes sem oposição destinados a um aliado, o que é diferente de interceptar. Aparar anula o primeiro golpe físico e contra-ataca; o contra-ataque não pode ser reagido e Aparar não funciona contra magia. Passo Etéreo dá uma chance de esquivar de cada golpe.
+
+### Preparação entre aliados
+Enfraquecimento tira 2 de força do alvo e Suporte dá +2 de força para a próxima habilidade de um aliado. Os dois agem cedo, mas só afetam o que vier **depois** deles na ordem; nada muda de forma retroativa.
 
 ## Arquitetura
 | Arquivo | Papel |
 |---|---|
 | `js/data.js` | **Balanceamento:** fórmulas (`CONFIG`), personagens, habilidades, reações e status. Edite aqui. |
-| `js/combat.js` | Lógica pura (`Battle`): chances, dano, reações, contra-ataque, intervenção e recargas. Usa RNG com semente e devolve *confrontos* com o resultado completo e um snapshot do estado. |
-| `js/ai.js` | IA: reação defensiva (menor dano esperado com viés de personalidade) e intenções (alvo foco por vida, vulnerabilidade e ameaça, além da combinação maldição → esmagar). |
-| `js/presenter.js` | Apresentação: câmera 2D, tweens, câmera lenta, hit-stop, partículas e desenho procedural dos personagens. Recebe os confrontos e os reproduz numa fila de passos: foco → preparação → intervenção → avanço/projétil → reação → impacto → status → retorno. |
+| `js/combat.js` | Lógica pura (`Battle`): intenções, `buildPlan` (valida as ações e liga os Clashes e as interceptações), `previewPlan` (prévia), `resolveRound` (fila de eventos com o resultado completo e um snapshot do estado). Usa RNG com semente. |
+| `js/ai.js` | IA: Brutamontes prefere golpes fortes, Duelista prefere alvos frágeis ou enfraquecidos e Conjurador usa magias e Maldição. Com pouca vida, às vezes eles se defendem. |
+| `js/presenter.js` | Apresentação: câmera, tweens, câmera lenta, hit-stop, partículas e personagens. Reproduz os eventos `stances`, `support`, `clash` (aproximação, choque, forças, vencedor e golpe) e `attack`. |
 | `js/ui.js` | Interface DOM por fase. |
-| `js/main.js` | Máquina de estados: `PLAN → PLAYER_RESOLVE → ENEMY_INTENT → DEFENSE → ENEMY_RESOLVE → (PLAN \| END)`. |
+| `js/main.js` | Máquina de estados: `INTENTS → PLAN → RESOLVE → (INTENTS \| END)`. |
 | `tools/sim.js` | Simulação sem interface para balanceamento: `node tools/sim.js 1000`. |
-
-## Regras resumidas
-- **Dano** = poder × (atk/7) × (20/(20+def)) × variação de ±10%.
-- **Bloquear/Barreira** sempre funciona e reduz o dano pelo `blockPower` da unidade. *Lâmina Fantasma* ignora bloqueios.
-- **Esquivar:** 40% de base + perícia + 4% por ponto de velocidade de vantagem. Golpes pesados dão +20% e golpes rápidos −20%. Se a esquiva falhar, o dano é total.
-- **Aparar:** 40% de base + perícia. Golpes pesados dão −20% e golpes rápidos +10%. Se der certo, anula o golpe e dispara um contra-ataque que não pode ser reagido. Se falhar, o dano é de 125%. Magia não pode ser aparada.
-- **Combinações:** *Quebra-Guarda* deixa o alvo Vulnerável (+50%), e *Estocada Precisa* causa o dobro de dano nesse alvo. *Marca Rúnica* faz o próximo golpe aliado causar +40% e não poder ser esquivado nem aparado. *Desafio* obriga o inimigo a atacar o Cavaleiro.
-- **Golpe decisivo** (mata ou tira 30% ou mais da vida máxima): câmera lenta, hit-stop e banner. Aparos e proteções recebem um destaque menor. Os demais golpes são rápidos.

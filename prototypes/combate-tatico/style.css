@@ -30,7 +30,7 @@ body.resolving #panel { min-height:0; opacity:.55; }
 .hp span { position:absolute; inset:0; font-size:11px; line-height:14px; text-align:center; text-shadow:0 1px 2px #000; }
 .chips { min-height:4px; display:flex; gap:4px; flex-wrap:wrap; }
 .chip { font-size:11px; padding:1px 6px; border-radius:10px; background:color-mix(in srgb, var(--c) 25%, transparent); border:1px solid var(--c); color:var(--c); }
-.skills { display:flex; flex-direction:column; gap:4px; }
+.skills { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
 .skill { text-align:left; display:flex; flex-direction:column; padding:4px 8px; }
 .skill small { font-size:11px; }
 .skill em { font-size:11px; color:var(--foe); }
@@ -75,3 +75,13 @@ body.resolving #panel { min-height:0; opacity:.55; }
   .side { flex:0 0 auto; }
 }
 .foe.mate .hpfill { background:#5fd08a; }
+.threat { font-size:12px; background:#2a1216; border:1px solid #5a2228; border-radius:6px; padding:4px 6px; color:#ffb0a8; }
+.skill.k-defense, .skill.k-protect { border-color:#3a4a6a; }
+.skill.k-support { border-color:#2f5a3e; }
+.preview { width:100%; font-size:12px; background:#120d16; border-radius:6px; padding:6px; display:flex; flex-direction:column; gap:6px; }
+.cat { color:var(--c); font-weight:900; border:1px solid var(--c); border-radius:10px; padding:0 6px; font-size:11px; }
+.tclash { color:#ffd36a !important; }
+.order { margin:0; padding-left:20px; display:flex; flex-direction:column; gap:3px; }
+.order li { line-height:1.3; }
+.o-clash { color:#ffe9b0; } .o-foe { color:#ffb0a8; } .o-sup { color:#9fe8b8; } .o-def { color:#9fd0ff; }
+.side { flex-basis:300px; }

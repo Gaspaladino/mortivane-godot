@@ -1,144 +1,169 @@
 // =====================================================================
-// INTERFACE (DOM) — muda conforme a fase. Não decide nada do combate.
+// INTERFACE (DOM) — planejamento coletivo + prévia de Clashes.
+// Só exibe; quem decide é a lógica (combat.js).
 // =====================================================================
 (function (G) {
   'use strict';
-  const { SKILLS, REACTIONS, STATUS } = G;
+  const { SKILLS, STATUS } = G;
   const $ = sel => document.querySelector(sel);
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-  const TAG_LABEL = { melee: 'corpo a corpo', magic: 'magia', heavy: 'pesado', fast: 'rápido' };
-  const pct = c => Math.round(c * 100) + '%';
+  const TAG = { melee: 'corpo a corpo', magic: 'magia', heavy: 'lento', fast: 'rápido', support: 'prioridade' };
+  const CAT = { favorable: ['Favorável', '#6fd890'], even: ['Equilibrado', '#ffd36a'], unfavorable: ['Desfavorável', '#ff7a6a'] };
+  const pct = x => Math.round(x * 100) + '%';
 
-  function statusChips(u) {
-    return Object.keys(u.statuses).map(k => STATUS[k] ?
+  function chips(u) {
+    return Object.keys(u.statuses).map(k => STATUS[k] && u.statuses[k] !== 'used' ?
       `<span class="chip" style="--c:${STATUS[k].color}" title="${STATUS[k].desc}">${STATUS[k].name}</span>` : '').join('');
   }
   function hpBar(u) {
     const r = Math.max(0, u.hp / u.maxHp);
     return `<div class="hp"><div class="hpfill ${r < 0.3 ? 'low' : ''}" style="width:${r * 100}%"></div><span>${u.hp}/${u.maxHp}</span></div>`;
   }
-  function skillTags(sk) {
-    const t = sk.tags.map(x => TAG_LABEL[x]).join(' · ');
-    return t + (sk.unblockable ? ' · ignora bloqueio' : '') + (sk.cooldown ? ` · recarga ${sk.cooldown - 1}r` : '');
+  function skillLine(battle, u, sk) {
+    if (sk.kind === 'attack') return `Força <b>${sk.force}</b> · Dano <b>${sk.dmg}</b> · Vel ${battle.actionSpeed(u, sk)}${sk.tags.filter(t => TAG[t] && t !== 'melee').map(t => ' · ' + TAG[t]).join('')}`;
+    if (sk.kind === 'support') return `Suporte · Vel ${battle.actionSpeed(u, sk)}`;
+    return 'Defesa · antes de tudo';
   }
+  const catTag = (cat, odds) => `<span class="cat" style="--c:${CAT[cat][1]}">${CAT[cat][0]}</span>` +
+    (odds ? ` <small>vence ${pct(odds.win)} · empata ${pct(odds.tie)}</small>` : '');
 
   const UI = {
+    CAT,
     setTop(battle, phaseLabel, resolving) {
       $('#round').textContent = `Rodada ${battle.round}`;
       $('#phase').textContent = phaseLabel;
       $('#btn-skip').disabled = !resolving;
       document.body.classList.toggle('resolving', !!resolving);
     },
-    setSpeed(s) {
-      document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === s));
-    },
+    setSpeed(s) { document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === s)); },
+    renderWaiting(text) { $('#panel').innerHTML = `<div class="waiting">${text}</div>`; },
 
     // ------------------------------------------------------------ PLANEJAMENTO
-    renderPlan(battle, state, cb) {
+    // view: { choices, active, plan, preview }
+    renderPlan(battle, view, cb) {
       const panel = $('#panel'); panel.innerHTML = '';
       const row = el('div', 'cards');
-      const enemies = battle.units.filter(u => u.side === 'enemy');
+      const intents = battle.intents;
       for (const u of battle.units.filter(x => x.side === 'ally')) {
-        const plan = state.plans[u.id] || {};
-        const card = el('div', 'card' + (u.hp <= 0 ? ' dead' : '') + (state.active === u.id ? ' active' : ''));
-        card.innerHTML = `<div class="card-h"><b>${u.name}</b> <small>${u.def.role} · Vel ${u.def.spd}</small></div>${hpBar(u)}<div class="chips">${statusChips(u)}</div>`;
+        const ch = view.choices[u.id] || {};
+        const card = el('div', 'card' + (u.hp <= 0 ? ' dead' : '') + (view.active === u.id ? ' active' : ''));
+        card.innerHTML = `<div class="card-h"><b>${u.name}</b> <small>${u.def.role} · Vel ${u.def.spd}</small></div>${hpBar(u)}<div class="chips">${chips(u)}</div>`;
         if (u.hp > 0) {
-          const sk = el('div', 'skills');
+          const threats = intents.filter(it => it.targetId === u.id && SKILLS[it.skillId].kind === 'attack');
+          if (threats.length) card.appendChild(el('div', 'threat', threats.map(it => {
+            const sk = SKILLS[it.skillId];
+            return `⚠ <b>${battle.unit(it.actorId).name}</b>: ${sk.name} <small>F${sk.force} · D${sk.dmg}${sk.applies ? ' · enfraquece' : ''}</small>`;
+          }).join('<br>')));
+          const skills = el('div', 'skills');
           for (const id of u.def.skills) {
-            const s = SKILLS[id], ready = battle.skillReady(u, id);
-            const b = el('button', 'skill' + (plan.skillId === id ? ' sel' : ''),
-              `<b>${s.name}</b><small>Poder ${s.power} · ${skillTags(s)}</small>${ready ? '' : `<em>recarga: ${u.cooldowns[id]}</em>`}`);
-            b.disabled = !ready;
-            b.title = s.desc;
-            b.onmouseenter = () => cb.hint(`<b>${s.name}</b> — ${s.desc}`);
+            const sk = SKILLS[id], ready = battle.skillReady(u, id);
+            const b = el('button', 'skill' + (ch.skillId === id ? ' sel' : '') + ' k-' + sk.kind,
+              `<b>${sk.name}</b><small>${skillLine(battle, u, sk)}</small>${ready ? '' : `<em>recarga: ${u.cooldowns[id]}</em>`}`);
+            b.disabled = !ready; b.title = sk.desc;
+            b.onmouseenter = () => cb.hint(`<b>${sk.name}</b> — ${sk.desc}`);
             b.onclick = () => cb.pickSkill(u.id, id);
-            sk.appendChild(b);
+            skills.appendChild(b);
           }
-          card.appendChild(sk);
-          const tg = el('div', 'targets', '<span>Alvo:</span>');
-          for (const e of enemies) {
-            const prev = plan.skillId && e.hp > 0 ? battle.previewHit(u, e, SKILLS[plan.skillId]) : null;
-            const b = el('button', 'target' + (plan.targetId === e.id ? ' sel' : ''), `${e.name}${prev != null ? ` <small>≈${prev}</small>` : ''}`);
-            b.disabled = e.hp <= 0 || !plan.skillId;
-            b.onclick = () => cb.pickTarget(u.id, e.id);
-            tg.appendChild(b);
-          }
-          card.appendChild(tg);
+          card.appendChild(skills);
+          if (ch.skillId) card.appendChild(this._targets(battle, u, ch, view, cb));
           card.appendChild(el('div', 'trait', u.def.trait));
-          card.onclick = (ev) => { if (ev.target === card || ev.target.closest('.card-h')) cb.activate(u.id); };
+          card.onclick = ev => { if (ev.target === card || ev.target.closest('.card-h')) cb.activate(u.id); };
         }
         row.appendChild(card);
       }
       panel.appendChild(row);
+      panel.appendChild(this._side(battle, view, cb));
+    },
 
-      // ordem prevista
+    _targets(battle, u, ch, view, cb) {
+      const sk = SKILLS[ch.skillId];
+      const box = el('div', 'targets');
+      if (sk.kind === 'defense') { box.innerHTML = '<span class="muted">Postura própria — sem alvo.</span>'; return box; }
+      box.appendChild(el('span', null, sk.kind === 'attack' ? 'Alvo:' : 'Aliado:'));
+      const pool = battle.units.filter(t => sk.kind === 'attack' ? t.side === 'enemy' : (t.side === 'ally' && t !== u));
+      for (const t of pool) {
+        let tag = '';
+        if (sk.kind === 'attack' && t.hp > 0) {
+          const it = battle.intents.find(i => i.actorId === t.id);
+          if (it && it.targetId === u.id && SKILLS[it.skillId].kind === 'attack') tag = ' <small class="tclash">⚔ Clash</small>';
+          else if (it && SKILLS[it.skillId].kind === 'attack') tag = ` <small>mira ${battle.unit(it.targetId).name}</small>`;
+          else if (it) tag = ' <small>defende</small>';
+        }
+        const b = el('button', 'target' + (ch.targetId === t.id ? ' sel' : ''), t.name + tag);
+        b.disabled = t.hp <= 0;
+        b.onclick = () => cb.pickTarget(u.id, t.id);
+        box.appendChild(b);
+      }
+      // prévia do Clash / interceptação deste personagem
+      const mine = view.plan && view.plan.actions.find(a => a.actorId === u.id);
+      if (mine && sk.kind === 'attack') {
+        const pv = view.preview.find(e => e.type === 'clash' && (e.a.id === mine.id || e.b.id === mine.id));
+        const info = mine.interceptInfo;
+        const pre = el('div', 'preview');
+        if (pv) {
+          const meFirst = pv.a.id === mine.id;
+          const other = meFirst ? pv.b : pv.a;
+          const fMe = meFirst ? pv.fa : pv.fb, fOt = meFirst ? pv.fb : pv.fa;
+          const odds = meFirst ? pv.odds : { win: pv.odds.lose, tie: pv.odds.tie };
+          pre.innerHTML = `<b>${pv.link.type === 'intercept' ? 'Interceptação' : 'Clash'}</b> contra ${battle.unit(other.actorId).name} (${SKILLS[other.skillId].name})<br>` +
+            `Força ${fMe} + (0–3) × ${fOt} + (0–3) → ${catTag(battle.category(odds.win), odds)}`;
+        } else if (info) {
+          pre.innerHTML = `Sem Clash: ${battle.unit(mine.targetId).name} vai atacar ${battle.unit(info.protects).name}.`;
+        } else pre.innerHTML = `Ataque sem oposição: dano ${sk.dmg} (se o alvo não bloquear/esquivar/aparar).`;
+        if (info) {
+          const ok = info.valid;
+          const tb = el('button', 'react protect' + (ch.intercept ? ' sel' : ''),
+            `<b>⚔ Interceptar ataque contra ${battle.unit(info.protects).name}</b><small>${ok ? `válido: Vel ${info.mySpeed}${info.reach ? ' +' + info.reach + ' alcance' : ''} ≥ ${info.enemySpeed}` : `lento demais: Vel ${info.mySpeed}${info.reach ? ' +' + info.reach : ''} < ${info.enemySpeed}`}</small>`);
+          tb.disabled = !ok;
+          tb.onclick = () => cb.toggleIntercept(u.id);
+          pre.appendChild(tb);
+        }
+        box.appendChild(pre);
+      }
+      return box;
+    },
+
+    _side(battle, view, cb) {
       const side = el('div', 'side');
-      const order = state.order;
-      side.innerHTML = `<div class="sh">Ordem prevista (velocidade)</div>` + (order.length ? '<ol>' + order.map(p => {
-        const a = battle.unit(p.attackerId), t = battle.unit(p.targetId);
-        return `<li><b>${a.name}</b> · ${SKILLS[p.skillId].name} → ${t.name}</li>`;
-      }).join('') + '</ol>' : '<p class="muted">Escolha habilidade e alvo de cada personagem.</p>') +
-        `<div class="sh">Inimigos</div>` + enemies.map(e => `<div class="foe ${e.hp <= 0 ? 'dead' : ''}"><b>${e.name}</b> <small>Vel ${e.def.spd}</small>${hpBar(e)}<div class="chips">${statusChips(e)}</div></div>`).join('');
-      const hint = el('div', 'hint', state.hint || 'Clique num personagem e depois num inimigo (também funciona clicando na arena).');
+      let html = '<div class="sh">Ordem prevista</div>';
+      if (view.preview && view.preview.length) {
+        html += '<ol class="order">' + view.preview.map(ev => this._orderLine(battle, ev)).join('') + '</ol>';
+      }
+      html += '<div class="sh">Inimigos</div>' + battle.units.filter(u => u.side === 'enemy').map(e => {
+        const it = battle.intents.find(i => i.actorId === e.id);
+        const sk = it && SKILLS[it.skillId];
+        return `<div class="foe ${e.hp <= 0 ? 'dead' : ''}"><b>${e.name}</b> <small>${sk ? (sk.kind === 'attack' ? `→ ${battle.unit(it.targetId).name}: ${sk.name} (F${sk.force}, D${sk.dmg}, Vel ${battle.actionSpeed(e, sk)})` : `${sk.name} (defesa)`) : ''}</small>${hpBar(e)}<div class="chips">${chips(e)}</div></div>`;
+      }).join('');
+      side.innerHTML = html;
+      const hint = el('div', 'hint', view.hint || 'Escolha uma ação para cada personagem. Atacar quem ataca você gera um Clash; você também pode interceptar ataques contra aliados.');
       hint.id = 'hint';
       side.appendChild(hint);
-      const ok = el('button', 'confirm', 'Confirmar ataques ▶');
-      ok.disabled = !state.complete;
+      const ok = el('button', 'confirm', 'Confirmar rodada ▶');
+      ok.disabled = !view.complete;
       ok.onclick = cb.confirm;
       side.appendChild(ok);
-      panel.appendChild(side);
+      return side;
     },
+
+    _orderLine(battle, ev) {
+      const n = id => battle.unit(id).name, sn = id => SKILLS[id].name;
+      if (ev.type === 'stances') return `<li class="o-def">Defesas: ${ev.actions.map(a => SKILLS[a.skillId].kind === 'protect' ? `${n(a.actorId)} protege ${n(a.targetId)}` : `${n(a.actorId)} (${sn(a.skillId)})`).join(', ')}</li>`;
+      if (ev.type === 'support') return `<li class="o-sup">${n(ev.a.actorId)}: ${sn(ev.a.skillId)} → ${n(ev.a.targetId)}</li>`;
+      if (ev.type === 'clash') {
+        const ally = ev.a.side === 'ally' ? ev.a : ev.b, foe = ally === ev.a ? ev.b : ev.a;
+        const p = ally === ev.a ? ev.odds.win : ev.odds.lose;
+        return `<li class="o-clash">⚔ ${ev.link.type === 'intercept' ? 'Interceptação' : 'Clash'}: ${n(ally.actorId)} (${sn(ally.skillId)}) × ${n(foe.actorId)} (${sn(foe.skillId)}) ${catTag(battle.category(p))}</li>`;
+      }
+      const a = ev.a, t = battle.unit(a.targetId), sk = SKILLS[a.skillId];
+      if (a.side === 'enemy') {
+        const prot = t.side === 'ally' && this._protector(battle, ev, t);
+        return `<li class="o-foe">${n(a.actorId)}: ${sn(a.skillId)} → ${t.name} <small>(sem oposição, D${sk.dmg}${prot ? ` · ${prot}` : ''})</small></li>`;
+      }
+      return `<li>${n(a.actorId)}: ${sn(a.skillId)} → ${t.name} <small>(sem oposição, D${sk.dmg})</small></li>`;
+    },
+    _protector(battle, ev, t) { return this._defenseNote && this._defenseNote[t.id]; },
+
     hint(html) { const h = $('#hint'); if (h) h.innerHTML = html; },
-
-    // ------------------------------------------------------------ DEFESA
-    renderDefense(battle, intents, choices, cb) {
-      const panel = $('#panel'); panel.innerHTML = '';
-      const list = el('div', 'intents');
-      const knight = battle.units.find(u => u.def.canProtect);
-      const protectIdx = Object.keys(choices).find(k => choices[k].protect);
-      intents.forEach((it, i) => {
-        const a = battle.unit(it.attackerId), t = battle.unit(it.targetId), sk = SKILLS[it.skillId];
-        const ch = choices[i];
-        const row = el('div', 'intent');
-        const fx = sk.applies ? ` · aplica <span style="color:${STATUS[sk.applies].color}">${STATUS[sk.applies].name}</span>` : '';
-        row.innerHTML = `<div class="ih"><span class="ord">${i + 1}</span><b class="foe-n">${a.name}</b> — ${sk.name} <small>(${skillTags(sk)}${fx})</small> → <b>${t.name}</b> <small>${t.hp}/${t.maxHp} PV · golpe ≈${battle.previewHit(a, t, sk)}</small></div>`;
-        const opts = el('div', 'opts');
-        const options = battle.reactionOptions(t, a, sk);
-        options.forEach((o, oi) => {
-          const r = REACTIONS[o.kind];
-          const b = el('button', 'react' + (!ch.protect && ch.reaction === o.kind ? ' sel' : ''),
-            `<b>${r.name}</b><small>${o.kind === 'dodge' || o.kind === 'parry' ? 'chance ' + pct(o.chance) + ' · ' : ''}dano esp. ≈${Math.round(o.expected)}${oi === 0 ? ' · padrão' : ''}</small>`);
-          b.title = r.desc;
-          b.disabled = !!ch.protect;
-          b.onclick = () => cb.pickReaction(i, o.kind);
-          opts.appendChild(b);
-        });
-        if (sk.tags.includes('magic') && t.def.reactions.includes('parry')) opts.appendChild(el('span', 'note', 'magia não pode ser aparada'));
-        if (knight && knight !== t) {
-          const can = knight.hp > 0 && !battle.protectUsed && (protectIdx == null || +protectIdx === i);
-          const exp = knight.hp > 0 ? Math.round(battle.expectedDamage(a, knight, sk, 'block')) : 0;
-          const b = el('button', 'react protect' + (ch.protect ? ' sel' : ''),
-            `<b>🛡 Cavaleiro protege</b><small>${knight.hp > 0 ? `recebe ≈${exp} bloqueando · 1x por rodada` : 'Cavaleiro caído'}</small>`);
-          b.disabled = !can;
-          b.onclick = () => cb.toggleProtect(i);
-          opts.appendChild(b);
-        }
-        row.appendChild(opts);
-        list.appendChild(row);
-      });
-      panel.appendChild(list);
-      const side = el('div', 'side');
-      side.innerHTML = `<div class="sh">Ofensiva inimiga</div><p class="muted">Os inimigos revelaram suas intenções. Cada personagem já tem uma defesa padrão — mude se quiser. Esquivar e Aparar são apostas; Bloquear é seguro. O Cavaleiro pode interceptar <b>um</b> ataque por rodada.</p>` +
-        `<div class="sh">Seu grupo</div>` + battle.units.filter(u => u.side === 'ally').map(u => `<div class="foe mate ${u.hp <= 0 ? 'dead' : ''}"><b>${u.name}</b>${hpBar(u)}<div class="chips">${statusChips(u)}</div></div>`).join('');
-      const ok = el('button', 'confirm', 'Resolver ofensiva ▶');
-      ok.onclick = cb.confirm;
-      side.appendChild(ok);
-      panel.appendChild(side);
-    },
-
-    renderWaiting(text) {
-      $('#panel').innerHTML = `<div class="waiting">${text}</div>`;
-    },
 
     renderEnd(result, onRestart) {
       const o = $('#overlay');
