@@ -1,0 +1,2093 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duelo Sombrio — protótipo de combate tático</title>
+<style>
+:root { --bg:#0c0910; --panel:#16101b; --line:#3a2a40; --text:#ece2d2; --muted:#9a8c99; --gold:#d8b45a; --ally:#7fd0ff; --foe:#ff6a5a; }
+* { box-sizing: border-box; }
+html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:"Trebuchet MS", system-ui, sans-serif; overflow:hidden; }
+body { display:flex; flex-direction:column; }
+button { font:inherit; color:var(--text); background:#241a2a; border:1px solid var(--line); border-radius:6px; cursor:pointer; padding:5px 10px; }
+button:hover:not(:disabled) { border-color:var(--gold); }
+button:disabled { opacity:.35; cursor:default; }
+small { color:var(--muted); }
+#top { display:flex; align-items:center; gap:18px; padding:6px 14px; background:#0a070c; border-bottom:1px solid var(--line); flex:0 0 auto; }
+.brand { font-weight:900; letter-spacing:3px; color:var(--gold); }
+.brand small { letter-spacing:1px; font-weight:400; }
+#round { font-weight:700; }
+#phase { color:var(--muted); flex:1; }
+.ctrl { display:flex; gap:6px; }
+.ctrl .on { background:#3a2c18; border-color:var(--gold); }
+#arena { position:relative; flex:1 1 auto; min-height:220px; overflow:hidden; }
+#stage { position:absolute; inset:0; width:100%; height:100%; display:block; }
+#panel { flex:0 0 auto; display:flex; gap:12px; padding:10px 12px; background:var(--panel); border-top:2px solid var(--line); min-height:210px; max-height:46vh; overflow:auto; transition:min-height .3s, opacity .3s; }
+body.resolving #panel { min-height:0; opacity:.55; }
+.waiting { color:var(--muted); padding:8px; font-style:italic; }
+.cards { display:flex; gap:10px; flex:1; min-width:0; }
+.card { flex:1; min-width:0; background:#1d1522; border:1px solid var(--line); border-radius:10px; padding:8px; display:flex; flex-direction:column; gap:6px; }
+.card.active { border-color:var(--ally); box-shadow:0 0 0 1px var(--ally), 0 0 18px rgba(127,208,255,.15); }
+.card.dead, .foe.dead { opacity:.35; filter:grayscale(1); }
+.card-h { cursor:pointer; }
+.hp { position:relative; height:14px; background:#000; border-radius:4px; overflow:hidden; }
+.hpfill { height:100%; background:#5fd08a; transition:width .4s; }
+.hpfill.low { background:#ff6a4a; }
+.foe .hpfill { background:#d8484a; }
+.hp span { position:absolute; inset:0; font-size:11px; line-height:14px; text-align:center; text-shadow:0 1px 2px #000; }
+.chips { min-height:4px; display:flex; gap:4px; flex-wrap:wrap; }
+.chip { font-size:11px; padding:1px 6px; border-radius:10px; background:color-mix(in srgb, var(--c) 25%, transparent); border:1px solid var(--c); color:var(--c); }
+.skills { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+.skill { text-align:left; display:flex; flex-direction:column; padding:4px 8px; }
+.skill small { font-size:11px; }
+.skill em { font-size:11px; color:var(--foe); }
+.skill.sel, .target.sel, .react.sel { background:#1c3446; border-color:var(--ally); }
+.targets { display:flex; gap:4px; flex-wrap:wrap; align-items:center; font-size:13px; }
+.targets span { color:var(--muted); }
+.target { padding:3px 7px; font-size:13px; }
+.trait { font-size:11px; color:var(--muted); border-top:1px dashed var(--line); padding-top:4px; }
+.side { flex:0 0 260px; display:flex; flex-direction:column; gap:6px; font-size:13px; }
+.sh { font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); }
+.side ol { margin:0; padding-left:20px; }
+.foe { display:flex; flex-direction:column; gap:2px; }
+.muted { color:var(--muted); margin:0; }
+.hint { font-size:12px; color:var(--muted); background:#120d16; padding:6px; border-radius:6px; min-height:34px; }
+.confirm { margin-top:auto; padding:10px; font-weight:900; letter-spacing:1px; background:#3a2c18; border-color:var(--gold); color:#ffe9b0; }
+.intents { flex:1; display:flex; flex-direction:column; gap:8px; min-width:0; }
+.intent { background:#1d1522; border:1px solid var(--line); border-left:3px solid var(--foe); border-radius:8px; padding:6px 8px; }
+.ih { font-size:14px; margin-bottom:5px; }
+.ord { display:inline-block; width:20px; height:20px; border-radius:50%; background:var(--foe); color:#000; text-align:center; font-weight:900; margin-right:6px; }
+.foe-n { color:#ff9a8a; }
+.opts { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.react { display:flex; flex-direction:column; text-align:left; padding:4px 10px; }
+.react small { font-size:11px; }
+.react.protect { border-color:#4a6a9a; }
+.react.protect.sel { background:#1c2c4a; }
+.note { font-size:11px; color:var(--muted); font-style:italic; }
+#overlay { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); }
+#overlay.show { display:flex; }
+.end { text-align:center; background:#140e18; border:1px solid var(--line); padding:24px 40px; border-radius:12px; display:flex; flex-direction:column; gap:10px; }
+.end h1 { margin:0; letter-spacing:8px; font-size:48px; }
+.end.victory h1 { color:var(--gold); }
+.end.defeat h1 { color:var(--foe); }
+#help { position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; z-index:9; padding:16px; }
+#help.show { display:flex; }
+#help .box { max-width:640px; background:#16101b; border:1px solid var(--line); border-radius:12px; padding:16px 22px; font-size:14px; line-height:1.45; }
+#help h2 { color:var(--gold); margin-top:0; }
+@media (max-width: 900px) {
+  #top { gap:8px; flex-wrap:wrap; }
+  #phase { display:none; }
+  #panel { flex-direction:column; max-height:55vh; }
+  .cards { flex-direction:column; }
+  .side { flex:0 0 auto; }
+}
+.foe.mate .hpfill { background:#5fd08a; }
+.threat { font-size:12px; background:#2a1216; border:1px solid #5a2228; border-radius:6px; padding:4px 6px; color:#ffb0a8; }
+.skill.k-defense, .skill.k-protect { border-color:#3a4a6a; }
+.skill.k-support { border-color:#2f5a3e; }
+.preview { width:100%; font-size:12px; background:#120d16; border-radius:6px; padding:6px; display:flex; flex-direction:column; gap:6px; }
+.cat { color:var(--c); font-weight:900; border:1px solid var(--c); border-radius:10px; padding:0 6px; font-size:11px; }
+.tclash { color:#ffd36a !important; }
+.order { margin:0; padding-left:20px; display:flex; flex-direction:column; gap:3px; }
+.order li { line-height:1.3; }
+.o-clash { color:#ffe9b0; } .o-foe { color:#ffb0a8; } .o-sup { color:#9fe8b8; } .o-def { color:#9fd0ff; }
+.side { flex-basis:300px; }
+
+</style>
+</head>
+<body>
+  <header id="top">
+    <div class="brand">DUELO SOMBRIO <small>protótipo</small></div>
+    <div id="round">Rodada 1</div>
+    <div id="phase"></div>
+    <div class="ctrl">
+      <button data-speed="1">1×</button>
+      <button data-speed="2.2">2×</button>
+      <button id="btn-skip" title="Pular animações (Espaço)">Pular ⏭</button>
+      <button id="btn-help">?</button>
+      <button id="btn-restart">↻</button>
+    </div>
+  </header>
+  <main id="arena"><canvas id="stage"></canvas><div id="overlay"></div></main>
+  <section id="panel"></section>
+  <div id="help">
+    <div class="box">
+      <h2>Como jogar</h2>
+      <p><b>Rodada compartilhada:</b> 1) os inimigos revelam alvo, habilidade, força (F), dano (D) e velocidade. 2) Você escolhe uma ação para cada personagem. 3) A prévia mostra Clashes, ataques sem oposição e a ordem. 4) Confirme e assista.</p>
+      <p><b>Clash:</b> se você ataca quem está atacando você, as habilidades se chocam. Cada lado rola <b>Força + (0 a 3)</b>; o maior interrompe o outro e acerta seu dano. Empate: os dois se anulam. Força e Dano são coisas diferentes: força alta vence Clashes, dano alto é melhor contra quem não reage.</p>
+      <p><b>Interceptar:</b> atacar um inimigo que mira <i>outro</i> aliado permite entrar na frente e forçar o Clash — se sua velocidade (+ alcance do Cavaleiro) for ≥ à do golpe inimigo.</p>
+      <p><b>Defesas</b> (agem antes de tudo e duram a rodada): Postura de Escudo = bloqueia; Proteção = o Cavaleiro recebe e bloqueia os golpes sem oposição contra um aliado; Aparar = tenta anular o 1º golpe físico e contra-atacar (não contra magia); Passo Etéreo = chance de esquivar.</p>
+      <p><b>Preparação:</b> Enfraquecimento (−2 força no alvo) e Suporte (+2 força para um aliado) agem cedo e afetam os Clashes que vierem <i>depois</i> deles na ordem.</p>
+      <p><b>Controles:</b> 1×/2×, Pular (ou Espaço). O resultado já está decidido; pular não muda nada.</p>
+      <p class="muted">Clique para fechar.</p>
+    </div>
+  </div>
+  <script>
+// =====================================================================
+// DADOS DE BALANCEAMENTO — edite aqui sem tocar no sistema de combate.
+// =====================================================================
+(function (G) {
+  'use strict';
+
+  const CONFIG = {
+    clash: {
+      rollMin: 0, rollMax: 3,     // bônus aleatório inteiro, chances iguais
+      closeMargin: 1,             // diferença <= 1 → Clash "equilibrado" (destaque maior)
+      favorable: 0.60,            // chance de vitória >= 60% → Favorável
+      unfavorable: 0.35,          // chance de vitória < 35% → Desfavorável
+    },
+    speed: { fast: 2, heavy: -2, support: 3, defense: 4 }, // prioridade por tag
+    block: 0.5,                   // redução padrão do bloqueio (unidade pode sobrescrever)
+    dodge: { base: 0.45, speedFactor: 0.05, heavy: 0.20, fast: -0.20, min: 0.10, max: 0.85 },
+    parry: { base: 0.55, heavy: -0.20, fast: 0.10, min: 0.10, max: 0.90, counterDmg: 6 },
+    weaken: { amount: 2, rounds: 2 },  // -2 de força; dura até o fim da próxima rodada
+    support: { amount: 2 },            // +2 de força na próxima habilidade ofensiva do aliado
+  };
+
+  // kind: attack | defense | protect | support
+  // tags: melee | magic | heavy | fast
+  const SKILLS = {
+    // --- Cavaleiro
+    k_basic: { name: 'Ataque Básico', kind: 'attack', force: 6, dmg: 8, tags: ['melee'],
+      desc: 'Golpe de espada equilibrado.' },
+    k_shield: { name: 'Golpe de Escudo', kind: 'attack', force: 8, dmg: 6, tags: ['melee'],
+      desc: 'Muito confiável em Clashes, pouco dano.' },
+    k_heavy: { name: 'Golpe Pesado', kind: 'attack', force: 5, dmg: 14, tags: ['melee', 'heavy'], cooldown: 2,
+      desc: 'Lento e devastador. Arriscado em Clashes.' },
+    k_guard: { name: 'Postura de Escudo', kind: 'defense', reaction: 'block', tags: [],
+      desc: 'Bloqueia todos os golpes recebidos nesta rodada (-60% de dano).' },
+    k_protect: { name: 'Proteção', kind: 'protect', reaction: 'block', tags: [],
+      desc: 'Fica na frente de um aliado: recebe e bloqueia os golpes sem oposição destinados a ele.' },
+    // --- Espadachim
+    s_basic: { name: 'Corte Rápido', kind: 'attack', force: 6, dmg: 7, tags: ['melee', 'fast'],
+      desc: 'Corte veloz: age cedo na rodada.' },
+    s_precise: { name: 'Golpe Preciso', kind: 'attack', force: 9, dmg: 6, tags: ['melee'],
+      desc: 'Força alta: vence a maioria dos Clashes.' },
+    s_risky: { name: 'Ataque Arriscado', kind: 'attack', force: 4, dmg: 15, tags: ['melee'], cooldown: 2,
+      desc: 'Força baixa, dano enorme. Ótimo contra quem não vai reagir.' },
+    s_parry: { name: 'Aparar', kind: 'defense', reaction: 'parry', tags: [],
+      desc: 'Tenta aparar o primeiro golpe físico recebido; se der certo, anula e contra-ataca. Não funciona contra magia.' },
+    // --- Mago
+    m_bolt: { name: 'Projétil Mágico', kind: 'attack', force: 6, dmg: 7, tags: ['magic'],
+      desc: 'Ataque à distância.' },
+    m_blast: { name: 'Explosão Arcana', kind: 'attack', force: 5, dmg: 13, tags: ['magic'], cooldown: 2,
+      desc: 'Magia de dano elevado.' },
+    m_weaken: { name: 'Enfraquecimento', kind: 'attack', force: 7, dmg: 3, tags: ['magic', 'support'], applies: 'weaken',
+      desc: 'Pouco dano, mas o alvo perde 2 de força nos Clashes até o fim da próxima rodada. Age cedo.' },
+    m_support: { name: 'Suporte', kind: 'support', tags: ['support'],
+      desc: 'Um aliado ganha +2 de força na próxima habilidade ofensiva. Age cedo.' },
+    m_dodge: { name: 'Passo Etéreo', kind: 'defense', reaction: 'dodge', tags: [],
+      desc: 'Tenta esquivar de cada golpe recebido nesta rodada.' },
+
+    // --- Brutamontes (prioriza ataques fortes)
+    b_smash: { name: 'Esmagar', kind: 'attack', force: 5, dmg: 16, tags: ['melee', 'heavy'], cooldown: 2 },
+    b_bash: { name: 'Pancada', kind: 'attack', force: 8, dmg: 9, tags: ['melee'] },
+    b_guard: { name: 'Couraça', kind: 'defense', reaction: 'block', tags: [] },
+    // --- Duelista (prefere alvos vulneráveis)
+    d_flurry: { name: 'Lâmina Veloz', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'] },
+    d_lunge: { name: 'Investida Feroz', kind: 'attack', force: 6, dmg: 12, tags: ['melee'], cooldown: 2 },
+    d_parry: { name: 'Contra-guarda', kind: 'defense', reaction: 'parry', tags: [] },
+    // --- Conjurador (magias e suporte)
+    c_ray: { name: 'Raio Sombrio', kind: 'attack', force: 7, dmg: 10, tags: ['magic'] },
+    c_curse: { name: 'Maldição', kind: 'attack', force: 6, dmg: 4, tags: ['magic', 'support'], applies: 'weaken', cooldown: 2 },
+    c_veil: { name: 'Véu Sombrio', kind: 'defense', reaction: 'dodge', tags: [] },
+  };
+
+  const REACTIONS = {
+    block: { name: 'Bloqueio' }, dodge: { name: 'Esquiva' }, parry: { name: 'Aparo' }, none: { name: '—' },
+  };
+
+  const STATUS = {
+    weaken: { name: 'Enfraquecido', icon: '−', color: '#b58cff', desc: '-2 de força nos Clashes.' },
+    support: { name: 'Apoiado', icon: '+', color: '#7fe0a0', desc: '+2 de força na próxima habilidade ofensiva.' },
+    block: { name: 'Bloqueando', icon: 'B', color: '#8fc4ff', desc: 'Reduz o dano dos golpes sem oposição.' },
+    dodge: { name: 'Esquivando', icon: 'E', color: '#cfe9ff', desc: 'Chance de evitar cada golpe.' },
+    parry: { name: 'Aparando', icon: 'A', color: '#ffe28a', desc: 'Tenta aparar o primeiro golpe físico.' },
+    protect: { name: 'Protegido', icon: '🛡', color: '#9fd0ff', desc: 'O Cavaleiro recebe os golpes por ele.' },
+  };
+
+  // interceptReach: bônus de velocidade só para interceptar ataques contra aliados
+  const UNITS = {
+    knight: { name: 'Cavaleiro', role: 'Defensor', side: 'ally', art: 'knight',
+      hp: 62, spd: 3, interceptReach: 4, blockPower: 0.6,
+      skills: ['k_basic', 'k_shield', 'k_heavy', 'k_guard', 'k_protect'],
+      trait: 'Intercepta ataques mesmo sendo lento (+4 de alcance). Bloqueio de 60%.' },
+    swordsman: { name: 'Espadachim', role: 'Duelista', side: 'ally', art: 'swordsman',
+      hp: 44, spd: 8, interceptReach: 0, dodgeSkill: 0.10, parrySkill: 0.10,
+      skills: ['s_basic', 's_precise', 's_risky', 's_parry'],
+      trait: 'Muito rápido: age cedo e intercepta golpes mais lentos.' },
+    mage: { name: 'Mago', role: 'Conjurador', side: 'ally', art: 'mage',
+      hp: 34, spd: 5, interceptReach: 0,
+      skills: ['m_bolt', 'm_blast', 'm_weaken', 'm_support', 'm_dodge'],
+      trait: 'Frágil. Enfraquecimento e Suporte agem cedo e preparam os Clashes dos aliados.' },
+
+    brute: { name: 'Brutamontes', role: 'Força bruta', side: 'enemy', art: 'brute',
+      hp: 56, spd: 2, blockPower: 0.5, skills: ['b_smash', 'b_bash', 'b_guard'],
+      ai: { prefers: 'strong', defendBelow: 0.35 } },
+    duelist: { name: 'Duelista', role: 'Lâminas', side: 'enemy', art: 'duelist',
+      hp: 40, spd: 7, dodgeSkill: 0.05, parrySkill: 0.05, skills: ['d_lunge', 'd_flurry', 'd_parry'],
+      ai: { prefers: 'weak', defendBelow: 0.30 } },
+    conjurer: { name: 'Conjurador', role: 'Magia negra', side: 'enemy', art: 'conjurer',
+      hp: 32, spd: 4, skills: ['c_curse', 'c_ray', 'c_veil'],
+      ai: { prefers: 'threat', defendBelow: 0.30 } },
+  };
+
+  const PARTY = ['knight', 'swordsman', 'mage'];
+  const FOES = ['brute', 'duelist', 'conjurer'];
+  const AI_THREAT = { mage: 0.6, swordsman: 0.4, knight: 0.0 };
+
+  Object.assign(G, { CONFIG, REACTIONS, STATUS, SKILLS, UNITS, PARTY, FOES, AI_THREAT });
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+  <script>
+// =====================================================================
+// LÓGICA DE COMBATE — sem nenhuma dependência visual.
+// Rodada compartilhada: intenções inimigas → plano do jogador →
+// validação/ligações (Clashes, interceptações) → fila de eventos.
+// Tudo é decidido aqui com RNG de semente; a apresentação só reproduz.
+// =====================================================================
+(function (G) {
+  'use strict';
+  const { CONFIG, SKILLS, UNITS, PARTY, FOES } = G;
+
+  function makeRng(seed) {
+    let s = seed >>> 0;
+    return function () {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const isAttack = sk => sk && sk.kind === 'attack';
+
+  class Battle {
+    constructor(seed) {
+      this.seed = seed;
+      this.rand = makeRng(seed);
+      this.round = 1;
+      this.units = [];
+      this.intents = [];
+      PARTY.forEach((k, i) => this.units.push(this._makeUnit(k, 'ally', i)));
+      FOES.forEach((k, i) => this.units.push(this._makeUnit(k, 'enemy', i)));
+    }
+    _makeUnit(key, side, slot) {
+      const d = UNITS[key];
+      return { id: key, key, side, slot, def: d, name: d.name, hp: d.hp, maxHp: d.hp, statuses: {}, cooldowns: {} };
+    }
+
+    unit(id) { return this.units.find(u => u.id === id); }
+    alive(side) { return this.units.filter(u => u.side === side && u.hp > 0); }
+    outcome() {
+      if (this.alive('enemy').length === 0) return 'victory';
+      if (this.alive('ally').length === 0) return 'defeat';
+      return null;
+    }
+    skillReady(u, id) { return !(u.cooldowns[id] > 0); }
+    snapshot() {
+      const s = {};
+      for (const u of this.units) s[u.id] = { hp: u.hp, statuses: JSON.parse(JSON.stringify(u.statuses)) };
+      return s;
+    }
+
+    // ------------------------------------------------------------ velocidade
+    actionSpeed(u, sk) {
+      let s = u.def.spd;
+      for (const t of sk.tags) s += CONFIG.speed[t] || 0;
+      if (sk.kind === 'defense' || sk.kind === 'protect') s += CONFIG.speed.defense;
+      if (sk.kind === 'support') s += 0; // a tag 'support' já dá prioridade
+      return s;
+    }
+
+    // ------------------------------------------------------------ etapa 1
+    planEnemyIntents() {
+      this.intents = G.AI.planIntents(this).map((it, i) => ({ ...it, id: 'e' + i, side: 'enemy' }));
+      return this.intents;
+    }
+
+    // ------------------------------------------------------------ etapa 2/3
+    // choices: { [allyId]: { skillId, targetId, intercept } }
+    // Devolve o plano validado: ações, ligações de Clash e ordem prevista.
+    buildPlan(choices) {
+      const actions = [];
+      const errors = [];
+      for (const it of this.intents) {
+        const a = this.unit(it.actorId);
+        if (a.hp > 0) actions.push({ ...it, speed: this.actionSpeed(a, SKILLS[it.skillId]) });
+      }
+      for (const u of this.alive('ally')) {
+        const c = choices[u.id];
+        if (!c || !c.skillId) continue;
+        const sk = SKILLS[c.skillId];
+        if (!u.def.skills.includes(c.skillId) || !this.skillReady(u, c.skillId)) { errors.push(`${u.name}: habilidade indisponível`); continue; }
+        let targetId = c.targetId;
+        if (sk.kind === 'defense') targetId = u.id;
+        const t = this.unit(targetId);
+        const okTarget = t && t.hp > 0 && (
+          (sk.kind === 'attack' && t.side === 'enemy') ||
+          (sk.kind === 'support' && t.side === 'ally' && t !== u) ||
+          (sk.kind === 'protect' && t.side === 'ally' && t !== u) ||
+          sk.kind === 'defense');
+        if (!okTarget) continue; // ainda incompleto
+        actions.push({ id: 'a_' + u.id, side: 'ally', actorId: u.id, skillId: c.skillId, targetId,
+          wantIntercept: !!c.intercept, speed: this.actionSpeed(u, sk) });
+      }
+
+      // Ligações de Clash: direto (alvos mútuos) tem prioridade; depois interceptações válidas.
+      const links = {}; // actionId -> { partner, type }
+      const enemyAttacks = actions.filter(x => x.side === 'enemy' && isAttack(SKILLS[x.skillId]));
+      const allyAttacks = actions.filter(x => x.side === 'ally' && isAttack(SKILLS[x.skillId]));
+      for (const aa of allyAttacks) {
+        const ea = enemyAttacks.find(e => e.actorId === aa.targetId && e.targetId === aa.actorId);
+        if (ea && !links[ea.id]) { links[aa.id] = { partner: ea.id, type: 'direct' }; links[ea.id] = { partner: aa.id, type: 'direct' }; }
+      }
+      for (const aa of allyAttacks) {
+        aa.interceptInfo = this.interceptInfo(aa, enemyAttacks);
+        if (links[aa.id] || !aa.wantIntercept) continue;
+        const info = aa.interceptInfo;
+        if (info && info.valid && !links[info.enemyActionId]) {
+          links[aa.id] = { partner: info.enemyActionId, type: 'intercept' };
+          links[info.enemyActionId] = { partner: aa.id, type: 'intercept', redirectTo: aa.actorId };
+        }
+      }
+      const order = this._order(actions, links);
+      return { actions, links, order, errors };
+    }
+
+    // Pode este ataque aliado interceptar o ataque do inimigo-alvo contra outro aliado?
+    interceptInfo(aa, enemyAttacks) {
+      const ea = enemyAttacks.find(e => e.actorId === aa.targetId);
+      if (!ea || ea.targetId === aa.actorId) return null;
+      const ally = this.unit(aa.actorId);
+      const reach = ally.def.interceptReach || 0;
+      return { enemyActionId: ea.id, protects: ea.targetId, valid: aa.speed + reach >= ea.speed,
+        mySpeed: aa.speed, reach, enemySpeed: ea.speed };
+    }
+
+    // Ordem: posturas primeiro; depois por velocidade. Um Clash é UM evento,
+    // posicionado pela ação mais rápida do par.
+    _order(actions, links) {
+      const byId = Object.fromEntries(actions.map(a => [a.id, a]));
+      const sorted = actions.slice().sort((x, y) => (y.speed - x.speed) ||
+        (x.side === y.side ? this.unit(x.actorId).slot - this.unit(y.actorId).slot : (x.side === 'ally' ? -1 : 1)));
+      const used = new Set(), order = [];
+      const stances = sorted.filter(a => ['defense', 'protect'].includes(SKILLS[a.skillId].kind));
+      if (stances.length) { order.push({ type: 'stances', actions: stances }); stances.forEach(a => used.add(a.id)); }
+      for (const a of sorted) {
+        if (used.has(a.id)) continue;
+        used.add(a.id);
+        const l = links[a.id];
+        if (l) { used.add(l.partner); order.push({ type: 'clash', a, b: byId[l.partner], link: l }); }
+        else order.push({ type: SKILLS[a.skillId].kind === 'support' ? 'support' : 'attack', a });
+      }
+      return order;
+    }
+
+    // ------------------------------------------------------------ prévia
+    forceMods(u, consumeSupport) {
+      let m = 0;
+      if (u.statuses.weaken) m -= CONFIG.weaken.amount;
+      if (u.statuses.support) { m += CONFIG.support.amount; if (consumeSupport) delete u.statuses.support; }
+      return m;
+    }
+    // Chances de vitória/empate de A sobre B somando as rolagens possíveis
+    clashOdds(fa, fb) {
+      const { rollMin: lo, rollMax: hi } = CONFIG.clash;
+      let win = 0, tie = 0, n = 0;
+      for (let i = lo; i <= hi; i++) for (let j = lo; j <= hi; j++) {
+        n++; if (fa + i > fb + j) win++; else if (fa + i === fb + j) tie++;
+      }
+      return { win: win / n, tie: tie / n, lose: 1 - (win + tie) / n };
+    }
+    category(p) {
+      const c = CONFIG.clash;
+      return p >= c.favorable ? 'favorable' : p < c.unfavorable ? 'unfavorable' : 'even';
+    }
+    // Simula só a parte determinística (modificadores na ordem certa) para a prévia.
+    previewPlan(plan) {
+      const mods = {}; // unitId -> { weaken, support }
+      for (const u of this.units) mods[u.id] = { weaken: !!u.statuses.weaken, support: !!u.statuses.support };
+      const force = (act) => {
+        const sk = SKILLS[act.skillId], m = mods[act.actorId];
+        let f = sk.force + (m.weaken ? -CONFIG.weaken.amount : 0) + (m.support ? CONFIG.support.amount : 0);
+        m.support = false;
+        return f;
+      };
+      const out = [];
+      for (const ev of plan.order) {
+        if (ev.type === 'clash') {
+          const fa = force(ev.a), fb = force(ev.b);
+          const odds = this.clashOdds(fa, fb);
+          out.push({ ...ev, fa, fb, odds, cat: this.category(odds.win) });
+          // um efeito que só acontece se o Clash for vencido não é contado como certo
+        } else if (ev.type === 'support') {
+          mods[ev.a.targetId].support = true; out.push(ev);
+        } else if (ev.type === 'attack') {
+          force(ev.a);
+          const sk = SKILLS[ev.a.skillId];
+          if (sk.applies === 'weaken') mods[ev.a.targetId].weaken = true;
+          out.push(ev);
+        } else out.push(ev);
+      }
+      return out;
+    }
+
+    // ------------------------------------------------------------ etapa 4
+    resolveRound(plan) {
+      const events = [];
+      const done = new Set();
+      // recargas: gastas quando a rodada começa (ação confirmada)
+      for (const a of plan.actions) {
+        const sk = SKILLS[a.skillId];
+        if (sk.cooldown) this.unit(a.actorId).cooldowns[a.skillId] = sk.cooldown;
+      }
+      for (const ev of plan.order) {
+        if (this.outcome()) break;
+        if (ev.type === 'stances') { const e = this._stances(ev.actions); if (e) events.push(e); continue; }
+        if (ev.type === 'support') { events.push(this._support(ev.a)); continue; }
+        if (ev.type === 'clash') { events.push(this._clashOrFallback(ev, done)); continue; }
+        events.push(this._attack(ev.a));
+      }
+      return events.filter(Boolean);
+    }
+
+    _stances(actions) {
+      const list = [];
+      for (const a of actions) {
+        const u = this.unit(a.actorId), sk = SKILLS[a.skillId];
+        if (u.hp <= 0) continue;
+        if (sk.kind === 'protect') {
+          const t = this.unit(a.targetId);
+          if (!t || t.hp <= 0) continue;
+          t.statuses.protect = u.id;
+          u.statuses.block = true;
+          list.push({ unitId: u.id, skillId: a.skillId, reaction: 'block', protectId: t.id });
+        } else {
+          u.statuses[sk.reaction] = true;
+          list.push({ unitId: u.id, skillId: a.skillId, reaction: sk.reaction });
+        }
+      }
+      return list.length ? { type: 'stances', list, after: this.snapshot() } : null;
+    }
+
+    _support(a) {
+      const u = this.unit(a.actorId), t = this.unit(a.targetId);
+      if (u.hp <= 0) return null;
+      if (!t || t.hp <= 0) return { type: 'fizzle', actorId: u.id, skillId: a.skillId, reason: 'alvo caído' };
+      t.statuses.support = true;
+      return { type: 'support', actorId: u.id, targetId: t.id, skillId: a.skillId, after: this.snapshot() };
+    }
+
+    _roll() {
+      const { rollMin: lo, rollMax: hi } = CONFIG.clash;
+      return lo + Math.floor(this.rand() * (hi - lo + 1));
+    }
+
+    _clashOrFallback(ev, done) {
+      const A = this.unit(ev.a.actorId), B = this.unit(ev.b.actorId);
+      // se um lado caiu antes, o outro age sem oposição (sem executar duas vezes)
+      if (A.hp <= 0 && B.hp <= 0) return null;
+      if (B.hp <= 0) return this._attack(ev.a);
+      if (A.hp <= 0) return this._attack(ev.b); // interceptador caiu: o golpe segue para o alvo original
+      const skA = SKILLS[ev.a.skillId], skB = SKILLS[ev.b.skillId];
+      const side = (u, act, sk) => {
+        const mod = this.forceMods(u, true);
+        const roll = this._roll();
+        return { actorId: u.id, skillId: act.skillId, base: sk.force, mod, roll, total: sk.force + mod + roll };
+      };
+      const sa = side(A, ev.a, skA), sb = side(B, ev.b, skB);
+      // a: sempre o aliado quando há um (para a apresentação ser previsível)
+      const intercept = ev.link.type === 'intercept';
+      const enemyAct = A.side === 'enemy' ? ev.a : ev.b;
+      const res = { type: 'clash', a: sa, b: sb, intercept, originalTargetId: intercept ? enemyAct.targetId : null,
+        winner: null, hit: null };
+      res.close = Math.abs(sa.total - sb.total) <= CONFIG.clash.closeMargin;
+      if (sa.total !== sb.total) {
+        const [W, L, wAct] = sa.total > sb.total ? [A, B, ev.a] : [B, A, ev.b];
+        res.winner = W.id;
+        res.hit = this._applyHit(W, L, wAct.skillId);
+      }
+      if (A.side === 'enemy') { const t = res.a; res.a = res.b; res.b = t; } // a = aliado
+      res.decisive = !!(res.hit && res.hit.killed);
+      res.after = this.snapshot();
+      return res;
+    }
+
+    _applyHit(att, def, skillId, dmgMult = 1) {
+      const sk = SKILLS[skillId];
+      let dmg = Math.max(1, Math.round(sk.dmg * dmgMult));
+      const hpBefore = def.hp;
+      def.hp = Math.max(0, def.hp - dmg);
+      let applied = null;
+      if (sk.applies && def.hp > 0) {
+        def.statuses[sk.applies] = { rounds: CONFIG.weaken.rounds };
+        applied = sk.applies;
+      }
+      return { attackerId: att.id, defenderId: def.id, skillId,
+        damage: dmg, hpBefore, hpAfter: def.hp, killed: def.hp <= 0, applied };
+    }
+
+    chance(kind, d, a, sk) {
+      const has = t => sk.tags.includes(t) ? 1 : 0;
+      if (kind === 'dodge') {
+        const c = CONFIG.dodge;
+        return clamp(c.base + (d.def.dodgeSkill || 0) + (d.def.spd - a.def.spd) * c.speedFactor + has('heavy') * c.heavy + has('fast') * c.fast, c.min, c.max);
+      }
+      if (kind === 'parry') {
+        const c = CONFIG.parry;
+        return clamp(c.base + (d.def.parrySkill || 0) + has('heavy') * c.heavy + has('fast') * c.fast, c.min, c.max);
+      }
+      return 1;
+    }
+
+    // Ataque sem oposição (pode sofrer bloqueio, esquiva, aparo ou proteção)
+    _attack(act) {
+      const a = this.unit(act.actorId), sk = SKILLS[act.skillId];
+      if (a.hp <= 0) return null;
+      const t = this.unit(act.targetId);
+      if (!t || t.hp <= 0) return { type: 'fizzle', actorId: a.id, skillId: act.skillId, reason: 'alvo já caído' };
+      this.forceMods(a, true); // gasta o Suporte, se houver
+      let d = t, protectorId = null;
+      if (t.statuses.protect) {
+        const k = this.unit(t.statuses.protect);
+        if (k && k.hp > 0) { d = k; protectorId = k.id; }
+      }
+      let reaction = d.statuses.block ? 'block' : d.statuses.dodge ? 'dodge' : d.statuses.parry ? 'parry' : 'none';
+      if (reaction === 'parry' && (sk.tags.includes('magic') || d.statuses.parry === 'used')) reaction = 'none';
+      const ch = this.chance(reaction, d, a, sk);
+      const success = this.rand() < ch;
+      let outcome = 'hit', mult = 1, counter = null;
+      if (reaction === 'block') { outcome = 'blocked'; mult = 1 - (d.def.blockPower || CONFIG.block); }
+      else if (reaction === 'dodge') { outcome = success ? 'dodged' : 'dodgeFail'; mult = success ? 0 : 1; }
+      else if (reaction === 'parry') {
+        d.statuses.parry = 'used'; // só o primeiro golpe físico
+        outcome = success ? 'parried' : 'parryFail'; mult = success ? 0 : 1;
+      }
+      let hit;
+      if (mult === 0) hit = { damage: 0, hpBefore: d.hp, hpAfter: d.hp, killed: false, applied: null };
+      else hit = this._applyHit(a, d, act.skillId, mult);
+      if (outcome === 'parried') {
+        const before = a.hp, cd = CONFIG.parry.counterDmg;
+        a.hp = Math.max(0, a.hp - cd);
+        counter = { damage: cd, hpBefore: before, hpAfter: a.hp, killed: a.hp <= 0, consumed: [] };
+      }
+      return { type: 'attack', attackerId: a.id, skillId: act.skillId, skill: sk, targetId: t.id, defenderId: d.id,
+        protectorId, reaction, chance: ch, success, outcome, damage: hit.damage, hpBefore: hit.hpBefore, hpAfter: hit.hpAfter,
+        killed: hit.killed, applied: hit.applied, consumed: [], counter,
+        decisive: hit.killed || !!(counter && counter.killed), after: this.snapshot() };
+    }
+
+    endRound() {
+      for (const u of this.units) {
+        for (const k in u.cooldowns) if (u.cooldowns[k] > 0) u.cooldowns[k]--;
+        delete u.statuses.block; delete u.statuses.dodge; delete u.statuses.parry; delete u.statuses.protect;
+        if (u.statuses.weaken && --u.statuses.weaken.rounds <= 0) delete u.statuses.weaken;
+      }
+      this.round++;
+    }
+  }
+
+  G.Battle = Battle;
+  G.makeRng = makeRng;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+  <script>
+// =====================================================================
+// IA — decide as intenções ANTES do planejamento do jogador e não muda
+// depois. Cada inimigo tem uma preferência própria.
+// =====================================================================
+(function (G) {
+  'use strict';
+  const { SKILLS, AI_THREAT } = G;
+
+  const AI = {
+    planIntents(battle) {
+      const allies = battle.alive('ally');
+      const intents = [];
+      if (!allies.length) return intents;
+      for (const e of battle.alive('enemy')) {
+        const ready = e.def.skills.filter(id => battle.skillReady(e, id));
+        const attacks = ready.filter(id => SKILLS[id].kind === 'attack');
+        const defense = ready.find(id => SKILLS[id].kind === 'defense');
+        const ai = e.def.ai || {};
+        // pouca vida: às vezes se defende (visível para o jogador)
+        if (defense && e.hp / e.maxHp < ai.defendBelow && battle.rand() < 0.5) {
+          intents.push({ actorId: e.id, skillId: defense, targetId: e.id });
+          continue;
+        }
+        const scored = allies.map(u => ({ u, s: this.score(battle, e, u, ai.prefers) + battle.rand() * 0.6 }))
+          .sort((x, y) => y.s - x.s);
+        const target = scored[0].u;
+        intents.push({ actorId: e.id, skillId: this.pickSkill(battle, e, target, attacks, ai.prefers), targetId: target.id });
+      }
+      return intents;
+    },
+
+    score(battle, e, u, prefers) {
+      const ratio = u.hp / u.maxHp;
+      const best = Math.max(...e.def.skills.filter(id => SKILLS[id].kind === 'attack' && battle.skillReady(e, id)).map(id => SKILLS[id].dmg), 0);
+      const canKill = best >= u.hp ? 1.2 : 0;
+      switch (prefers) {
+        case 'strong': // Brutamontes: alvo onde o golpe forte rende mais (quem pode finalizar, ou o mais resistente)
+          return canKill + (u.statuses.block ? -0.5 : 0) + 0.4 * (1 - ratio) + (u.id === 'knight' ? 0.3 : 0);
+        case 'weak':   // Duelista: vulneráveis, enfraquecidos, pouca vida
+          return canKill + 1.4 * (1 - ratio) + (u.statuses.weaken ? 0.8 : 0) + (u.maxHp < 50 ? 0.3 : 0);
+        case 'threat': // Conjurador: ameaças e quem ainda não foi amaldiçoado
+          return (AI_THREAT[u.id] || 0) + (u.statuses.weaken ? -0.6 : 0.3) + 0.5 * (1 - ratio) + canKill * 0.5;
+        default: return 1 - ratio;
+      }
+    },
+
+    pickSkill(battle, e, target, attacks, prefers) {
+      const by = (f) => attacks.slice().sort((a, b) => f(SKILLS[b]) - f(SKILLS[a]))[0];
+      if (prefers === 'strong') return battle.rand() < 0.8 ? by(s => s.dmg) : by(s => s.force);
+      if (prefers === 'threat') {
+        const curse = attacks.find(id => SKILLS[id].applies === 'weaken');
+        if (curse && !target.statuses.weaken && battle.rand() < 0.7) return curse;
+        return by(s => s.dmg);
+      }
+      if (prefers === 'weak') return target.hp <= Math.max(...attacks.map(id => SKILLS[id].dmg)) ? by(s => s.dmg)
+        : (battle.rand() < 0.55 ? by(s => s.dmg) : by(s => s.force));
+      return attacks[0];
+    },
+  };
+
+  G.AI = AI;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+  <script>
+// =====================================================================
+// APRESENTAÇÃO — câmera, animações, efeitos. Apenas REPRODUZ os
+// confrontos já resolvidos pela lógica (combat.js). Velocidade e
+// "pular" alteram somente o tempo, nunca o resultado.
+// =====================================================================
+(function (G) {
+  'use strict';
+  const W = 1280, H = 720, GROUND = 560;
+  const HOME = {
+    knight: { x: 445, y: 580 }, swordsman: { x: 315, y: 618 }, mage: { x: 185, y: 560 },
+    brute: { x: 835, y: 580 }, duelist: { x: 965, y: 618 }, conjurer: { x: 1095, y: 560 },
+  };
+  const ease = {
+    lin: t => t,
+    out: t => 1 - Math.pow(1 - t, 3),
+    in: t => t * t,
+    inOut: t => 0.5 - Math.cos(Math.PI * t) / 2,
+    back: t => { const c = 1.7; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); },
+  };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  class Presenter {
+    constructor(canvas) {
+      this.canvas = canvas;
+      this.ctx = canvas.getContext('2d');
+      this.speed = 1;
+      this.slow = 1; this.slowTimer = 0; this.freeze = 0;
+      this.skipping = false;
+      this.tweens = []; this.waits = [];
+      this.particles = []; this.texts = []; this.fx = [];
+      this.banner = null; this.caption = null; this.screenFlash = 0;
+      this.cam = { x: W / 2, y: H / 2, z: 1 }; this.camT = { x: W / 2, y: H / 2, z: 1 }; this.viewCY = H / 2;
+      this.shake = 0; this.spot = null; this.time = 0;
+      this.overlay = []; this.threatened = null; this.nums = []; this.showLabels = true; this.highlight = null;
+      this.bg = this._buildBackground();
+      this.fog = Array.from({ length: 14 }, (_, i) => ({ x: Math.random() * W * 1.4 - 100, y: GROUND - 40 + Math.random() * 120, r: 80 + Math.random() * 120, v: 0.004 + Math.random() * 0.01 }));
+      this._last = performance.now();
+      this._resize();
+      new ResizeObserver(() => this._resize()).observe(canvas.parentElement);
+      requestAnimationFrame(t => this._frame(t));
+    }
+
+    // ------------------------------------------------------------ setup
+    reset(battle) {
+      this.vis = {};
+      battle.units.forEach((u, i) => {
+        const h = HOME[u.id];
+        this.vis[u.id] = { id: u.id, art: u.def.art, name: u.name, side: u.side,
+          face: u.side === 'ally' ? 1 : -1, home: h, x: h.x, y: h.y,
+          lean: 0, arm: 0, guard: 0, cast: 0, crouch: 0, flash: 0, alpha: 1, hop: 0,
+          barrier: 0, ready: 0, dead: u.hp <= 0, hp: u.hp, dispHp: u.hp, maxHp: u.maxHp,
+          statuses: { ...u.statuses }, phase: i * 1.7, trail: [], post: null, stance: null };
+      });
+      this.tweens = []; this.waits = []; this.particles = []; this.texts = []; this.fx = [];
+      this.banner = null; this.caption = null; this.spot = null;
+      this.overlay = []; this.threatened = null; this.nums = [];
+      this.overview();
+    }
+
+    _resize() {
+      const r = this.canvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      this.canvas.width = Math.round(r.width * dpr);
+      this.canvas.height = Math.round(r.height * dpr);
+      this.scale = Math.max(r.width / W, r.height / H); // preenche (corta bordas)
+      this.offX = (r.width - W * this.scale) / 2;
+      // em telas "largas" corta o céu, nunca o chão onde estão os personagens
+      this.offY = clamp(r.height - 690 * this.scale, r.height - H * this.scale, 0);
+      this.dpr = dpr;
+      this.viewCY = ((r.height / 2) - this.offY) / this.scale; // centro visível (mundo, câmera em zoom 1)
+      if (!this.spot) this.overview();
+    }
+
+    // ------------------------------------------------------------ tempo
+    tween(obj, props, dur, e = 'out') {
+      if (this.skipping || dur <= 0) { Object.assign(obj, props); return Promise.resolve(); }
+      return new Promise(res => {
+        const from = {}; for (const k in props) from[k] = obj[k];
+        this.tweens.push({ obj, from, to: props, dur, t: 0, e: ease[e] || ease.out, res });
+      });
+    }
+    wait(ms) {
+      if (this.skipping || ms <= 0) return Promise.resolve();
+      return new Promise(res => this.waits.push({ t: ms, res }));
+    }
+    slowMo(factor, realMs) { if (this.skipping) return; this.slow = factor; this.slowTimer = realMs; }
+    hitStop(realMs) { if (this.skipping) return; this.freeze = Math.max(this.freeze, realMs); }
+    skip() {
+      this.skipping = true;
+      for (const tw of this.tweens) { Object.assign(tw.obj, tw.to); tw.res(); }
+      for (const w of this.waits) w.res();
+      this.tweens = []; this.waits = [];
+      this.particles = []; this.texts = []; this.fx = []; this.banner = null; this.nums = [];
+      this.slow = 1; this.freeze = 0;
+    }
+
+    _frame(now) {
+      const real = Math.min(50, now - this._last); this._last = now;
+      if (this.slowTimer > 0) { this.slowTimer -= real; if (this.slowTimer <= 0) this.slow = 1; }
+      let dt = real * this.speed * this.slow;
+      if (this.freeze > 0) { this.freeze -= real; dt = 0; }
+      this.time += real;
+      this._update(dt, real);
+      this._draw();
+      requestAnimationFrame(t => this._frame(t));
+    }
+
+    _update(dt, real) {
+      for (let i = this.tweens.length - 1; i >= 0; i--) {
+        const tw = this.tweens[i];
+        tw.t += dt;
+        const p = clamp(tw.t / tw.dur, 0, 1), e = tw.e(p);
+        for (const k in tw.to) tw.obj[k] = lerp(tw.from[k], tw.to[k], e);
+        if (p >= 1) { this.tweens.splice(i, 1); tw.res(); }
+      }
+      for (let i = this.waits.length - 1; i >= 0; i--) {
+        const w = this.waits[i]; w.t -= dt;
+        if (w.t <= 0) { this.waits.splice(i, 1); w.res(); }
+      }
+      // câmera suave (tempo real para não "travar" na câmera lenta)
+      const k = 1 - Math.exp(-real * 0.006 * Math.max(1, this.speed * 0.8));
+      this.cam.x = lerp(this.cam.x, this.camT.x, k);
+      this.cam.y = lerp(this.cam.y, this.camT.y, k);
+      this.cam.z = lerp(this.cam.z, this.camT.z, k);
+      this.shake = Math.max(0, this.shake - real * 0.03);
+      this.screenFlash = Math.max(0, this.screenFlash - real * 0.003);
+      for (const id in (this.vis || {})) {
+        const v = this.vis[id];
+        v.flash = Math.max(0, v.flash - dt * 0.005);
+        v.dispHp = lerp(v.dispHp, v.hp, 1 - Math.exp(-dt * 0.008));
+        if (v.trail.length && (this.time - v.trail[0].t > 160)) v.trail.shift();
+        if (v.dashing) v.trail.push({ x: v.x, y: v.y, t: this.time });
+      }
+      for (let i = this.particles.length - 1; i >= 0; i--) {
+        const p = this.particles[i];
+        p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.g || 0) * dt;
+        p.vx *= 0.995;
+        if (p.life <= 0) this.particles.splice(i, 1);
+      }
+      for (let i = this.texts.length - 1; i >= 0; i--) {
+        const t = this.texts[i]; t.life -= dt; t.y += t.vy * dt; t.vy *= 0.97;
+        if (t.life <= 0) this.texts.splice(i, 1);
+      }
+      for (let i = this.fx.length - 1; i >= 0; i--) {
+        const f = this.fx[i]; f.t += dt;
+        if (f.t >= f.dur) this.fx.splice(i, 1);
+      }
+      if (this.banner) { this.banner.t += dt; if (this.banner.t > this.banner.dur) this.banner = null; }
+      for (const f of this.fog) { f.x += f.v * real; if (f.x > W + 250) f.x = -250; }
+    }
+
+    // ------------------------------------------------------------ câmera
+    overview() { this.camT = { x: W / 2, y: this.viewCY || H / 2, z: 1 }; this.spot = null; }
+    focusOn(vs, extraZoom = 0) {
+      const xs = vs.map(v => v.x), ys = vs.map(v => v.y - 55);
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+      const span = Math.max(...xs) - Math.min(...xs);
+      const z = clamp(1.9 - span / 900, 1.15, 1.75) + extraZoom;
+      // mantém o enquadramento dentro do cenário
+      const hw = W / 2 / z, hh = H / 2 / z;
+      this.camT = { x: clamp(cx, hw, W - hw), y: clamp(cy, hh * 0.6, H - hh), z };
+      this.spot = new Set(vs.map(v => v.id));
+    }
+    toWorld(sx, sy) {
+      const x = (sx - this.offX) / this.scale, y = (sy - this.offY) / this.scale;
+      return { x: (x - W / 2) / this.cam.z + this.cam.x, y: (y - this.viewCY) / this.cam.z + this.cam.y };
+    }
+    pick(sx, sy) {
+      const p = this.toWorld(sx, sy);
+      let best = null;
+      for (const id in this.vis) {
+        const v = this.vis[id];
+        if (v.dead) continue;
+        if (Math.abs(p.x - v.x) < 48 && p.y < v.y + 12 && p.y > v.y - 150) {
+          if (!best || v.y > best.y) best = v;
+        }
+      }
+      return best ? best.id : null;
+    }
+
+    // ------------------------------------------------------------ efeitos
+    sparks(x, y, color, n = 14, spd = 0.5, g = 0.0012) {
+      if (this.skipping) return;
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2, s = spd * (0.3 + Math.random());
+        this.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 0.15, g, life: 300 + Math.random() * 300, max: 600, color, r: 2 + Math.random() * 2.5 });
+      }
+    }
+    float(x, y, text, color, size = 26, life = 1100) {
+      if (this.skipping) return;
+      this.texts.push({ x, y, text, color, size, life, max: life, vy: -0.09 });
+    }
+    addFx(f) { if (!this.skipping) this.fx.push(Object.assign({ t: 0 }, f)); }
+    showBanner(text, color, dur = 900, sub = '') { if (!this.skipping) this.banner = { text, color, t: 0, dur, sub }; }
+    hurtShake(amount) { if (!this.skipping) this.shake = Math.max(this.shake, amount); }
+
+    // ------------------------------------------------------------ intenções
+    // Etapa 1: cada inimigo assume a postura do que vai fazer (rápido).
+    async announceIntents(intents) {
+      for (const it of intents) {
+        const A = this.vis[it.actorId], T = this.vis[it.targetId], sk = G.SKILLS[it.skillId];
+        const magic = sk.tags.includes('magic');
+        if (sk.kind === 'defense') {
+          this.focusOn([A], -0.2);
+          this.tween(A, { ready: 1, guard: 1, arm: -0.5 }, 240);
+          this.caption = `${A.name} se prepara para defender (${sk.name})`;
+        } else {
+          this.focusOn([A, T], -0.15);
+          this.tween(A, { ready: 1, arm: magic ? -0.4 : -1.0, cast: magic ? 0.7 : 0, lean: -0.08 }, 240);
+          if (magic) this.sparks(A.x + A.face * 26, A.y - 110, '#c86bff', 10, 0.2, -0.0004);
+          this.caption = `${A.name} prepara ${sk.name} contra ${T.name}`;
+        }
+        await this.wait(650);
+      }
+      this.caption = null;
+      this.overview();
+      await this.wait(200);
+    }
+    clearIntents() {
+      this.overlay = []; this.threatened = null;
+      for (const id in this.vis) this.vis[id].ready = 0;
+    }
+
+    // ------------------------------------------------------------ reprodução
+    // Fila de eventos já resolvida pela lógica: cada um é tocado por inteiro.
+    async playAll(events) {
+      this.clearIntents();
+      this.showLabels = false;
+      for (const ev of events) {
+        if (ev.type === 'clash') await this.playClash(ev);
+        else if (ev.type === 'attack') await this.playConfrontation(ev);
+        else if (ev.type === 'stances') await this.playStances(ev);
+        else if (ev.type === 'support') await this.playSupport(ev);
+        else if (ev.type === 'fizzle') await this.playFizzle(ev);
+        if (ev.after) this._applySnapshot(ev.after);
+      }
+      this.caption = null;
+      this.overview();
+      await this.wait(300);
+      this.showLabels = true;
+      this.skipping = false;
+    }
+    // fim da rodada: todos voltam às posições de origem
+    endRound(snap) {
+      this._applySnapshot(snap);
+      for (const id in this.vis) { const v = this.vis[id]; v.post = null; v.stance = null; this._resetPose(v); }
+    }
+
+    _applySnapshot(snap) {
+      for (const id in snap) {
+        const v = this.vis[id];
+        v.hp = snap[id].hp; v.statuses = { ...snap[id].statuses };
+        if (this.skipping) v.dispHp = v.hp;
+        if (v.hp <= 0 && !v.dead) this._die(v);
+      }
+    }
+    _rest(v) {
+      // pose de descanso conforme a postura defensiva da rodada
+      const p = v.post || v.home;
+      return { x: p.x, y: p.y, arm: v.stance === 'parry' ? -0.7 : 0, guard: v.stance === 'block' ? 1 : 0,
+        cast: v.stance === 'dodge' ? 0.4 : 0, lean: 0, crouch: v.stance === 'dodge' ? 0.06 : 0, hop: 0 };
+    }
+    _resetPose(v) {
+      const r = this._rest(v);
+      Object.assign(v, r, { lean: v.dead ? v.lean : 0, ready: 0, barrier: 0, dashing: false });
+      v.trail = [];
+    }
+    _die(v) {
+      v.dead = true; v.stance = null;
+      this.tween(v, { lean: -1.35 * 1, crouch: 0.25, alpha: 0.4 }, 520, 'out');
+    }
+    _returnAll(list) {
+      return Promise.all(list.filter(Boolean).map(v => {
+        if (v.dead) return this.tween(v, { x: v.home.x * 0.15 + v.x * 0.85 }, 300);
+        v.barrier = 0;
+        return this.tween(v, this._rest(v), 320, 'inOut');
+      }));
+    }
+
+    // Posturas defensivas e Proteção (no início da rodada)
+    async playStances(ev) {
+      this.caption = 'Posturas defensivas';
+      const NAME = { block: 'BLOQUEIO', dodge: 'ESQUIVA', parry: 'APARO' };
+      const moves = [];
+      for (const st of ev.list) {
+        const v = this.vis[st.unitId];
+        v.stance = st.reaction;
+        if (st.protectId) {
+          const T = this.vis[st.protectId];
+          v.post = { x: T.home.x + T.face * 80, y: T.home.y + 6 };
+          this.float(T.x, T.y - 170, 'PROTEGIDO', '#9fd0ff', 18);
+        }
+        this.float(v.x, v.y - 175, st.protectId ? 'PROTEÇÃO' : NAME[st.reaction], '#9fd0ff', 18);
+        v.dashing = !!st.protectId;
+        moves.push(this.tween(v, this._rest(v), st.protectId ? 300 : 200, 'out').then(() => { v.dashing = false; }));
+        if (st.reaction === 'dodge') this.sparks(v.x, v.y - 60, '#cfe9ff', 8, 0.2, -0.0003);
+      }
+      if (ev.list.some(st => st.protectId)) this.showBanner('PROTEÇÃO', '#7fc4ff', 800, 'o Cavaleiro guarda um aliado');
+      await Promise.all(moves);
+      await this.wait(450);
+      this.caption = null;
+    }
+
+    async playSupport(ev) {
+      const A = this.vis[ev.actorId], T = this.vis[ev.targetId];
+      this.caption = `${A.name}  ·  ${G.SKILLS[ev.skillId].name}  →  ${T.name}`;
+      this.focusOn([A, T], -0.1);
+      await this.tween(A, { cast: 1, arm: -0.5 }, 220);
+      this.addFx({ kind: 'proj', dur: 360, x0: A.x + A.face * 30, y0: A.y - 115, x1: T.x, y1: T.y - 80, color: '#7fe0a0' });
+      await this.wait(360);
+      this.addFx({ kind: 'ring', dur: 400, x: T.x, y: T.y - 70, color: '#7fe0a0', r: 60 });
+      this.sparks(T.x, T.y - 70, '#7fe0a0', 14, 0.25, -0.0004);
+      this.float(T.x, T.y - 165, `+${G.CONFIG.support.amount} FORÇA`, '#7fe0a0', 22);
+      await this.wait(350);
+      this.caption = null;
+      await this._returnAll([A]);
+    }
+
+    async playFizzle(ev) {
+      const A = this.vis[ev.actorId];
+      this.float(A.x, A.y - 170, `${G.SKILLS[ev.skillId].name}: ${ev.reason}`, '#a99', 16, 900);
+      await this.wait(350);
+    }
+
+    // ------------------------------------------------------------ CLASH
+    async playClash(ev) {
+      const A = this.vis[ev.a.actorId], B = this.vis[ev.b.actorId];
+      const skA = G.SKILLS[ev.a.skillId], skB = G.SKILLS[ev.b.skillId];
+      const magA = skA.tags.includes('magic'), magB = skB.tags.includes('magic');
+      const T = ev.intercept ? this.vis[ev.originalTargetId] : null;
+      this.caption = `CLASH  ·  ${A.name} (${skA.name})  ×  ${B.name} (${skB.name})`;
+
+      // ponto de choque
+      let P;
+      if (T) P = { x: T.x + T.face * 125, y: T.y };
+      else if (magA !== magB) { const M = magA ? A : B; P = { x: M.x + M.face * 150, y: (A.y + B.y) / 2 }; }
+      else P = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+
+      this.focusOn(T ? [A, B, T] : [A, B]);
+      // antecipação dos dois
+      const wind = v => v === A ? magA : magB;
+      for (const v of [A, B]) this.tween(v, wind(v) ? { cast: 1, arm: -0.5, lean: -0.1 } : { lean: -0.22, arm: -1.5, crouch: 0.08 }, 240);
+      if (T) {
+        // o inimigo parte para cima do alvo; o aliado surge no caminho
+        if (!magB) { B.dashing = true; this.tween(B, { x: lerp(B.x, P.x, 0.45) }, 260, 'in'); }
+        await this.wait(200);
+        this.showBanner('INTERCEPTAÇÃO!', '#7fc4ff', 900, `${A.name} entra na frente de ${T.name}`);
+        this.slowMo(0.5, 450);
+      } else await this.wait(260);
+
+      // avanço / projéteis até o ponto de choque
+      const go = [];
+      for (const v of [A, B]) {
+        if (wind(v)) {
+          this.tween(v, { arm: 0.3, lean: 0.08 }, 120);
+          this.addFx({ kind: 'proj', dur: 300, x0: v.x + v.face * 30, y0: v.y - 115, x1: P.x, y1: P.y - 75, color: v.side === 'ally' ? '#8fd3ff' : '#c86bff' });
+          go.push(this.wait(300));
+        } else {
+          v.dashing = true;
+          go.push(this.tween(v, { x: P.x - v.face * 48, y: P.y + (v === A ? 4 : -4), lean: 0.25, crouch: 0 }, v === A && T ? 220 : 200, 'in')
+            .then(() => { v.dashing = false; this.tween(v, { arm: 1.1 }, 70, 'in'); }));
+        }
+      }
+      await Promise.all(go);
+      this.focusOn([A, B], ev.close ? 0.25 : 0.12);
+
+      // choque das armas
+      this.hitStop(ev.close ? 160 : 90);
+      this.addFx({ kind: 'star', dur: 380, x: P.x, y: P.y - 75, color: '#fff2a8' });
+      this.sparks(P.x, P.y - 75, '#ffe28a', ev.close ? 30 : 18, 0.6);
+      this.hurtShake(ev.close ? 9 : 5);
+      if (ev.close) this.slowMo(0.45, 700);
+
+      // valores de força (sem tela separada)
+      const fmt = s => `${s.base}${s.mod ? (s.mod > 0 ? ' +' + s.mod : ' −' + -s.mod) : ''} + ${s.roll} = ${s.total}`;
+      const nA = { kind: 'num', x: P.x - 95, y: P.y - 215, text: fmt(ev.a), color: '#9fd8ff', s: 0.6, a: 1, dy: 0 };
+      const nB = { kind: 'num', x: P.x + 95, y: P.y - 185, text: fmt(ev.b), color: '#ff9a8a', s: 0.6, a: 1, dy: 0 };
+      if (!this.skipping) this.nums = [nA, nB];
+      this.tween(nA, { s: 1 }, 140, 'back'); await this.tween(nB, { s: 1 }, 140, 'back');
+      await this.wait(ev.close ? 520 : 380);
+
+      if (!ev.winner) {
+        // empate: as forças se anulam
+        this.float(P.x, P.y - 230, 'EMPATE', '#e8dccb', 30);
+        this.tween(nA, { a: 0 }, 300); this.tween(nB, { a: 0 }, 300);
+        await Promise.all([this.tween(A, { x: A.x - A.face * 60, lean: -0.3 }, 220, 'out'), this.tween(B, { x: B.x - B.face * 60, lean: -0.3 }, 220, 'out')]);
+        await this.wait(300);
+      } else {
+        const aWins = ev.winner === A.id;
+        const [W, L, nW, nL, skW] = aWins ? [A, B, nA, nB, skA] : [B, A, nB, nA, skB];
+        nW.color = '#ffe08a';
+        this.tween(nW, { s: 1.45 }, 160, 'back');
+        this.tween(nL, { a: 0, dy: 30 }, 260, 'in');
+        // perdedor recua, vencedor executa
+        await this.tween(L, { x: L.x - L.face * 50, lean: -0.4, arm: -0.3 }, 200, 'out');
+        const h = ev.hit;
+        if (skW.tags.includes('magic')) {
+          this.tween(W, { cast: 1, arm: 0.3 }, 120);
+          this.addFx({ kind: 'proj', dur: 260, x0: W.x + W.face * 30, y0: W.y - 115, x1: L.x, y1: L.y - 70, color: W.side === 'ally' ? '#8fd3ff' : '#c86bff' });
+          await this.wait(260);
+        } else {
+          W.dashing = true;
+          await this.tween(W, { x: L.x - W.face * 80, arm: -1.4, lean: 0.2 }, 140, 'in');
+          W.dashing = false;
+          this.tween(W, { arm: 1.3 }, 80, 'in');
+          await this.wait(60);
+          this.addFx({ kind: 'slash', dur: 260, x: L.x - W.face * 30, y: L.y - 70, dir: W.face, heavy: skW.tags.includes('heavy'), color: '#fff3d6' });
+        }
+        L.flash = 1;
+        this.sparks(L.x, L.y - 70, '#ff7a5a', 16, 0.55);
+        this.float(L.x, L.y - 130, String(h.damage), L.side === 'ally' ? '#ff6a5a' : '#ffe08a', h.killed ? 46 : 34, h.killed ? 1500 : 1100);
+        L.hp = h.hpAfter;
+        this.tween(L, { x: L.x - L.face * 30 }, 130, 'out');
+        this.hurtShake(4 + h.damage * 0.4);
+        this.tween(nW, { a: 0 }, 400);
+        if (h.applied) { const st = G.STATUS[h.applied]; this.float(L.x, L.y - 165, st.name.toUpperCase(), st.color, 20, 1300); }
+        if (h.killed) await this._decisive(L);
+        await this.wait(h.killed ? 450 : 300);
+      }
+      this.nums = [];
+      this.caption = null;
+      this._applySnapshot(ev.after);
+      this.overview();
+      await this._returnAll([A, B]);
+      await this.wait(100);
+    }
+
+    async playConfrontation(c) {
+      const sk = c.skill;
+      const A = this.vis[c.attackerId], T = this.vis[c.targetId], D = this.vis[c.defenderId];
+      const P = c.protectorId ? this.vis[c.protectorId] : null;
+      const magic = sk.tags.includes('magic'), heavy = sk.tags.includes('heavy'), fast = sk.tags.includes('fast');
+            this.caption = `${A.name}  ·  ${sk.name}  →  ${T.name}`;
+
+      // 1. câmera aproxima atacante e alvo
+      this.focusOn([A, T]);
+      await this.wait(fast ? 180 : 280);
+
+      // 2. preparação (antecipação)
+      if (magic) {
+        this.tween(A, { cast: 1, lean: -0.1, arm: -0.5 }, 300);
+        for (let i = 0; i < 3; i++) { this.sparks(A.x + A.face * 26, A.y - 112, '#9ad8ff', 6, 0.18, -0.0005); await this.wait(110); }
+      } else {
+        await this.tween(A, { lean: -0.22, arm: -1.5, crouch: 0.08 }, heavy ? 430 : fast ? 150 : 250, 'out');
+        if (heavy) await this.wait(120);
+      }
+
+      // 3a. intervenção: protetor entra fisicamente no confronto
+      if (P) {
+        this.showBanner('PROTEÇÃO!', '#7fc4ff', 900, `${P.name} recebe o golpe no lugar de ${T.name}`);
+        this.slowMo(0.45, 500);
+        this.focusOn([A, P, T]);
+        const px = T.x + T.face * 78, py = T.y + 6;
+        P.dashing = true;
+        await this.tween(P, { x: px, y: py, guard: 1, lean: 0.15 }, 280, 'out');
+        P.dashing = false;
+        this.sparks(px, py - 10, '#c8d6ff', 10, 0.3);
+        await this.wait(120);
+      }
+
+      // 3b. avanço / projétil + 4. reação do defensor
+      const reactAt = magic ? 300 : (fast ? 90 : heavy ? 150 : 120);
+      const contact = { x: D.x - A.face * 30, y: D.y - 70 };
+      if (magic) {
+        this.tween(A, { arm: 0.3, lean: 0.08 }, 120);
+        const sx = A.x + A.face * 30, sy = A.y - 115;
+        this.addFx({ kind: 'proj', dur: 420, x0: sx, y0: sy, x1: contact.x + A.face * 10, y1: contact.y, color: A.side === 'ally' ? '#8fd3ff' : '#c86bff' });
+        this._react(c, D, A, reactAt);
+        await this.wait(420);
+      } else {
+        const standX = D.x - A.face * 82;
+        A.dashing = true;
+        const dash = this.tween(A, { x: standX, y: D.y + 2, lean: 0.25, crouch: 0 }, fast ? 140 : heavy ? 240 : 180, 'in');
+        this._react(c, D, A, reactAt);
+        await dash;
+        A.dashing = false;
+        // golpe
+        this.tween(A, { arm: 1.3 }, fast ? 70 : 100, 'in');
+        await this.wait(fast ? 50 : 80);
+        this.addFx({ kind: 'slash', dur: 260, x: contact.x, y: contact.y, dir: A.face, heavy, color: c.outcome === 'dodged' ? 'rgba(255,255,255,0.5)' : '#fff3d6' });
+      }
+
+      // 5. impacto / esquiva
+      await this._impact(c, A, D, magic);
+
+      // 6. resultado (status)
+      this._applySnapshot(c.after);
+      if (c.applied) {
+        const st = G.STATUS[c.applied];
+        this.float(D.x, D.y - 150, st.name.toUpperCase(), st.color, 20, 1300);
+        this.sparks(D.x, D.y - 70, st.color, 10, 0.2, -0.0003);
+      }
+      await this.wait(c.decisive ? 520 : 320);
+
+      // 7. retorno às posições
+      this.caption = null;
+      this.overview();
+      await this._returnAll([A, D, P]);
+      await this.wait(120);
+    }
+
+    async _react(c, D, A, delay) {
+      await this.wait(delay);
+      const awayX = -D.face; // afastando do atacante
+      switch (c.reaction) {
+        case 'block': this.tween(D, { guard: 1, lean: -0.08, crouch: 0.06 }, 110); break;
+        case 'barrier': this.tween(D, { barrier: 1, cast: 0.8, arm: -0.6 }, 120); break;
+        case 'dodge':
+          if (c.outcome === 'dodged') {
+            D.dashing = true;
+            this.tween(D, { x: clamp(D.x + awayX * 95, 70, W - 70), hop: 38, lean: -0.35 }, 170, 'out').then(() => { D.dashing = false; this.tween(D, { hop: 0 }, 140, 'in'); });
+          } else this.tween(D, { x: D.x + awayX * 22, hop: 10, lean: -0.2 }, 160, 'out');
+          break;
+        case 'parry': this.tween(D, { arm: -1.1, lean: 0.05 }, 90); break;
+      }
+    }
+
+    async _impact(c, A, D, magic) {
+      const hx = D.x - A.face * 18, hy = D.y - 72;
+      const dmgColor = D.side === 'ally' ? '#ff6a5a' : '#ffe08a';
+      const decisive = c.decisive;
+      const showDamage = (v, n, big) => this.float(v.x + (Math.random() * 20 - 10), v.y - 130, String(n), dmgColor, big ? 46 : 32, big ? 1500 : 1100);
+      const push = (v, dist, dur = 130) => this.tween(v, { x: v.x - v.face * dist }, dur, 'out');
+
+      switch (c.outcome) {
+        case 'dodged':
+          this.float(D.x, D.y - 140, 'ESQUIVA', '#cfe9ff', 26);
+          this.sparks(D.x, D.y - 40, 'rgba(220,230,255,0.6)', 8, 0.25, 0);
+          await this.wait(200);
+          return;
+        case 'parried': {
+          this.tween(D, { arm: 1.1 }, 60, 'in');
+          this.hitStop(110);
+          this.addFx({ kind: 'star', dur: 420, x: hx, y: hy, color: '#fff2a8' });
+          this.sparks(hx, hy, '#ffe28a', 26, 0.7);
+          this.hurtShake(7);
+          this.showBanner('APARADO!', '#ffe28a', 900, 'contra-ataque');
+          this.slowMo(0.4, 450);
+          this.focusOn([A, D], 0.15);
+          this.tween(A, { x: A.x - A.face * 55, lean: -0.4, arm: -0.4 }, 220, 'out');
+          await this.wait(320);
+          // contra-ataque (não pode ser reagido)
+          D.dashing = true;
+          await this.tween(D, { x: D.x + D.face * 45, arm: -1.4, lean: 0.2 }, 120, 'in');
+          D.dashing = false;
+          this.tween(D, { arm: 1.2 }, 80, 'in');
+          await this.wait(60);
+          this.addFx({ kind: 'slash', dur: 240, x: A.x + D.face * 10, y: A.y - 70, dir: D.face, heavy: false, color: '#fff3d6' });
+          A.flash = 1;
+          this.sparks(A.x, A.y - 70, '#ff8a6a', 14, 0.5);
+          const cd = c.counter;
+          this.float(A.x, A.y - 130, String(cd.damage), A.side === 'ally' ? '#ff6a5a' : '#ffe08a', cd.killed ? 46 : 32);
+          this.float(A.x, A.y - 165, 'CONTRA-ATAQUE', '#ffe28a', 18);
+          A.hp = cd.hpAfter;
+          push(A, 30);
+          if (cd.killed) { this.slowMo(0.3, 700); this.hitStop(140); this.hurtShake(14); this.screenFlash = 0.35; }
+          else this.hurtShake(6);
+          await this.wait(cd.killed ? 450 : 250);
+          return;
+        }
+        case 'blocked':
+          if (c.reaction === 'barrier') {
+            this.addFx({ kind: 'ring', dur: 380, x: D.x + D.face * 20, y: D.y - 70, color: '#8fd3ff', r: 60 });
+            this.sparks(hx, hy, '#8fd3ff', 14, 0.4);
+          } else {
+            this.addFx({ kind: 'ring', dur: 260, x: hx + D.face * 12, y: hy, color: '#cfe3ff', r: 36 });
+            this.sparks(hx, hy, '#cfe3ff', 16, 0.55);
+          }
+          this.float(D.x, D.y - 165, c.reaction === 'barrier' ? 'BARREIRA' : 'BLOQUEIO', '#9fd0ff', 18);
+          showDamage(D, c.damage, false);
+          D.hp = c.hpAfter;
+          push(D, 22);
+          this.hitStop(60);
+          this.hurtShake(3 + c.damage * 0.15);
+          if (decisive) await this._decisive(D);
+          await this.wait(220);
+          return;
+        default: { // hit, dodgeFail, parryFail, guardBroken
+          if (c.outcome === 'guardBroken') {
+            this.float(D.x, D.y - 165, 'GUARDA ATRAVESSADA', '#ff9a3c', 18);
+            this.sparks(hx, hy, '#b0c4ff', 10, 0.6);
+          } else if (c.outcome === 'parryFail') this.float(D.x, D.y - 165, 'APARO FALHOU', '#ff8a6a', 18);
+          else if (c.outcome === 'dodgeFail') this.float(D.x, D.y - 165, 'ESQUIVA FALHOU', '#ff8a6a', 18);
+          D.flash = 1;
+          if (magic) this.addFx({ kind: 'ring', dur: 360, x: hx, y: hy, color: A.side === 'ally' ? '#8fd3ff' : '#c86bff', r: 50 });
+          this.sparks(hx, hy, magic ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ff7a5a', 18, 0.55);
+          showDamage(D, c.damage, decisive);
+          D.hp = c.hpAfter;
+          push(D, 30 + (decisive ? 30 : 0));
+          this.tween(D, { lean: -0.25, guard: 0 }, 120);
+          this.hitStop(decisive ? 0 : 70);
+          this.hurtShake(4 + c.damage * 0.25);
+          if (decisive) await this._decisive(D);
+          await this.wait(240);
+        }
+      }
+    }
+
+    async _decisive(D) {
+      this.hitStop(150);
+      this.slowMo(0.3, 750);
+      this.hurtShake(16);
+      this.screenFlash = 0.35;
+      this.focusOn([D], 0.25);
+      this.addFx({ kind: 'ring', dur: 600, x: D.x, y: D.y - 70, color: '#ffffff', r: 110 });
+      this.showBanner(D.hp <= 0 || D.dead ? 'DERRUBADO!' : 'GOLPE DECISIVO!', '#ff6a5a', 1000);
+      await this.wait(260);
+    }
+
+    // ============================================================ DESENHO
+    _buildBackground() {
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const g = c.getContext('2d');
+      const sky = g.createLinearGradient(0, 0, 0, GROUND);
+      sky.addColorStop(0, '#0d0a18'); sky.addColorStop(0.6, '#2a1830'); sky.addColorStop(1, '#4a2a35');
+      g.fillStyle = sky; g.fillRect(0, 0, W, H);
+      // lua
+      const moon = g.createRadialGradient(930, 150, 10, 930, 150, 160);
+      moon.addColorStop(0, 'rgba(255,230,210,0.95)'); moon.addColorStop(0.25, 'rgba(255,200,180,0.35)'); moon.addColorStop(1, 'rgba(255,200,180,0)');
+      g.fillStyle = moon; g.fillRect(700, 0, 460, 360);
+      g.fillStyle = '#f3dccb'; g.beginPath(); g.arc(930, 150, 44, 0, 7); g.fill();
+      // ruínas distantes
+      const rnd = G.makeRng(7);
+      g.fillStyle = '#1c1224';
+      for (let i = 0; i < 16; i++) {
+        const x = i * 90 - 20 + rnd() * 40, h = 90 + rnd() * 170, w = 26 + rnd() * 30;
+        g.fillRect(x, GROUND - 60 - h, w, h + 60);
+        if (rnd() < 0.5) { g.beginPath(); g.moveTo(x - 6, GROUND - 60 - h); g.lineTo(x + w / 2, GROUND - 100 - h); g.lineTo(x + w + 6, GROUND - 60 - h); g.fill(); }
+        if (rnd() < 0.4) { g.fillStyle = 'rgba(255,170,90,0.35)'; g.fillRect(x + w / 2 - 3, GROUND - 40 - h * 0.6, 6, 10); g.fillStyle = '#1c1224'; }
+      }
+      // arco em ruínas mais próximo
+      g.fillStyle = '#150d1b';
+      g.fillRect(40, GROUND - 250, 40, 250); g.fillRect(1200, GROUND - 280, 44, 280);
+      // chão
+      const gr = g.createLinearGradient(0, GROUND - 40, 0, H);
+      gr.addColorStop(0, '#2b1f2a'); gr.addColorStop(1, '#0e0a10');
+      g.fillStyle = gr; g.fillRect(0, GROUND - 40, W, H);
+      g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = 2;
+      for (let i = 0; i < 9; i++) { const y = GROUND - 20 + i * i * 2.4; g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+      for (let i = -12; i < 26; i++) { g.beginPath(); g.moveTo(W / 2 + i * 40, GROUND - 40); g.lineTo(W / 2 + i * 120, H); g.stroke(); }
+      return c;
+    }
+
+    _draw() {
+      const ctx = this.ctx;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#07050a'; ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      const s = this.scale * this.dpr;
+      ctx.setTransform(s, 0, 0, s, this.offX * this.dpr, this.offY * this.dpr);
+      // mundo
+      ctx.save();
+      const sh = this.shake;
+      ctx.translate(W / 2 + (Math.random() - 0.5) * sh, this.viewCY + (Math.random() - 0.5) * sh);
+      ctx.scale(this.cam.z, this.cam.z);
+      ctx.translate(-this.cam.x, -this.cam.y);
+      ctx.drawImage(this.bg, 0, 0);
+      for (const f of this.fog) {
+        const gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
+        gr.addColorStop(0, 'rgba(140,110,160,0.08)'); gr.addColorStop(1, 'rgba(140,110,160,0)');
+        ctx.fillStyle = gr; ctx.fillRect(f.x - f.r, f.y - f.r, f.r * 2, f.r * 2);
+      }
+      if (!this.vis) { ctx.restore(); return; }
+      this._drawMarkers(ctx);
+      const list = Object.values(this.vis).sort((a, b) => (a.dead - b.dead) || (a.y - b.y));
+      for (const v of list) this._drawUnit(ctx, v);
+      this._drawFx(ctx);
+      for (const v of list) this._drawHud(ctx, v);
+      this._drawArrows(ctx);
+      this._drawNums(ctx);
+      for (const p of this.particles) {
+        ctx.globalAlpha = clamp(p.life / 300, 0, 1);
+        ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      for (const t of this.texts) {
+        const a = clamp(t.life / (t.max * 0.4), 0, 1), pop = 1 + Math.max(0, (t.max - t.life) < 120 ? (1 - (t.max - t.life) / 120) * 0.5 : 0);
+        ctx.globalAlpha = a;
+        ctx.font = `900 ${t.size * pop}px "Trebuchet MS", sans-serif`;
+        ctx.textAlign = 'center'; ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(10,5,15,0.9)';
+        ctx.strokeText(t.text, t.x, t.y); ctx.fillStyle = t.color; ctx.fillText(t.text, t.x, t.y);
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+
+      // tela (vinheta, faixas cinematográficas, banner, legenda)
+      const focusing = !!this.spot;
+      const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95);
+      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(0,0,0,${focusing ? 0.7 : 0.5})`);
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+      this._bars = lerp(this._bars || 0, focusing ? 1 : 0, 0.08);
+      if (this._bars > 0.01) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, 46 * this._bars); ctx.fillRect(0, H - 46 * this._bars, W, 46 * this._bars); }
+      if (this.screenFlash > 0) { ctx.fillStyle = `rgba(255,245,235,${this.screenFlash})`; ctx.fillRect(0, 0, W, H); }
+      if (this.caption) {
+        ctx.font = '600 20px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
+        const w = ctx.measureText(this.caption).width + 40;
+        ctx.fillStyle = 'rgba(10,6,14,0.75)'; ctx.fillRect(W / 2 - w / 2, 58, w, 34);
+        ctx.fillStyle = '#efe3d0'; ctx.fillText(this.caption, W / 2, 82);
+      }
+      if (this.banner) this._drawBanner(ctx, this.banner);
+    }
+
+    _drawBanner(ctx, b) {
+      const p = b.t / b.dur;
+      const inP = clamp(p / 0.15, 0, 1), outP = clamp((p - 0.8) / 0.2, 0, 1);
+      const x = W / 2 + (1 - ease.out(inP)) * -300 + ease.in(outP) * 300;
+      ctx.globalAlpha = 1 - outP;
+      ctx.save(); ctx.translate(x, 210); ctx.transform(1, 0, -0.25, 1, 0, 0);
+      ctx.fillStyle = 'rgba(8,4,10,0.85)'; ctx.fillRect(-260, -42, 520, 72);
+      ctx.fillStyle = b.color; ctx.fillRect(-260, -42, 8, 72); ctx.fillRect(252, -42, 8, 72);
+      ctx.restore();
+      ctx.font = '900 46px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = b.color; ctx.fillText(b.text, x, 210 + 8);
+      if (b.sub) { ctx.font = '600 16px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#e8dccb'; ctx.fillText(b.sub, x, 210 + 26); }
+      ctx.globalAlpha = 1;
+    }
+
+    _drawMarkers(ctx) {
+      // anéis no chão: vermelho = alvo de inimigo, dourado = selecionável
+      for (const id in this.vis) {
+        const v = this.vis[id];
+        if (v.dead) continue;
+        const targeted = this.threatened && this.threatened.has(id);
+        const hl = this.highlight && this.highlight.has(id);
+        if (!targeted && !hl) continue;
+        const pulse = 0.6 + Math.sin(this.time * 0.008) * 0.25;
+        ctx.save(); ctx.translate(v.home.x, v.home.y + 4); ctx.scale(1, 0.32);
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = hl ? `rgba(255,226,140,${pulse})` : `rgba(255,70,70,${pulse})`;
+        ctx.beginPath(); ctx.arc(0, 0, 58, 0, 7); ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    _arrow(ctx, from, to, color, label, order, dashed, noHead, lift = 0) {
+      const x0 = from.x, y0 = from.y - 150, x1 = to.x, y1 = to.y - 150;
+      const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - 50 - Math.abs(x1 - x0) * 0.06 - lift;
+      ctx.save();
+      ctx.strokeStyle = color; ctx.lineWidth = 3.5; ctx.globalAlpha = 0.9;
+      if (dashed) { ctx.setLineDash([12, 8]); ctx.lineDashOffset = -this.time * 0.05; }
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1 - 8); ctx.stroke();
+      ctx.setLineDash([]);
+      if (!noHead) {
+        const ang = Math.atan2(y1 - 8 - my, x1 - mx);
+        ctx.fillStyle = color; ctx.beginPath();
+        ctx.moveTo(x1, y1 - 2); ctx.lineTo(x1 - Math.cos(ang - 0.45) * 18, y1 - 8 - Math.sin(ang - 0.45) * 18);
+        ctx.lineTo(x1 - Math.cos(ang + 0.45) * 18, y1 - 8 - Math.sin(ang + 0.45) * 18); ctx.fill();
+      }
+      // rótulo perto da origem (no meio, para Clashes)
+      const q = noHead ? 0.5 : 0.22, lx = (1 - q) * (1 - q) * x0 + 2 * q * (1 - q) * mx + q * q * x1, ly = (1 - q) * (1 - q) * y0 + 2 * q * (1 - q) * my + q * q * y1 - 6;
+      ctx.font = '700 15px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
+      const text = (order ? order + '. ' : '') + label;
+      const w = ctx.measureText(text).width + 16;
+      ctx.fillStyle = 'rgba(10,6,14,0.85)'; ctx.fillRect(lx - w / 2, ly - 16, w, 24);
+      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.strokeRect(lx - w / 2, ly - 16, w, 24);
+      ctx.fillStyle = '#f2e8da'; ctx.fillText(text, lx, ly + 1);
+      ctx.restore();
+    }
+
+    // overlay: [{ from, to, color, label, order, style: 'arrow'|'dashed'|'clash'|'badge' }]
+    _drawArrows(ctx) {
+      for (const o of this.overlay) {
+        const A = this.vis[o.from], B = this.vis[o.to];
+        if (!A || A.dead) continue;
+        if (o.style === 'badge') { this._badge(ctx, A, o.label, o.color); continue; }
+        if (!B) continue;
+        if (o.style === 'clash') this._arrow(ctx, A.home, B.home, o.color, o.label, o.order, false, true, 20 + (o.order || 0) * 26);
+        else this._arrow(ctx, A.home, B.home, o.color, o.label, o.order, o.style === 'dashed', false, o.lift || 0);
+      }
+    }
+    _badge(ctx, v, label, color) {
+      ctx.font = '700 14px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
+      const w = ctx.measureText(label).width + 16, x = v.home.x, y = v.home.y - 195;
+      ctx.fillStyle = 'rgba(10,6,14,0.85)'; ctx.fillRect(x - w / 2, y - 16, w, 24);
+      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.strokeRect(x - w / 2, y - 16, w, 24);
+      ctx.fillStyle = '#f2e8da'; ctx.fillText(label, x, y + 1);
+    }
+    _drawNums(ctx) {
+      for (const n of this.nums) {
+        if (n.a <= 0.01) continue;
+        ctx.save(); ctx.globalAlpha = n.a; ctx.translate(n.x, n.y + n.dy); ctx.scale(n.s, n.s);
+        ctx.font = '900 30px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
+        ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(10,5,15,0.95)'; ctx.strokeText(n.text, 0, 0);
+        ctx.fillStyle = n.color; ctx.fillText(n.text, 0, 0);
+        ctx.restore();
+      }
+    }
+
+    _drawHud(ctx, v) {
+      if (v.dead && v.alpha < 0.5) return;
+      const dim = this.spot && !this.spot.has(v.id);
+      if (dim && !this.showLabels) return; // menos ruído durante as animações
+      const x = v.x, y = v.y - 150 - v.hop;
+      const w = 74, ratio = clamp(v.dispHp / v.maxHp, 0, 1), real = clamp(v.hp / v.maxHp, 0, 1);
+      ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x - w / 2 - 2, y - 2, w + 4, 11);
+      ctx.fillStyle = '#ffe9b0'; ctx.fillRect(x - w / 2, y, w * ratio, 7);
+      ctx.fillStyle = v.side === 'ally' ? (real < 0.3 ? '#ff6a4a' : '#5fd08a') : '#d8484a';
+      ctx.fillRect(x - w / 2, y, w * Math.min(ratio, real), 7);
+      if (this.showLabels) {
+        ctx.font = '700 13px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
+        ctx.fillStyle = '#e9dfcf'; ctx.fillText(`${v.name}  ${Math.max(0, Math.round(v.hp))}`, x, y - 6);
+      }
+      let i = 0;
+      for (const k in v.statuses) {
+        const st = G.STATUS[k]; if (!st) continue;
+        const sx = x - w / 2 + 8 + i * 20, sy = y + 20;
+        ctx.fillStyle = st.color; ctx.beginPath(); ctx.arc(sx, sy, 8, 0, 7); ctx.fill();
+        ctx.fillStyle = '#140c14'; ctx.font = '900 11px sans-serif'; ctx.fillText(st.icon, sx, sy + 4);
+        i++;
+      }
+    }
+
+    _drawFx(ctx) {
+      for (const f of this.fx) {
+        const p = f.t / f.dur;
+        ctx.save();
+        if (f.kind === 'slash') {
+          ctx.translate(f.x, f.y); ctx.scale(f.dir, 1);
+          ctx.globalAlpha = 1 - p;
+          ctx.strokeStyle = f.color; ctx.lineWidth = (f.heavy ? 16 : 9) * (1 - p * 0.6); ctx.lineCap = 'round';
+          const r = f.heavy ? 85 : 65, a0 = -1.9, a1 = -1.9 + 2.6 * Math.min(1, p * 2.5);
+          ctx.beginPath(); ctx.arc(-20, 0, r, a0, a1); ctx.stroke();
+          ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.arc(-20, 0, r + 6, a0 + 0.2, a1); ctx.stroke();
+        } else if (f.kind === 'ring') {
+          ctx.globalAlpha = 1 - p; ctx.strokeStyle = f.color; ctx.lineWidth = 6 * (1 - p) + 1;
+          ctx.beginPath(); ctx.ellipse(f.x, f.y, f.r * (0.3 + p), f.r * (0.3 + p) * 1.1, 0, 0, 7); ctx.stroke();
+        } else if (f.kind === 'star') {
+          ctx.translate(f.x, f.y); ctx.rotate(p * 0.6);
+          ctx.globalAlpha = 1 - p; ctx.fillStyle = f.color;
+          const r = 70 * ease.out(Math.min(1, p * 3));
+          ctx.beginPath();
+          for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, rr = i % 2 ? r * 0.25 : r; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+          ctx.fill();
+        } else if (f.kind === 'proj') {
+          const e = ease.in(p);
+          const x = lerp(f.x0, f.x1, e), y = lerp(f.y0, f.y1, e) - Math.sin(p * Math.PI) * 30;
+          for (let i = 6; i >= 0; i--) {
+            const q = Math.max(0, e - i * 0.04);
+            const tx = lerp(f.x0, f.x1, q), ty = lerp(f.y0, f.y1, q) - Math.sin(Math.max(0, p - i * 0.04) * Math.PI) * 30;
+            ctx.globalAlpha = 0.5 * (1 - i / 7); ctx.fillStyle = f.color;
+            ctx.beginPath(); ctx.arc(tx, ty, 12 - i * 1.3, 0, 7); ctx.fill();
+          }
+          ctx.globalAlpha = 1; ctx.shadowColor = f.color; ctx.shadowBlur = 25;
+          ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x, y, 8, 0, 7); ctx.fill();
+          if (Math.random() < 0.5) this.particles.push({ x, y, vx: (Math.random() - 0.5) * 0.1, vy: (Math.random() - 0.5) * 0.1, life: 250, color: f.color, r: 2.5 });
+        }
+        ctx.restore();
+      }
+    }
+
+    // ------------------------------------------------------------ personagens
+    _drawUnit(ctx, v) {
+      const t = this.time;
+      const dim = this.spot && !this.spot.has(v.id);
+      // rastro do avanço
+      if (v.trail.length > 1) {
+        for (let i = 0; i < v.trail.length; i++) {
+          const tr = v.trail[i]; ctx.globalAlpha = 0.12 * (i / v.trail.length);
+          ctx.fillStyle = v.side === 'ally' ? '#9fd8ff' : '#ff8a8a';
+          ctx.beginPath(); ctx.ellipse(tr.x, tr.y - 60, 26, 58, 0, 0, 7); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+      ctx.save();
+      ctx.translate(v.x, v.y);
+      // sombra
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.beginPath(); ctx.ellipse(0, 2, 44 - v.hop * 0.3, 10, 0, 0, 7); ctx.fill();
+      const idle = v.dead ? 0 : Math.sin(t * 0.004 + v.phase);
+      ctx.translate(0, -v.hop);
+      ctx.scale(v.face, 1);
+      ctx.rotate(v.lean * (v.dead ? 1 : 0.6));
+      ctx.scale(1 + v.crouch * 0.5, 1 - v.crouch);
+      const filters = [];
+      if (v.flash > 0.05) filters.push(`brightness(${1 + v.flash * 2.2})`);
+      if (dim) filters.push('brightness(0.45)');
+      if (v.dead) filters.push('grayscale(0.9) brightness(0.6)');
+      ctx.filter = filters.length ? filters.join(' ') : 'none';
+      ctx.globalAlpha = v.alpha;
+      const pose = { idle, t, arm: v.arm + (v.dead ? 0.8 : idle * 0.05) + (v.ready ? Math.sin(t * 0.01) * 0.05 : 0), guard: v.guard, cast: v.cast + (v.ready ? 0.2 * Math.sin(t * 0.01) : 0) };
+      ART[v.art](ctx, pose);
+      ctx.restore();
+      ctx.filter = 'none'; ctx.globalAlpha = 1;
+      if (v.barrier > 0.05) {
+        ctx.save(); ctx.globalAlpha = v.barrier * (0.35 + 0.15 * Math.sin(t * 0.02));
+        ctx.strokeStyle = '#8fd3ff'; ctx.fillStyle = 'rgba(120,200,255,0.15)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(v.x + v.face * 34, v.y - 70, 26, 78, 0, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
+  // ------------------------------------------------------------ ARTE
+  // Todos desenhados virados para a direita, pés em (0,0).
+  function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); }
+  function poly(ctx, pts) { ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]); ctx.closePath(); ctx.fill(); }
+
+  const ART = {
+    knight(ctx, p) {
+      const b = p.idle * 1.5;
+      // capa
+      ctx.fillStyle = '#23457a';
+      ctx.beginPath(); ctx.moveTo(-14, -92 + b); ctx.quadraticCurveTo(-46, -50, -40 + Math.sin(p.t * 0.003) * 4, -6);
+      ctx.lineTo(-10, -10); ctx.closePath(); ctx.fill();
+      // pernas
+      ctx.fillStyle = '#3a4250'; rr(ctx, -20, -38, 15, 38, 4); rr(ctx, 4, -38, 15, 38, 4);
+      ctx.fillStyle = '#5b6575'; rr(ctx, -22, -8, 19, 8, 3); rr(ctx, 2, -8, 19, 8, 3);
+      // braço da espada (atrás)
+      ctx.save(); ctx.translate(-6, -84 + b); ctx.rotate(-0.4 + p.arm);
+      ctx.fillStyle = '#6e7a8c'; rr(ctx, -6, -4, 12, 30, 5);
+      ctx.translate(0, 26); ctx.fillStyle = '#d8b45a'; rr(ctx, -12, -3, 24, 6, 2);
+      ctx.fillStyle = '#dfe6ef'; poly(ctx, [-4, 0, 4, 0, 3, 64, 0, 74, -3, 64]);
+      ctx.restore();
+      // tronco
+      ctx.fillStyle = '#8a96a8'; rr(ctx, -28, -96 + b, 56, 62, 14);
+      ctx.fillStyle = '#a9b4c4'; rr(ctx, -22, -90 + b, 30, 22, 8);
+      ctx.fillStyle = '#d8b45a'; ctx.fillRect(-28, -44 + b, 56, 6);
+      // ombreiras
+      ctx.fillStyle = '#9ba7b8'; ctx.beginPath(); ctx.ellipse(-20, -92 + b, 15, 11, 0, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(20, -92 + b, 15, 11, 0, 0, 7); ctx.fill();
+      // elmo
+      ctx.fillStyle = '#7f8b9c'; rr(ctx, -17, -128 + b, 36, 36, 11);
+      ctx.fillStyle = '#1a1e26'; ctx.fillRect(-2, -114 + b, 20, 6);
+      ctx.fillStyle = '#9fe3ff'; ctx.fillRect(4, -112 + b, 12, 2);
+      ctx.fillStyle = '#b8322f'; ctx.beginPath(); ctx.moveTo(-4, -128 + b); ctx.quadraticCurveTo(-24, -150 + b, -30, -118 + b); ctx.quadraticCurveTo(-16, -132 + b, -4, -124 + b); ctx.fill();
+      // escudo (frente)
+      const gx = 24 + p.guard * 16, gy = -70 + b - p.guard * 8;
+      ctx.save(); ctx.translate(gx, gy); ctx.rotate(-0.08 + p.guard * 0.12);
+      ctx.fillStyle = '#2f5d9b'; ctx.beginPath(); ctx.moveTo(-20, -32); ctx.lineTo(20, -32); ctx.lineTo(20, 8); ctx.quadraticCurveTo(10, 30, 0, 38); ctx.quadraticCurveTo(-10, 30, -20, 8); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#d8b45a'; ctx.lineWidth = 4; ctx.stroke();
+      ctx.fillStyle = '#d8b45a'; ctx.fillRect(-3, -24, 6, 52); ctx.fillRect(-14, -8, 28, 6);
+      ctx.restore();
+    },
+    swordsman(ctx, p) {
+      const b = p.idle * 2;
+      // cachecol esvoaçante
+      ctx.fillStyle = '#e0484a';
+      const w = Math.sin(p.t * 0.006) * 6;
+      ctx.beginPath(); ctx.moveTo(-4, -104 + b); ctx.quadraticCurveTo(-40, -110 + w, -62, -96 + w * 1.5); ctx.lineTo(-58, -88 + w); ctx.quadraticCurveTo(-36, -96, -4, -96 + b); ctx.fill();
+      // pernas (postura aberta)
+      ctx.fillStyle = '#1d2430';
+      poly(ctx, [-6, -48, 4, -48, -14, 0, -26, 0]); poly(ctx, [0, -48, 10, -48, 26, 0, 14, 0]);
+      // tronco
+      ctx.fillStyle = '#2bb3a3'; poly(ctx, [-14, -100 + b, 14, -100 + b, 10, -46, -10, -46]);
+      ctx.fillStyle = '#1b6f66'; ctx.fillRect(-11, -58, 22, 6);
+      // cabeça
+      ctx.fillStyle = '#e8c9a8'; ctx.beginPath(); ctx.arc(2, -114 + b, 12, 0, 7); ctx.fill();
+      ctx.fillStyle = '#20182a'; ctx.beginPath(); ctx.arc(0, -118 + b, 12.5, Math.PI * 0.95, Math.PI * 2.1); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-10, -120 + b); ctx.quadraticCurveTo(-30, -122 + b + w * 0.5, -34, -104 + b + w); ctx.lineTo(-8, -112 + b); ctx.fill();
+      ctx.fillStyle = '#20182a'; ctx.fillRect(6, -116 + b, 5, 2);
+      // braço + katana
+      ctx.save(); ctx.translate(6, -92 + b); ctx.rotate(0.5 + p.arm);
+      ctx.fillStyle = '#e8c9a8'; rr(ctx, -4, -3, 8, 26, 4);
+      ctx.translate(0, 24); ctx.fillStyle = '#e0a63a'; ctx.fillRect(-7, -2, 14, 4);
+      ctx.fillStyle = '#20182a'; ctx.fillRect(-2, -14, 4, 12);
+      ctx.fillStyle = '#eef6ff'; poly(ctx, [-2, 2, 2, 2, 4, 70, 0, 86, -1.5, 70]);
+      ctx.restore();
+    },
+    mage(ctx, p) {
+      const b = p.idle * 2.5;
+      // manto
+      ctx.fillStyle = '#3c3f9e'; poly(ctx, [-12, -96 + b, 12, -96 + b, 30, 0, -30, 0]);
+      ctx.fillStyle = '#2a2c6e'; poly(ctx, [-30, 0, 30, 0, 26, -10, -26, -10]);
+      ctx.fillStyle = '#d8b45a'; ctx.fillRect(-14, -60 + b * 0.5, 28, 4);
+      // rosto sombreado
+      ctx.fillStyle = '#16142c'; ctx.beginPath(); ctx.arc(2, -104 + b, 13, 0, 7); ctx.fill();
+      ctx.fillStyle = '#9fe3ff'; ctx.fillRect(4, -106 + b, 4, 3); ctx.fillRect(11, -106 + b, 3, 3);
+      // barba
+      ctx.fillStyle = '#c9c6d8'; poly(ctx, [-4, -98 + b, 14, -98 + b, 6, -78 + b]);
+      // chapéu
+      ctx.fillStyle = '#2a2c6e';
+      ctx.beginPath(); ctx.ellipse(2, -114 + b, 26, 6, 0, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-14, -114 + b); ctx.lineTo(16, -114 + b); ctx.quadraticCurveTo(6, -150 + b, -18 + Math.sin(p.t * 0.003) * 3, -166 + b); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#d8b45a'; ctx.fillRect(-12, -120 + b, 26, 4);
+      // cajado
+      ctx.save(); ctx.translate(20, -66 + b); ctx.rotate(p.arm * 0.35);
+      ctx.fillStyle = '#e8c9a8'; ctx.beginPath(); ctx.arc(0, 0, 5, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#6b4a2e'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(0, 56); ctx.lineTo(4, -48); ctx.stroke();
+      const r = 7 + p.cast * 6;
+      ctx.shadowColor = '#7fd1ff'; ctx.shadowBlur = 10 + p.cast * 25;
+      ctx.fillStyle = '#9fe0ff'; ctx.beginPath(); ctx.arc(4, -54, r, 0, 7); ctx.fill();
+      ctx.restore();
+    },
+    brute(ctx, p) {
+      const b = p.idle * 2;
+      // pernas grossas
+      ctx.fillStyle = '#3d3229'; rr(ctx, -30, -40, 24, 40, 8); rr(ctx, 6, -40, 24, 40, 8);
+      // clava (atrás, segurada alto)
+      ctx.save(); ctx.translate(-4, -96 + b); ctx.rotate(-0.6 + p.arm);
+      ctx.fillStyle = '#7a6d5c'; rr(ctx, -9, -5, 18, 40, 8);
+      ctx.translate(0, 34); ctx.fillStyle = '#5a3a24'; rr(ctx, -5, 0, 10, 26, 3);
+      ctx.fillStyle = '#4a2f1d'; rr(ctx, -15, 22, 30, 66, 14);
+      ctx.fillStyle = '#b7b1a3'; for (let i = 0; i < 4; i++) { poly(ctx, [15, 34 + i * 14, 26, 38 + i * 14, 15, 44 + i * 14]); poly(ctx, [-15, 34 + i * 14, -26, 38 + i * 14, -15, 44 + i * 14]); }
+      ctx.restore();
+      // corpo enorme
+      ctx.fillStyle = '#7a6d5c'; ctx.beginPath(); ctx.ellipse(0, -72 + b, 46, 44, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#8a4b32'; ctx.beginPath(); ctx.ellipse(-6, -96 + b, 40, 20, -0.15, 0, 7); ctx.fill();
+      ctx.fillStyle = '#5c3020'; ctx.fillRect(-40, -48 + b, 80, 10);
+      // cabeça pequena com chifres
+      ctx.fillStyle = '#6a5e4e'; ctx.beginPath(); ctx.arc(26, -110 + b, 15, 0, 7); ctx.fill();
+      ctx.fillStyle = '#d9cfb8'; poly(ctx, [16, -120 + b, 8, -142 + b, 22, -124 + b]); poly(ctx, [32, -122 + b, 44, -140 + b, 38, -118 + b]);
+      ctx.fillStyle = '#ff5a3a'; ctx.fillRect(30, -112 + b, 6, 3);
+      // braço da frente
+      ctx.fillStyle = '#6a5e4e'; ctx.beginPath(); ctx.ellipse(34, -66 + b, 12, 24, -0.3 + p.guard * 0.6, 0, 7); ctx.fill();
+    },
+    duelist(ctx, p) {
+      const b = p.idle * 2;
+      // capa
+      ctx.fillStyle = '#5a1420';
+      ctx.beginPath(); ctx.moveTo(-10, -100 + b); ctx.quadraticCurveTo(-40, -60, -34 + Math.sin(p.t * 0.005) * 5, -14); ctx.lineTo(-6, -40); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#1a1218';
+      poly(ctx, [-6, -50, 4, -50, -10, 0, -22, 0]); poly(ctx, [0, -50, 10, -50, 24, 0, 12, 0]);
+      ctx.fillStyle = '#9e2b3a'; poly(ctx, [-14, -102 + b, 14, -102 + b, 14, -44, -16, -44]);
+      ctx.fillStyle = '#e0c060'; ctx.fillRect(-2, -100 + b, 3, 54);
+      // máscara e chapéu de pluma
+      ctx.fillStyle = '#efe7da'; ctx.beginPath(); ctx.arc(2, -116 + b, 12, 0, 7); ctx.fill();
+      ctx.fillStyle = '#1a1218'; ctx.fillRect(4, -119 + b, 4, 3); ctx.fillRect(10, -119 + b, 3, 3);
+      ctx.fillStyle = '#2a1520'; ctx.beginPath(); ctx.ellipse(0, -126 + b, 22, 6, -0.15, 0, 7); ctx.fill();
+      rr(ctx, -10, -142 + b, 20, 16, 4);
+      ctx.fillStyle = '#d8484a'; ctx.beginPath(); ctx.moveTo(-6, -138 + b); ctx.quadraticCurveTo(-30, -160 + b, -36, -130 + b); ctx.quadraticCurveTo(-20, -142 + b, -6, -132 + b); ctx.fill();
+      // florete
+      ctx.save(); ctx.translate(8, -92 + b); ctx.rotate(0.9 + p.arm);
+      ctx.fillStyle = '#9e2b3a'; rr(ctx, -4, -3, 8, 26, 4);
+      ctx.translate(0, 24); ctx.strokeStyle = '#e0c060'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 0, 7, Math.PI, 0); ctx.stroke();
+      ctx.fillStyle = '#e8eef5'; poly(ctx, [-1.5, 0, 1.5, 0, 0.6, 92, -0.6, 92]);
+      ctx.restore();
+    },
+    conjurer(ctx, p) {
+      const f = Math.sin(p.t * 0.003) * 5 - 12; // flutua
+      // robe esfarrapado
+      ctx.fillStyle = '#3a2547';
+      ctx.beginPath(); ctx.moveTo(-12, -104 + f); ctx.lineTo(14, -104 + f); ctx.lineTo(30, -10 + f);
+      for (let i = 0; i < 6; i++) ctx.lineTo(30 - i * 12 - 6, (i % 2 ? -4 : -18) + f + Math.sin(p.t * 0.006 + i) * 3);
+      ctx.lineTo(-32, -10 + f); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#251733'; poly(ctx, [-12, -104 + f, 14, -104 + f, 4, -40 + f]);
+      // capuz
+      ctx.fillStyle = '#2c1b38'; ctx.beginPath(); ctx.moveTo(-18, -96 + f); ctx.quadraticCurveTo(-14, -140 + f, 10, -138 + f); ctx.quadraticCurveTo(24, -120 + f, 18, -96 + f); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#07040a'; ctx.beginPath(); ctx.ellipse(6, -112 + f, 9, 13, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#d68bff'; ctx.fillRect(4, -114 + f, 3, 3); ctx.fillRect(10, -114 + f, 3, 3);
+      // mão com orbe
+      ctx.save(); ctx.translate(18, -78 + f); ctx.rotate(p.arm * 0.3);
+      ctx.fillStyle = '#4a3058'; rr(ctx, -4, -4, 26, 9, 4);
+      const r = 8 + p.cast * 7;
+      ctx.shadowColor = '#c86bff'; ctx.shadowBlur = 12 + p.cast * 28;
+      ctx.fillStyle = '#d99bff'; ctx.beginPath(); ctx.arc(30, -6, r, 0, 7); ctx.fill();
+      ctx.restore();
+    },
+  };
+
+  G.Presenter = Presenter;
+  G.HOME = HOME;
+})(window);
+
+</script>
+  <script>
+// =====================================================================
+// INTERFACE (DOM) — planejamento coletivo + prévia de Clashes.
+// Só exibe; quem decide é a lógica (combat.js).
+// =====================================================================
+(function (G) {
+  'use strict';
+  const { SKILLS, STATUS } = G;
+  const $ = sel => document.querySelector(sel);
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const TAG = { melee: 'corpo a corpo', magic: 'magia', heavy: 'lento', fast: 'rápido', support: 'prioridade' };
+  const CAT = { favorable: ['Favorável', '#6fd890'], even: ['Equilibrado', '#ffd36a'], unfavorable: ['Desfavorável', '#ff7a6a'] };
+  const pct = x => Math.round(x * 100) + '%';
+
+  function chips(u) {
+    return Object.keys(u.statuses).map(k => STATUS[k] && u.statuses[k] !== 'used' ?
+      `<span class="chip" style="--c:${STATUS[k].color}" title="${STATUS[k].desc}">${STATUS[k].name}</span>` : '').join('');
+  }
+  function hpBar(u) {
+    const r = Math.max(0, u.hp / u.maxHp);
+    return `<div class="hp"><div class="hpfill ${r < 0.3 ? 'low' : ''}" style="width:${r * 100}%"></div><span>${u.hp}/${u.maxHp}</span></div>`;
+  }
+  function skillLine(battle, u, sk) {
+    if (sk.kind === 'attack') return `Força <b>${sk.force}</b> · Dano <b>${sk.dmg}</b> · Vel ${battle.actionSpeed(u, sk)}${sk.tags.filter(t => TAG[t] && t !== 'melee').map(t => ' · ' + TAG[t]).join('')}`;
+    if (sk.kind === 'support') return `Suporte · Vel ${battle.actionSpeed(u, sk)}`;
+    return 'Defesa · antes de tudo';
+  }
+  const catTag = (cat, odds) => `<span class="cat" style="--c:${CAT[cat][1]}">${CAT[cat][0]}</span>` +
+    (odds ? ` <small>vence ${pct(odds.win)} · empata ${pct(odds.tie)}</small>` : '');
+
+  const UI = {
+    CAT,
+    setTop(battle, phaseLabel, resolving) {
+      $('#round').textContent = `Rodada ${battle.round}`;
+      $('#phase').textContent = phaseLabel;
+      $('#btn-skip').disabled = !resolving;
+      document.body.classList.toggle('resolving', !!resolving);
+    },
+    setSpeed(s) { document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === s)); },
+    renderWaiting(text) { $('#panel').innerHTML = `<div class="waiting">${text}</div>`; },
+
+    // ------------------------------------------------------------ PLANEJAMENTO
+    // view: { choices, active, plan, preview }
+    renderPlan(battle, view, cb) {
+      const panel = $('#panel'); panel.innerHTML = '';
+      const row = el('div', 'cards');
+      const intents = battle.intents;
+      for (const u of battle.units.filter(x => x.side === 'ally')) {
+        const ch = view.choices[u.id] || {};
+        const card = el('div', 'card' + (u.hp <= 0 ? ' dead' : '') + (view.active === u.id ? ' active' : ''));
+        card.innerHTML = `<div class="card-h"><b>${u.name}</b> <small>${u.def.role} · Vel ${u.def.spd}</small></div>${hpBar(u)}<div class="chips">${chips(u)}</div>`;
+        if (u.hp > 0) {
+          const threats = intents.filter(it => it.targetId === u.id && SKILLS[it.skillId].kind === 'attack');
+          if (threats.length) card.appendChild(el('div', 'threat', threats.map(it => {
+            const sk = SKILLS[it.skillId];
+            return `⚠ <b>${battle.unit(it.actorId).name}</b>: ${sk.name} <small>F${sk.force} · D${sk.dmg}${sk.applies ? ' · enfraquece' : ''}</small>`;
+          }).join('<br>')));
+          const skills = el('div', 'skills');
+          for (const id of u.def.skills) {
+            const sk = SKILLS[id], ready = battle.skillReady(u, id);
+            const b = el('button', 'skill' + (ch.skillId === id ? ' sel' : '') + ' k-' + sk.kind,
+              `<b>${sk.name}</b><small>${skillLine(battle, u, sk)}</small>${ready ? '' : `<em>recarga: ${u.cooldowns[id]}</em>`}`);
+            b.disabled = !ready; b.title = sk.desc;
+            b.onmouseenter = () => cb.hint(`<b>${sk.name}</b> — ${sk.desc}`);
+            b.onclick = () => cb.pickSkill(u.id, id);
+            skills.appendChild(b);
+          }
+          card.appendChild(skills);
+          if (ch.skillId) card.appendChild(this._targets(battle, u, ch, view, cb));
+          card.appendChild(el('div', 'trait', u.def.trait));
+          card.onclick = ev => { if (ev.target === card || ev.target.closest('.card-h')) cb.activate(u.id); };
+        }
+        row.appendChild(card);
+      }
+      panel.appendChild(row);
+      panel.appendChild(this._side(battle, view, cb));
+    },
+
+    _targets(battle, u, ch, view, cb) {
+      const sk = SKILLS[ch.skillId];
+      const box = el('div', 'targets');
+      if (sk.kind === 'defense') { box.innerHTML = '<span class="muted">Postura própria — sem alvo.</span>'; return box; }
+      box.appendChild(el('span', null, sk.kind === 'attack' ? 'Alvo:' : 'Aliado:'));
+      const pool = battle.units.filter(t => sk.kind === 'attack' ? t.side === 'enemy' : (t.side === 'ally' && t !== u));
+      for (const t of pool) {
+        let tag = '';
+        if (sk.kind === 'attack' && t.hp > 0) {
+          const it = battle.intents.find(i => i.actorId === t.id);
+          if (it && it.targetId === u.id && SKILLS[it.skillId].kind === 'attack') tag = ' <small class="tclash">⚔ Clash</small>';
+          else if (it && SKILLS[it.skillId].kind === 'attack') tag = ` <small>mira ${battle.unit(it.targetId).name}</small>`;
+          else if (it) tag = ' <small>defende</small>';
+        }
+        const b = el('button', 'target' + (ch.targetId === t.id ? ' sel' : ''), t.name + tag);
+        b.disabled = t.hp <= 0;
+        b.onclick = () => cb.pickTarget(u.id, t.id);
+        box.appendChild(b);
+      }
+      // prévia do Clash / interceptação deste personagem
+      const mine = view.plan && view.plan.actions.find(a => a.actorId === u.id);
+      if (mine && sk.kind === 'attack') {
+        const pv = view.preview.find(e => e.type === 'clash' && (e.a.id === mine.id || e.b.id === mine.id));
+        const info = mine.interceptInfo;
+        const pre = el('div', 'preview');
+        if (pv) {
+          const meFirst = pv.a.id === mine.id;
+          const other = meFirst ? pv.b : pv.a;
+          const fMe = meFirst ? pv.fa : pv.fb, fOt = meFirst ? pv.fb : pv.fa;
+          const odds = meFirst ? pv.odds : { win: pv.odds.lose, tie: pv.odds.tie };
+          pre.innerHTML = `<b>${pv.link.type === 'intercept' ? 'Interceptação' : 'Clash'}</b> contra ${battle.unit(other.actorId).name} (${SKILLS[other.skillId].name})<br>` +
+            `Força ${fMe} + (0–3) × ${fOt} + (0–3) → ${catTag(battle.category(odds.win), odds)}`;
+        } else if (info) {
+          pre.innerHTML = `Sem Clash: ${battle.unit(mine.targetId).name} vai atacar ${battle.unit(info.protects).name}.`;
+        } else pre.innerHTML = `Ataque sem oposição: dano ${sk.dmg} (se o alvo não bloquear/esquivar/aparar).`;
+        if (info) {
+          const ok = info.valid;
+          const tb = el('button', 'react protect' + (ch.intercept ? ' sel' : ''),
+            `<b>⚔ Interceptar ataque contra ${battle.unit(info.protects).name}</b><small>${ok ? `válido: Vel ${info.mySpeed}${info.reach ? ' +' + info.reach + ' alcance' : ''} ≥ ${info.enemySpeed}` : `lento demais: Vel ${info.mySpeed}${info.reach ? ' +' + info.reach : ''} < ${info.enemySpeed}`}</small>`);
+          tb.disabled = !ok;
+          tb.onclick = () => cb.toggleIntercept(u.id);
+          pre.appendChild(tb);
+        }
+        box.appendChild(pre);
+      }
+      return box;
+    },
+
+    _side(battle, view, cb) {
+      const side = el('div', 'side');
+      let html = '<div class="sh">Ordem prevista</div>';
+      if (view.preview && view.preview.length) {
+        html += '<ol class="order">' + view.preview.map(ev => this._orderLine(battle, ev)).join('') + '</ol>';
+      }
+      html += '<div class="sh">Inimigos</div>' + battle.units.filter(u => u.side === 'enemy').map(e => {
+        const it = battle.intents.find(i => i.actorId === e.id);
+        const sk = it && SKILLS[it.skillId];
+        return `<div class="foe ${e.hp <= 0 ? 'dead' : ''}"><b>${e.name}</b> <small>${sk ? (sk.kind === 'attack' ? `→ ${battle.unit(it.targetId).name}: ${sk.name} (F${sk.force}, D${sk.dmg}, Vel ${battle.actionSpeed(e, sk)})` : `${sk.name} (defesa)`) : ''}</small>${hpBar(e)}<div class="chips">${chips(e)}</div></div>`;
+      }).join('');
+      side.innerHTML = html;
+      const hint = el('div', 'hint', view.hint || 'Escolha uma ação para cada personagem. Atacar quem ataca você gera um Clash; você também pode interceptar ataques contra aliados.');
+      hint.id = 'hint';
+      side.appendChild(hint);
+      const ok = el('button', 'confirm', 'Confirmar rodada ▶');
+      ok.disabled = !view.complete;
+      ok.onclick = cb.confirm;
+      side.appendChild(ok);
+      return side;
+    },
+
+    _orderLine(battle, ev) {
+      const n = id => battle.unit(id).name, sn = id => SKILLS[id].name;
+      if (ev.type === 'stances') return `<li class="o-def">Defesas: ${ev.actions.map(a => SKILLS[a.skillId].kind === 'protect' ? `${n(a.actorId)} protege ${n(a.targetId)}` : `${n(a.actorId)} (${sn(a.skillId)})`).join(', ')}</li>`;
+      if (ev.type === 'support') return `<li class="o-sup">${n(ev.a.actorId)}: ${sn(ev.a.skillId)} → ${n(ev.a.targetId)}</li>`;
+      if (ev.type === 'clash') {
+        const ally = ev.a.side === 'ally' ? ev.a : ev.b, foe = ally === ev.a ? ev.b : ev.a;
+        const p = ally === ev.a ? ev.odds.win : ev.odds.lose;
+        return `<li class="o-clash">⚔ ${ev.link.type === 'intercept' ? 'Interceptação' : 'Clash'}: ${n(ally.actorId)} (${sn(ally.skillId)}) × ${n(foe.actorId)} (${sn(foe.skillId)}) ${catTag(battle.category(p))}</li>`;
+      }
+      const a = ev.a, t = battle.unit(a.targetId), sk = SKILLS[a.skillId];
+      if (a.side === 'enemy') {
+        const prot = t.side === 'ally' && this._protector(battle, ev, t);
+        return `<li class="o-foe">${n(a.actorId)}: ${sn(a.skillId)} → ${t.name} <small>(sem oposição, D${sk.dmg}${prot ? ` · ${prot}` : ''})</small></li>`;
+      }
+      return `<li>${n(a.actorId)}: ${sn(a.skillId)} → ${t.name} <small>(sem oposição, D${sk.dmg})</small></li>`;
+    },
+    _protector(battle, ev, t) { return this._defenseNote && this._defenseNote[t.id]; },
+
+    hint(html) { const h = $('#hint'); if (h) h.innerHTML = html; },
+
+    renderEnd(result, onRestart) {
+      const o = $('#overlay');
+      o.innerHTML = `<div class="end ${result}"><h1>${result === 'victory' ? 'VITÓRIA' : 'DERROTA'}</h1><p>${result === 'victory' ? 'Os três inimigos caíram.' : 'Seu grupo foi derrotado.'}</p></div>`;
+      const b = el('button', 'confirm', 'Reiniciar batalha ↻');
+      b.onclick = onRestart;
+      o.firstChild.appendChild(b);
+      o.classList.add('show');
+    },
+    hideEnd() { $('#overlay').classList.remove('show'); $('#overlay').innerHTML = ''; },
+  };
+
+  G.UI = UI;
+})(window);
+
+</script>
+  <script>
+// =====================================================================
+// MÁQUINA DE ESTADOS — rodadas compartilhadas:
+//   INTENTS (IA decide e anuncia) → PLAN (jogador + prévia) →
+//   RESOLVE (fila de eventos) → INTENTS … | END
+// =====================================================================
+(function (G) {
+  'use strict';
+  const { Battle, Presenter, UI, SKILLS } = G;
+  const presenter = new Presenter(document.getElementById('stage'));
+  let battle, view, gen = 0;
+
+  const Phase = { INTENTS: 'INTENTS', PLAN: 'PLAN', RESOLVE: 'RESOLVE', END: 'END' };
+  const fsm = { state: null, go(s, data) { this.state = s; enter[s](data); } };
+
+  const enter = {
+    async INTENTS() {
+      const g = gen;
+      UI.setTop(battle, 'Preparação inimiga', true);
+      UI.renderWaiting('Os inimigos escolhem suas ações…');
+      battle.planEnemyIntents(); // fixas para toda a rodada
+      presenter.threatened = new Set(battle.intents.filter(i => SKILLS[i.skillId].kind === 'attack').map(i => i.targetId));
+      presenter.overlay = intentOverlay(null);
+      presenter.showBanner(`RODADA ${battle.round}`, '#ff8a6a', 900, 'os inimigos revelam suas intenções');
+      await presenter.wait(500);
+      await presenter.announceIntents(battle.intents);
+      if (g !== gen) return;
+      presenter.skipping = false;
+      fsm.go(Phase.PLAN);
+    },
+
+    PLAN() {
+      view = { choices: {}, active: null, hint: '', plan: null, preview: [], complete: false };
+      const first = battle.alive('ally')[0];
+      view.active = first && first.id;
+      refreshPlan();
+    },
+
+    async RESOLVE() {
+      const g = gen;
+      UI.setTop(battle, 'Execução da rodada', true);
+      UI.renderWaiting('Confrontos em andamento…');
+      presenter.highlight = null;
+      const plan = battle.buildPlan(view.choices);       // validação final
+      const events = battle.resolveRound(plan);          // tudo decidido aqui
+      await presenter.playAll(events);
+      if (g !== gen) return;
+      const out = battle.outcome();
+      if (out) return fsm.go(Phase.END, out);
+      battle.endRound();
+      presenter.endRound(battle.snapshot());
+      fsm.go(Phase.INTENTS);
+    },
+
+    END(result) {
+      UI.setTop(battle, result === 'victory' ? 'Vitória' : 'Derrota', false);
+      UI.renderWaiting('');
+      UI.renderEnd(result, start);
+    },
+  };
+
+  // ------------------------------------------------------------ overlay
+  function intentOverlay(plan) {
+    const items = [];
+    const linked = id => plan && plan.links[id];
+    battle.intents.forEach(it => {
+      const sk = SKILLS[it.skillId];
+      if (battle.unit(it.actorId).hp <= 0) return;
+      if (sk.kind !== 'attack') { items.push({ from: it.actorId, style: 'badge', label: '🛡 ' + sk.name, color: '#ff8a6a' }); return; }
+      const l = linked(it.id);
+      if (l && l.type === 'direct') return; // vira a linha de Clash
+      items.push({ from: it.actorId, to: it.targetId, style: 'dashed', color: '#ff5a5a', label: `${sk.name} F${sk.force} D${sk.dmg}`, lift: 20 + battle.unit(it.actorId).slot * 30 });
+    });
+    return items;
+  }
+  function planOverlay(plan, preview) {
+    const items = intentOverlay(plan);
+    const orderOf = {};
+    preview.forEach((ev, i) => { [ev.a, ev.b].forEach(x => { if (x) orderOf[x.id] = i + 1; }); (ev.actions || []).forEach(x => { orderOf[x.id] = i + 1; }); });
+    for (const ev of preview) {
+      if (ev.type === 'clash') {
+        const ally = ev.a.side === 'ally' ? ev.a : ev.b, foe = ally === ev.a ? ev.b : ev.a;
+        const cat = battle.category(ally === ev.a ? ev.odds.win : ev.odds.lose);
+        items.push({ from: ally.actorId, to: foe.actorId, style: 'clash', color: UI.CAT[cat][1],
+          label: `⚔ ${ev.link.type === 'intercept' ? 'Intercepta' : 'Clash'} · ${UI.CAT[cat][0]}`, order: orderOf[ally.id] });
+      }
+    }
+    for (const a of plan.actions.filter(x => x.side === 'ally')) {
+      if (plan.links[a.id]) continue;
+      const sk = SKILLS[a.skillId];
+      if (sk.kind === 'defense') items.push({ from: a.actorId, style: 'badge', label: `${orderOf[a.id]}. 🛡 ${sk.name}`, color: '#7fd0ff' });
+      else items.push({ from: a.actorId, to: a.targetId, style: 'arrow', order: orderOf[a.id],
+        color: sk.kind === 'support' ? '#7fe0a0' : sk.kind === 'protect' ? '#9fd0ff' : '#7fd0ff', label: sk.name });
+    }
+    return items;
+  }
+
+  // ------------------------------------------------------------ planejamento
+  function refreshPlan() {
+    const allies = battle.alive('ally');
+    view.plan = battle.buildPlan(view.choices);
+    view.preview = battle.previewPlan(view.plan);
+    view.complete = allies.every(u => view.plan.actions.some(a => a.actorId === u.id));
+    // anotações de defesa para a lista de ordem
+    const note = {};
+    for (const a of view.plan.actions.filter(x => x.side === 'ally')) {
+      const sk = SKILLS[a.skillId];
+      if (sk.kind === 'protect') note[a.targetId] = `${battle.unit(a.actorId).name} protege`;
+      else if (sk.kind === 'defense') note[a.actorId] = note[a.actorId] || G.REACTIONS[sk.reaction].name;
+    }
+    UI._defenseNote = note;
+    presenter.overlay = planOverlay(view.plan, view.preview);
+    const ch = view.active && view.choices[view.active];
+    const sk = ch && ch.skillId && SKILLS[ch.skillId];
+    presenter.highlight = new Set(!sk ? [view.active].filter(Boolean)
+      : sk.kind === 'attack' ? battle.alive('enemy').map(e => e.id)
+      : sk.kind === 'defense' ? [] : battle.alive('ally').filter(u => u.id !== view.active).map(u => u.id));
+    UI.setTop(battle, 'Planejamento — escolha as ações', false);
+    UI.renderPlan(battle, view, planCb);
+  }
+  const planCb = {
+    activate(id) { view.active = id; refreshPlan(); },
+    pickSkill(uid, sid) {
+      view.active = uid;
+      const prev = view.choices[uid] || {};
+      const sk = SKILLS[sid];
+      // mantém o alvo se continuar válido para o novo tipo de habilidade
+      const keep = prev.targetId && SKILLS[prev.skillId] && SKILLS[prev.skillId].kind === 'attack' && sk.kind === 'attack';
+      view.choices[uid] = { skillId: sid, targetId: keep ? prev.targetId : null, intercept: keep ? prev.intercept : false };
+      if (sk.kind === 'defense') view.choices[uid].targetId = uid;
+      view.hint = `<b>${sk.name}</b> — ${sk.desc}` + (sk.kind === 'defense' ? '' : '<br><i>Escolha um alvo.</i>');
+      if (sk.kind === 'defense') nextActive(uid);
+      refreshPlan();
+    },
+    pickTarget(uid, tid) {
+      const c = view.choices[uid];
+      if (!c || !c.skillId) return;
+      c.targetId = tid; c.intercept = false;
+      // interceptar por padrão quando for válido (o jogador pode desligar)
+      const a = battle.buildPlan(view.choices).actions.find(x => x.actorId === uid);
+      if (a && a.interceptInfo && a.interceptInfo.valid) c.intercept = true;
+      view.hint = '';
+      nextActive(uid);
+      refreshPlan();
+    },
+    toggleIntercept(uid) { const c = view.choices[uid]; if (c) c.intercept = !c.intercept; refreshPlan(); },
+    hint(h) { UI.hint(h); },
+    confirm() { if (view.complete) fsm.go(Phase.RESOLVE); },
+  };
+  function nextActive(uid) {
+    const pending = battle.alive('ally').find(u => !(view.choices[u.id] && view.choices[u.id].targetId));
+    view.active = pending ? pending.id : uid;
+  }
+
+  // ------------------------------------------------------------ entrada
+  document.getElementById('stage').addEventListener('click', ev => {
+    if (fsm.state !== Phase.PLAN) return;
+    const r = ev.currentTarget.getBoundingClientRect();
+    const id = presenter.pick(ev.clientX - r.left, ev.clientY - r.top);
+    if (!id) return;
+    const u = battle.unit(id);
+    const c = view.active && view.choices[view.active];
+    const sk = c && c.skillId && SKILLS[c.skillId];
+    if (sk && ((sk.kind === 'attack' && u.side === 'enemy') || ((sk.kind === 'support' || sk.kind === 'protect') && u.side === 'ally' && id !== view.active)))
+      planCb.pickTarget(view.active, id);
+    else if (u.side === 'ally') planCb.activate(id);
+  });
+  document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => { presenter.speed = +b.dataset.speed; UI.setSpeed(presenter.speed); });
+  document.getElementById('btn-skip').onclick = () => presenter.skip();
+  document.getElementById('btn-restart').onclick = () => { if (confirm('Reiniciar a batalha?')) start(); };
+  document.getElementById('btn-help').onclick = () => document.getElementById('help').classList.toggle('show');
+  document.getElementById('help').onclick = () => document.getElementById('help').classList.remove('show');
+  window.addEventListener('keydown', e => {
+    if (e.key === ' ' && (fsm.state === Phase.RESOLVE || fsm.state === Phase.INTENTS)) { e.preventDefault(); presenter.skip(); }
+  });
+
+  function start() {
+    gen++;
+    presenter.skip(); presenter.skipping = false;
+    UI.hideEnd();
+    battle = new Battle((Date.now() ^ (Math.random() * 1e9)) >>> 0);
+    presenter.reset(battle);
+    fsm.go(Phase.INTENTS);
+  }
+  UI.setSpeed(1);
+  start();
+  G.debug = { get battle() { return battle; }, presenter, fsm, get view() { return view; } };
+})(window);
+
+</script>
+</body>
+</html>
