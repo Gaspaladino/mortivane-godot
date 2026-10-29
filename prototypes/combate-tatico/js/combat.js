@@ -284,7 +284,19 @@
         applied = sk.applies;
       }
       return { attackerId: att.id, defenderId: def.id, skillId,
-        damage: dmg, hpBefore, hpAfter: def.hp, killed: def.hp <= 0, applied };
+        damage: dmg, hpBefore, hpAfter: def.hp, killed: def.hp <= 0, applied, impact: this.impactOf(sk, dmg, def, dmgMult < 1) };
+    }
+
+    // Classificação do impacto físico: light | medium | heavy | extreme.
+    // Hoje é só visual; fica na lógica para permitir consequências futuras.
+    impactOf(sk, dmg, def, blocked) {
+      const LV = ['light', 'medium', 'heavy', 'extreme'];
+      const r = dmg / def.maxHp, c = CONFIG.impact;
+      let lv = r >= c.heavy ? 2 : r >= c.medium ? 1 : 0;
+      if (sk.impact === 'stagger') lv = Math.max(lv, 2);
+      if (sk.impact === 'knockdown') lv = 3;
+      if (blocked) lv = Math.max(0, lv - 1);
+      return LV[Math.min(lv, sk.impact === 'knockdown' ? 3 : 2)];
     }
 
     chance(kind, d, a, sk) {
@@ -324,7 +336,7 @@
         outcome = success ? 'parried' : 'parryFail'; mult = success ? 0 : 1;
       }
       let hit;
-      if (mult === 0) hit = { damage: 0, hpBefore: d.hp, hpAfter: d.hp, killed: false, applied: null };
+      if (mult === 0) hit = { damage: 0, hpBefore: d.hp, hpAfter: d.hp, killed: false, applied: null, impact: null };
       else hit = this._applyHit(a, d, act.skillId, mult);
       if (outcome === 'parried') {
         const before = a.hp, cd = CONFIG.parry.counterDmg;
@@ -333,7 +345,7 @@
       }
       return { type: 'attack', attackerId: a.id, skillId: act.skillId, skill: sk, targetId: t.id, defenderId: d.id,
         protectorId, reaction, chance: ch, success, outcome, damage: hit.damage, hpBefore: hit.hpBefore, hpAfter: hit.hpAfter,
-        killed: hit.killed, applied: hit.applied, consumed: [], counter,
+        killed: hit.killed, applied: hit.applied, impact: hit.impact, consumed: [], counter,
         decisive: hit.killed || !!(counter && counter.killed), after: this.snapshot() };
     }
 

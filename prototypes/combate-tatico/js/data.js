@@ -15,6 +15,9 @@
     block: 0.5,                   // redução padrão do bloqueio (unidade pode sobrescrever)
     dodge: { base: 0.45, speedFactor: 0.05, heavy: 0.20, fast: -0.20, min: 0.10, max: 0.85 },
     parry: { base: 0.55, heavy: -0.20, fast: 0.10, min: 0.10, max: 0.90, counterDmg: 6 },
+    // Intensidade visual do impacto (dano / vida máxima do alvo). Só apresentação, por enquanto;
+    // 'knockdown' (derrubada) só acontece com habilidades que têm essa propriedade (impact).
+    impact: { medium: 0.14, heavy: 0.26 },
     weaken: { amount: 2, rounds: 2 },  // -2 de força; dura até o fim da próxima rodada
     support: { amount: 2 },            // +2 de força na próxima habilidade ofensiva do aliado
   };
@@ -23,49 +26,49 @@
   // tags: melee | magic | heavy | fast
   const SKILLS = {
     // --- Cavaleiro
-    k_basic: { name: 'Ataque Básico', kind: 'attack', force: 6, dmg: 8, tags: ['melee'],
+    k_basic: { name: 'Ataque Básico', icon: 'sword', kind: 'attack', force: 6, dmg: 8, tags: ['melee'],
       desc: 'Golpe de espada equilibrado.' },
-    k_shield: { name: 'Golpe de Escudo', kind: 'attack', force: 8, dmg: 6, tags: ['melee'],
+    k_shield: { name: 'Golpe de Escudo', icon: 'shieldbash', kind: 'attack', force: 8, dmg: 6, tags: ['melee'],
       desc: 'Muito confiável em Clashes, pouco dano.' },
-    k_heavy: { name: 'Golpe Pesado', kind: 'attack', force: 5, dmg: 14, tags: ['melee', 'heavy'], cooldown: 2,
+    k_heavy: { name: 'Golpe Pesado', icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 14, tags: ['melee', 'heavy'], cooldown: 2,
       desc: 'Lento e devastador. Arriscado em Clashes.' },
-    k_guard: { name: 'Postura de Escudo', kind: 'defense', reaction: 'block', tags: [],
+    k_guard: { name: 'Postura de Escudo', icon: 'shield', kind: 'defense', reaction: 'block', tags: [],
       desc: 'Bloqueia todos os golpes recebidos nesta rodada (-60% de dano).' },
-    k_protect: { name: 'Proteção', kind: 'protect', reaction: 'block', tags: [],
+    k_protect: { name: 'Proteção', icon: 'protect', kind: 'protect', reaction: 'block', tags: [],
       desc: 'Fica na frente de um aliado: recebe e bloqueia os golpes sem oposição destinados a ele.' },
     // --- Espadachim
-    s_basic: { name: 'Corte Rápido', kind: 'attack', force: 6, dmg: 7, tags: ['melee', 'fast'],
+    s_basic: { name: 'Corte Rápido', icon: 'slash', kind: 'attack', force: 6, dmg: 7, tags: ['melee', 'fast'],
       desc: 'Corte veloz: age cedo na rodada.' },
-    s_precise: { name: 'Golpe Preciso', kind: 'attack', force: 9, dmg: 6, tags: ['melee'],
+    s_precise: { name: 'Golpe Preciso', icon: 'precise', kind: 'attack', force: 9, dmg: 6, tags: ['melee'],
       desc: 'Força alta: vence a maioria dos Clashes.' },
-    s_risky: { name: 'Ataque Arriscado', kind: 'attack', force: 4, dmg: 15, tags: ['melee'], cooldown: 2,
+    s_risky: { name: 'Ataque Arriscado', icon: 'risky', impact: 'stagger', kind: 'attack', force: 4, dmg: 15, tags: ['melee'], cooldown: 2,
       desc: 'Força baixa, dano enorme. Ótimo contra quem não vai reagir.' },
-    s_parry: { name: 'Aparar', kind: 'defense', reaction: 'parry', tags: [],
+    s_parry: { name: 'Aparar', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [],
       desc: 'Tenta aparar o primeiro golpe físico recebido; se der certo, anula e contra-ataca. Não funciona contra magia.' },
     // --- Mago
-    m_bolt: { name: 'Projétil Mágico', kind: 'attack', force: 6, dmg: 7, tags: ['magic'],
+    m_bolt: { name: 'Projétil Mágico', icon: 'bolt', kind: 'attack', force: 6, dmg: 7, tags: ['magic'],
       desc: 'Ataque à distância.' },
-    m_blast: { name: 'Explosão Arcana', kind: 'attack', force: 5, dmg: 13, tags: ['magic'], cooldown: 2,
+    m_blast: { name: 'Explosão Arcana', icon: 'blast', impact: 'knockdown', kind: 'attack', force: 5, dmg: 13, tags: ['magic'], cooldown: 2,
       desc: 'Magia de dano elevado.' },
-    m_weaken: { name: 'Enfraquecimento', kind: 'attack', force: 7, dmg: 3, tags: ['magic', 'support'], applies: 'weaken',
+    m_weaken: { name: 'Enfraquecimento', icon: 'weaken', kind: 'attack', force: 7, dmg: 3, tags: ['magic', 'support'], applies: 'weaken',
       desc: 'Pouco dano, mas o alvo perde 2 de força nos Clashes até o fim da próxima rodada. Age cedo.' },
-    m_support: { name: 'Suporte', kind: 'support', tags: ['support'],
+    m_support: { name: 'Suporte', icon: 'support', kind: 'support', tags: ['support'],
       desc: 'Um aliado ganha +2 de força na próxima habilidade ofensiva. Age cedo.' },
-    m_dodge: { name: 'Passo Etéreo', kind: 'defense', reaction: 'dodge', tags: [],
+    m_dodge: { name: 'Passo Etéreo', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
       desc: 'Tenta esquivar de cada golpe recebido nesta rodada.' },
 
     // --- Brutamontes (prioriza ataques fortes)
-    b_smash: { name: 'Esmagar', kind: 'attack', force: 5, dmg: 16, tags: ['melee', 'heavy'], cooldown: 2 },
-    b_bash: { name: 'Pancada', kind: 'attack', force: 8, dmg: 9, tags: ['melee'] },
-    b_guard: { name: 'Couraça', kind: 'defense', reaction: 'block', tags: [] },
+    b_smash: { name: 'Esmagar', icon: 'hammer', impact: 'knockdown', kind: 'attack', force: 5, dmg: 16, tags: ['melee', 'heavy'], cooldown: 2 },
+    b_bash: { name: 'Pancada', icon: 'hammer', kind: 'attack', force: 8, dmg: 9, tags: ['melee'] },
+    b_guard: { name: 'Couraça', icon: 'shield', kind: 'defense', reaction: 'block', tags: [] },
     // --- Duelista (prefere alvos vulneráveis)
-    d_flurry: { name: 'Lâmina Veloz', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'] },
-    d_lunge: { name: 'Investida Feroz', kind: 'attack', force: 6, dmg: 12, tags: ['melee'], cooldown: 2 },
-    d_parry: { name: 'Contra-guarda', kind: 'defense', reaction: 'parry', tags: [] },
+    d_flurry: { name: 'Lâmina Veloz', icon: 'slash', kind: 'attack', force: 8, dmg: 7, tags: ['melee', 'fast'] },
+    d_lunge: { name: 'Investida Feroz', icon: 'precise', impact: 'stagger', kind: 'attack', force: 6, dmg: 12, tags: ['melee'], cooldown: 2 },
+    d_parry: { name: 'Contra-guarda', icon: 'parry', kind: 'defense', reaction: 'parry', tags: [] },
     // --- Conjurador (magias e suporte)
-    c_ray: { name: 'Raio Sombrio', kind: 'attack', force: 7, dmg: 10, tags: ['magic'] },
-    c_curse: { name: 'Maldição', kind: 'attack', force: 6, dmg: 4, tags: ['magic', 'support'], applies: 'weaken', cooldown: 2 },
-    c_veil: { name: 'Véu Sombrio', kind: 'defense', reaction: 'dodge', tags: [] },
+    c_ray: { name: 'Raio Sombrio', icon: 'bolt', kind: 'attack', force: 7, dmg: 10, tags: ['magic'] },
+    c_curse: { name: 'Maldição', icon: 'weaken', kind: 'attack', force: 6, dmg: 4, tags: ['magic', 'support'], applies: 'weaken', cooldown: 2 },
+    c_veil: { name: 'Véu Sombrio', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [] },
   };
 
   const REACTIONS = {

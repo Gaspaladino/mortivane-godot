@@ -24,12 +24,11 @@
   <div id="help">
     <div class="box">
       <h2>Como jogar</h2>
-      <p><b>Rodada compartilhada:</b> 1) os inimigos revelam alvo, habilidade, força (F), dano (D) e velocidade. 2) Você escolhe uma ação para cada personagem. 3) A prévia mostra Clashes, ataques sem oposição e a ordem. 4) Confirme e assista.</p>
-      <p><b>Clash:</b> se você ataca quem está atacando você, as habilidades se chocam. Cada lado rola <b>Força + (0 a 3)</b>; o maior interrompe o outro e acerta seu dano. Empate: os dois se anulam. Força e Dano são coisas diferentes: força alta vence Clashes, dano alto é melhor contra quem não reage.</p>
-      <p><b>Interceptar:</b> atacar um inimigo que mira <i>outro</i> aliado permite entrar na frente e forçar o Clash — se sua velocidade (+ alcance do Cavaleiro) for ≥ à do golpe inimigo.</p>
-      <p><b>Defesas</b> (agem antes de tudo e duram a rodada): Postura de Escudo = bloqueia; Proteção = o Cavaleiro recebe e bloqueia os golpes sem oposição contra um aliado; Aparar = tenta anular o 1º golpe físico e contra-atacar (não contra magia); Passo Etéreo = chance de esquivar.</p>
-      <p><b>Preparação:</b> Enfraquecimento (−2 força no alvo) e Suporte (+2 força para um aliado) agem cedo e afetam os Clashes que vierem <i>depois</i> deles na ordem.</p>
-      <p><b>Controles:</b> 1×/2×, Pular (ou Espaço). O resultado já está decidido; pular não muda nada.</p>
+      <p><b>Planejar na arena:</b> clique num aliado — as habilidades surgem em círculos ao redor dele. <b>Arraste</b> do personagem até uma habilidade e continue até o alvo, ou faça por <b>cliques</b> (personagem → habilidade → alvo). Defesas confirmam direto no círculo. Clique de novo no personagem para trocar; ✕ ou botão direito cancela; Esc desfaz.</p>
+      <p><b>Leitura:</b> linhas vermelhas tracejadas = intenções inimigas. Correntes = suas ações (vermelha com ponta = ataque, verde = suporte, azul com escudo = proteção). O selo no meio da corrente mostra o Clash (Favorável / Equilibrado / Desfavorável); passe o mouse para ver as forças. Em interceptações, clique no selo para ligar/desligar.</p>
+      <p><b>Clash:</b> cada lado rola <b>Força + (0 a 3)</b>; o maior interrompe o outro e acerta seu dano. Empate anula os dois. Interceptar exige velocidade (+ alcance do Cavaleiro) ≥ a do golpe inimigo.</p>
+      <p><b>Defesas</b> agem antes de tudo: Postura de Escudo, Proteção (o Cavaleiro recebe os golpes no lugar de um aliado), Aparar (1º golpe físico), Passo Etéreo (esquiva). Enfraquecimento (−2 força) e Suporte (+2) afetam só o que vem depois deles.</p>
+      <p><b>Controles:</b> 1×/2×, Pular (ou Espaço), Enter executa a rodada. Os resultados já estão decididos antes da animação.</p>
       <p class="muted">Clique para fechar.</p>
     </div>
   </div>
@@ -37,6 +36,7 @@
   <script src="js/combat.js"></script>
   <script src="js/ai.js"></script>
   <script src="js/presenter.js"></script>
+  <script src="js/planner.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>
 </body>

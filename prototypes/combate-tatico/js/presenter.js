@@ -10,6 +10,20 @@
     knight: { x: 445, y: 580 }, swordsman: { x: 315, y: 618 }, mage: { x: 185, y: 560 },
     brute: { x: 835, y: 580 }, duelist: { x: 965, y: 618 }, conjurer: { x: 1095, y: 560 },
   };
+  // Área de combate (mundo) e regras de espaçamento
+  const ARENA = { minX: 90, maxX: 1190, minY: 545, maxY: 640 };
+    const FRONT = { ally: 600, enemy: 690 }; // linha de frente usada no reagrupamento entre rodadas
+  // Peso de cada personagem: duração dos deslocamentos, curva, alcance da arma e quanto é empurrado
+  const MOVE = {
+    knight:    { dash: 1.30, ease: 'inOut', reach: 72, knock: 0.65, width: 96 },
+    swordsman: { dash: 0.70, ease: 'out',   reach: 82, knock: 1.00, width: 84 },
+    mage:      { dash: 1.10, ease: 'inOut', reach: 70, knock: 1.10, width: 84 },
+    brute:     { dash: 1.40, ease: 'inOut', reach: 88, knock: 0.55, width: 124 },
+    duelist:   { dash: 0.75, ease: 'out',   reach: 84, knock: 1.00, width: 84 },
+    conjurer:  { dash: 1.10, ease: 'inOut', reach: 70, knock: 1.10, width: 88 },
+  };
+  const LEVELS = ['light', 'medium', 'heavy', 'extreme'];
+  const STANCE_STATE = { block: 'BLOCKING', parry: 'PARRYING', dodge: 'DODGING' };
   const ease = {
     lin: t => t,
     out: t => 1 - Math.pow(1 - t, 3),
@@ -32,7 +46,7 @@
       this.banner = null; this.caption = null; this.screenFlash = 0;
       this.cam = { x: W / 2, y: H / 2, z: 1 }; this.camT = { x: W / 2, y: H / 2, z: 1 }; this.viewCY = H / 2;
       this.shake = 0; this.spot = null; this.time = 0;
-      this.overlay = []; this.threatened = null; this.nums = []; this.showLabels = true; this.highlight = null;
+      this.threatened = null; this.nums = []; this.showLabels = true; this.highlight = null;
       this.bg = this._buildBackground();
       this.fog = Array.from({ length: 14 }, (_, i) => ({ x: Math.random() * W * 1.4 - 100, y: GROUND - 40 + Math.random() * 120, r: 80 + Math.random() * 120, v: 0.004 + Math.random() * 0.01 }));
       this._last = performance.now();
@@ -50,11 +64,12 @@
           face: u.side === 'ally' ? 1 : -1, home: h, x: h.x, y: h.y,
           lean: 0, arm: 0, guard: 0, cast: 0, crouch: 0, flash: 0, alpha: 1, hop: 0,
           barrier: 0, ready: 0, dead: u.hp <= 0, hp: u.hp, dispHp: u.hp, maxHp: u.maxHp,
-          statuses: { ...u.statuses }, phase: i * 1.7, trail: [], post: null, stance: null };
+          statuses: { ...u.statuses }, phase: i * 1.7, trail: [], stance: null,
+          state: u.hp > 0 ? 'IDLE' : 'DEFEATED', tilt: 0, kneel: 0, busy: null };
       });
       this.tweens = []; this.waits = []; this.particles = []; this.texts = []; this.fx = [];
       this.banner = null; this.caption = null; this.spot = null;
-      this.overlay = []; this.threatened = null; this.nums = [];
+      this.threatened = null; this.nums = [];
       this.overview();
     }
 
@@ -118,6 +133,7 @@
         const w = this.waits[i]; w.t -= dt;
         if (w.t <= 0) { this.waits.splice(i, 1); w.res(); }
       }
+      if (this.follow) this._frameFollow();
       // câmera suave (tempo real para não "travar" na câmera lenta)
       const k = 1 - Math.exp(-real * 0.006 * Math.max(1, this.speed * 0.8));
       this.cam.x = lerp(this.cam.x, this.camT.x, k);
@@ -151,18 +167,33 @@
     }
 
     // ------------------------------------------------------------ câmera
-    overview() { this.camT = { x: W / 2, y: this.viewCY || H / 2, z: 1 }; this.spot = null; }
+    overview() { this.follow = null; this.camT = { x: W / 2, y: this.viewCY || H / 2, z: 1 }; this.spot = null; }
+    // A câmera passa a ACOMPANHAR os personagens focados (inclusive quando são empurrados),
+    // e vai direto de um confronto ao próximo, sem voltar ao plano geral.
     focusOn(vs, extraZoom = 0) {
-      const xs = vs.map(v => v.x), ys = vs.map(v => v.y - 55);
+      vs = vs.filter(Boolean);
+      if (!vs.length) return;
+      this.follow = { vs, extraZoom };
+      this.spot = new Set(vs.map(v => v.id));
+      this._frameFollow();
+    }
+    _frameFollow() {
+      const { vs, extraZoom } = this.follow;
+      const xs = vs.map(v => v.x), ys = vs.map(v => v.y - 60);
       const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
       const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-      const span = Math.max(...xs) - Math.min(...xs);
-      const z = clamp(1.9 - span / 900, 1.15, 1.75) + extraZoom;
+      const span = Math.max(...xs) - Math.min(...xs) + 160; // margem para armas e recuos
+      const z = clamp(1.85 - span / 1000, 1.05, 1.5) + extraZoom;
       // mantém o enquadramento dentro do cenário
       const hw = W / 2 / z, hh = H / 2 / z;
       this.camT = { x: clamp(cx, hw, W - hw), y: clamp(cy, hh * 0.6, H - hh), z };
-      this.spot = new Set(vs.map(v => v.id));
     }
+    toScreen(wx, wy) {
+      const x = (wx - this.cam.x) * this.cam.z + W / 2, y = (wy - this.cam.y) * this.cam.z + this.viewCY;
+      return { x: x * this.scale + this.offX, y: y * this.scale + this.offY };
+    }
+    // fator mundo → pixels de tela (para manter a interface com tamanho constante)
+    get pxPerWorld() { return this.cam.z * this.scale; }
     toWorld(sx, sy) {
       const x = (sx - this.offX) / this.scale, y = (sy - this.offY) / this.scale;
       return { x: (x - W / 2) / this.cam.z + this.cam.x, y: (y - this.viewCY) / this.cam.z + this.cam.y };
@@ -173,7 +204,7 @@
       for (const id in this.vis) {
         const v = this.vis[id];
         if (v.dead) continue;
-        if (Math.abs(p.x - v.x) < 48 && p.y < v.y + 12 && p.y > v.y - 150) {
+        if (Math.abs(p.x - v.x) < 50 && p.y < v.y + 16 && p.y > v.y - 155) {
           if (!best || v.y > best.y) best = v;
         }
       }
@@ -196,132 +227,316 @@
     showBanner(text, color, dur = 900, sub = '') { if (!this.skipping) this.banner = { text, color, t: 0, dur, sub }; }
     hurtShake(amount) { if (!this.skipping) this.shake = Math.max(this.shake, amount); }
 
+    // ============================================================ ESTADOS VISUAIS
+    // Cada personagem tem seu próprio estado visual e pode estar numa
+    // "rotina" (recuperação, queda, reposicionamento) enquanto o próximo
+    // confronto já começa. A lógica nunca depende disso.
+    setState(v, s) { v.state = s; }
+    // Executa uma rotina em segundo plano; v.busy indica que ainda está acontecendo.
+    routine(v, fn) {
+      const p = (v.busy || Promise.resolve()).then(() => fn()).catch(() => {}).then(() => { if (v.busy === p) v.busy = null; });
+      v.busy = p;
+      return p;
+    }
+    // Sincroniza a postura antes de o personagem entrar em outro confronto.
+    sync(...vs) { return Promise.all(vs.filter(Boolean).map(v => v.busy || null)); }
+    faceTo(v, other) { if (!v.dead && other && Math.abs(other.x - v.x) > 4) v.face = other.x > v.x ? 1 : -1; }
+    clampPos(x, y) { return { x: clamp(x, ARENA.minX, ARENA.maxX), y: clamp(y, ARENA.minY, ARENA.maxY) }; }
+    moveTo(v, x, y, dur, e) {
+      const p = this.clampPos(x, y);
+      return this.tween(v, { x: p.x, y: p.y }, dur, e || MOVE[v.art].ease);
+    }
+    dust(v, n = 8) { this.sparks(v.x, v.y - 4, 'rgba(160,140,130,0.55)', n, 0.18, -0.0002); }
+
+    // Afasta personagens sobrepostos e mantém todos na arena (suave).
+    settle(lock = []) {
+      if (!this.vis) return;
+      const all = Object.values(this.vis);
+      const target = {};
+      for (const v of all) target[v.id] = this.clampPos(v.x, v.y);
+      for (let it = 0; it < 4; it++) {
+        for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+          const a = all[i], b = all[j], ta = target[a.id], tb = target[b.id];
+          const dx = tb.x - ta.x, dy = tb.y - ta.y;
+          const need = (MOVE[a.art].width + MOVE[b.art].width) / 2;
+          if (Math.abs(dy) > 46 || Math.abs(dx) >= need) continue;
+          const push = (need - Math.abs(dx)) / 2 + 1, s = dx >= 0 ? 1 : -1;
+          const fixedA = a.dead || a.busy || lock.includes(a), fixedB = b.dead || b.busy || lock.includes(b);
+          if (fixedA && fixedB) continue;
+          if (fixedA) tb.x += s * push * 2; else if (fixedB) ta.x -= s * push * 2;
+          else { ta.x -= s * push; tb.x += s * push; }
+          ta.x = clamp(ta.x, ARENA.minX, ARENA.maxX); tb.x = clamp(tb.x, ARENA.minX, ARENA.maxX);
+        }
+      }
+      for (const v of all) {
+        const t = target[v.id];
+        if (v.dead || v.busy) continue;
+        if (Math.abs(t.x - v.x) > 1 || Math.abs(t.y - v.y) > 1) {
+          this.setState(v, 'REPOSITIONING');
+          this.tween(v, { x: t.x, y: t.y }, 380, 'inOut').then(() => { if (v.state === 'REPOSITIONING') this.setState(v, 'IDLE'); });
+        }
+        this.faceTo(v, this._nearestFoe(v));
+      }
+    }
+    _nearestFoe(v) {
+      let best = null, bd = 1e9;
+      for (const id in this.vis) {
+        const o = this.vis[id];
+        if (o.side === v.side || o.dead) continue;
+        const d = Math.abs(o.x - v.x) + Math.abs(o.y - v.y) * 0.5;
+        if (d < bd) { bd = d; best = o; }
+      }
+      return best;
+    }
+
+    // ------------------------------------------------------------ REAÇÕES FÍSICAS
+    // level: light | medium | heavy | extreme  — dir: +1/-1 (para onde é empurrado)
+    // Retorna rápido (depois do impacto); a recuperação continua em segundo plano.
+    react(v, level, dir, killed) {
+      const P = MOVE[v.art];
+      if (killed) return this.routine(v, () => this._fall(v, dir, true));
+      if (level === 'light') {
+        return this.routine(v, async () => {
+          this.setState(v, 'HIT_LIGHT');
+          await this.tween(v, { x: clamp(v.x + dir * 16 * P.knock, ARENA.minX, ARENA.maxX), lean: -0.3, crouch: 0.05 }, 90, 'out');
+          await this.tween(v, { lean: 0, crouch: 0 }, 220, 'inOut');
+          this.setState(v, 'IDLE');
+        });
+      }
+      if (level === 'medium') {
+        return this.routine(v, async () => {
+          this.setState(v, 'HIT_HEAVY');
+          this.dust(v, 6);
+          const slide = this.tween(v, { x: clamp(v.x + dir * 85 * P.knock, ARENA.minX, ARENA.maxX), lean: -0.45, crouch: 0.1 }, 320, 'out');
+          for (let i = 0; i < 3; i++) { await this.wait(80); this.dust(v, 3); }
+          await slide;
+          await this.tween(v, { lean: 0, crouch: 0 }, 300, 'inOut');
+          this.setState(v, 'IDLE');
+        });
+      }
+      if (level === 'heavy') {
+        return this.routine(v, async () => {
+          this.setState(v, 'STAGGERING');
+          this.dust(v, 8);
+          await this.tween(v, { x: clamp(v.x + dir * 105 * P.knock, ARENA.minX, ARENA.maxX), lean: -0.6, crouch: 0.12 }, 300, 'out');
+          // quase cai: apoia a mão no chão e fica ajoelhado
+          await this.tween(v, { lean: 0, tilt: 0.38, crouch: 0.32, kneel: 1, arm: 0.9 }, 220, 'in');
+          this.dust(v, 6);
+          await this.wait(420);
+          await this.tween(v, { tilt: 0.12, crouch: 0.15, kneel: 0.3 }, 300, 'inOut');
+          await this.tween(v, { tilt: 0, crouch: 0, kneel: 0, arm: 0 }, 260, 'inOut');
+          this.setState(v, 'IDLE');
+        });
+      }
+      return this.routine(v, () => this._fall(v, dir, false));
+    }
+
+    // Derrubada (com recuperação) ou derrota (fica no chão).
+    async _fall(v, dir, defeated) {
+      this.setState(v, defeated ? 'DEFEATED' : 'KNOCKDOWN');
+      const P = MOVE[v.art];
+      const fx = clamp(v.x + dir * 150 * P.knock, ARENA.minX, ARENA.maxX);
+      // arremessado em arco, cai de costas
+      this.tween(v, { x: fx }, 420, 'out');
+      await this.tween(v, { hop: 46 * P.knock, tilt: -0.9 }, 200, 'out');
+      await this.tween(v, { hop: 0, tilt: -1.45, crouch: 0, lean: 0, arm: 0.6, kneel: 0 }, 200, 'in');
+      this.dust(v, 14);
+      this.hurtShake(defeated ? 8 : 6);
+      await this.tween(v, { hop: 8 }, 90, 'out'); await this.tween(v, { hop: 0 }, 110, 'in');
+      if (defeated) {
+        v.dead = true;
+        await this.tween(v, { alpha: 0.45 }, 400);
+        return;
+      }
+      await this.wait(650);
+      // levantando
+      this.setState(v, 'GETTING_UP');
+      await this.tween(v, { tilt: -0.5, crouch: 0.3, kneel: 0.6 }, 380, 'inOut');
+      await this.tween(v, { tilt: 0.2, crouch: 0.2, kneel: 0.2 }, 300, 'inOut');
+      await this.tween(v, { tilt: 0, crouch: 0, kneel: 0, arm: 0 }, 280, 'out');
+      this.setState(v, 'IDLE');
+    }
+
+    // Golpe/finalização da arma depois de atacar, sem voltar à formação.
+    followThrough(v) {
+      return this.routine(v, async () => {
+        this.setState(v, 'ATTACKING');
+        await this.wait(120);
+        await this.tween(v, { arm: 0.35, lean: 0.05, crouch: 0.04, cast: 0 }, 260, 'out');
+        await this.tween(v, this._stancePose(v), 300, 'inOut');
+        this.setState(v, v.stance ? STANCE_STATE[v.stance] : 'IDLE');
+      });
+    }
+    _stancePose(v) {
+      return { arm: v.stance === 'parry' ? -0.7 : 0, guard: v.stance === 'block' ? 1 : 0,
+        cast: v.stance === 'dodge' ? 0.4 : 0, lean: 0, crouch: v.stance === 'dodge' ? 0.06 : 0 };
+    }
+
     // ------------------------------------------------------------ intenções
     // Etapa 1: cada inimigo assume a postura do que vai fazer (rápido).
     async announceIntents(intents) {
       for (const it of intents) {
         const A = this.vis[it.actorId], T = this.vis[it.targetId], sk = G.SKILLS[it.skillId];
+        if (!A || A.dead) continue;
+        await this.sync(A);
         const magic = sk.tags.includes('magic');
+        this.setState(A, 'PREPARING');
         if (sk.kind === 'defense') {
-          this.focusOn([A], -0.2);
+          this.focusOn([A], -0.25);
           this.tween(A, { ready: 1, guard: 1, arm: -0.5 }, 240);
           this.caption = `${A.name} se prepara para defender (${sk.name})`;
         } else {
-          this.focusOn([A, T], -0.15);
+          this.focusOn([A, T], -0.2);
+          this.faceTo(A, T);
           this.tween(A, { ready: 1, arm: magic ? -0.4 : -1.0, cast: magic ? 0.7 : 0, lean: -0.08 }, 240);
           if (magic) this.sparks(A.x + A.face * 26, A.y - 110, '#c86bff', 10, 0.2, -0.0004);
           this.caption = `${A.name} prepara ${sk.name} contra ${T.name}`;
         }
-        await this.wait(650);
+        await this.wait(560);
       }
       this.caption = null;
       this.overview();
-      await this.wait(200);
+      await this.wait(160);
     }
     clearIntents() {
-      this.overlay = []; this.threatened = null;
-      for (const id in this.vis) this.vis[id].ready = 0;
+      this.threatened = null;
+      for (const id in this.vis) { const v = this.vis[id]; v.ready = 0; if (!v.dead && v.state === 'PREPARING') this.setState(v, 'IDLE'); }
     }
 
-    // ------------------------------------------------------------ reprodução
-    // Fila de eventos já resolvida pela lógica: cada um é tocado por inteiro.
+    // ------------------------------------------------------------ reprodução contínua
+    // Os confrontos principais seguem a ordem lógica, um em destaque por vez;
+    // recuperações e reposicionamentos continuam em paralelo.
     async playAll(events) {
       this.clearIntents();
       this.showLabels = false;
-      for (const ev of events) {
+      for (let i = 0; i < events.length; i++) {
+        const ev = events[i];
+        this._eventIndex = i;
         if (ev.type === 'clash') await this.playClash(ev);
         else if (ev.type === 'attack') await this.playConfrontation(ev);
         else if (ev.type === 'stances') await this.playStances(ev);
         else if (ev.type === 'support') await this.playSupport(ev);
         else if (ev.type === 'fizzle') await this.playFizzle(ev);
-        if (ev.after) this._applySnapshot(ev.after);
+        if (ev.after) this._applySnapshot(ev.after, false);
+        this.settle();
       }
       this.caption = null;
+      // deixa as últimas quedas/recuperações terminarem e revela as novas posições
+      await Promise.all(Object.values(this.vis).map(v => v.busy));
       this.overview();
-      await this.wait(300);
+      this.settle();
+      await this.wait(450);
       this.showLabels = true;
       this.skipping = false;
     }
-    // fim da rodada: todos voltam às posições de origem
+
+    // Fim da rodada: ninguém volta à formação original. Cada um caminha só o
+    // necessário para voltar ao seu lado da linha de frente, mantendo a ordem
+    // relativa e a profundidade (leitura espacial preservada entre rodadas).
     endRound(snap) {
-      this._applySnapshot(snap);
-      for (const id in this.vis) { const v = this.vis[id]; v.post = null; v.stance = null; this._resetPose(v); }
+      this._applySnapshot(snap, true);
+      const targets = {};
+      for (const side of ['ally', 'enemy']) {
+        const dir = side === 'ally' ? -1 : 1; // para onde fica a "retaguarda"
+        const alive = Object.values(this.vis).filter(v => v.side === side && !v.dead)
+          .sort((a, b) => dir < 0 ? b.x - a.x : a.x - b.x); // da frente para trás
+        let prev = null;
+        for (const v of alive) {
+          let x = side === 'ally' ? Math.min(v.x, FRONT.ally) : Math.max(v.x, FRONT.enemy);
+          const gap = prev ? (MOVE[prev.art].width + MOVE[v.art].width) / 2 + 8 : 0;
+          if (prev && Math.abs(x - targets[prev.id]) < gap) x = targets[prev.id] + dir * gap;
+          x = clamp(x, ARENA.minX, ARENA.maxX);
+          targets[v.id] = x; prev = v;
+        }
+        // se a fila bateu na borda, empurra o grupo de volta para dentro
+        const xs = alive.map(v => targets[v.id]);
+        if (xs.length) {
+          const over = side === 'ally' ? ARENA.minX - (Math.min(...xs) - 0) : (Math.max(...xs)) - ARENA.maxX;
+          if (over > 0) alive.forEach(v => { targets[v.id] -= dir * over; });
+        }
+      }
+      for (const id in this.vis) {
+        const v = this.vis[id];
+        v.stance = null;
+        if (v.dead) continue;
+        v.ready = 0; v.barrier = 0;
+        this.setState(v, 'REPOSITIONING');
+        const tx = targets[id];
+        this.faceTo(v, { x: v.side === 'ally' ? v.x + 100 : v.x - 100 });
+        this.tween(v, { x: tx, arm: 0, guard: 0, cast: 0, lean: 0, crouch: 0, tilt: 0, kneel: 0 }, clamp(Math.abs(tx - v.x) * 2.2, 200, 650), 'inOut')
+          .then(() => { if (v.state === 'REPOSITIONING') this.setState(v, 'IDLE'); });
+      }
+      this.wait(680).then(() => this.settle());
     }
 
-    _applySnapshot(snap) {
+    _applySnapshot(snap, final) {
       for (const id in snap) {
         const v = this.vis[id];
         v.hp = snap[id].hp; v.statuses = { ...snap[id].statuses };
         if (this.skipping) v.dispHp = v.hp;
-        if (v.hp <= 0 && !v.dead) this._die(v);
+        // garantia: quem morreu na lógica fica derrotado mesmo se a animação foi pulada
+        if (v.hp <= 0 && !v.dead && (final || this.skipping || !v.busy)) {
+          v.dead = true; this.setState(v, 'DEFEATED');
+          Object.assign(v, { tilt: -1.45, hop: 0, alpha: 0.45, crouch: 0, lean: 0, kneel: 0 });
+        }
       }
     }
-    _rest(v) {
-      // pose de descanso conforme a postura defensiva da rodada
-      const p = v.post || v.home;
-      return { x: p.x, y: p.y, arm: v.stance === 'parry' ? -0.7 : 0, guard: v.stance === 'block' ? 1 : 0,
-        cast: v.stance === 'dodge' ? 0.4 : 0, lean: 0, crouch: v.stance === 'dodge' ? 0.06 : 0, hop: 0 };
-    }
-    _resetPose(v) {
-      const r = this._rest(v);
-      Object.assign(v, r, { lean: v.dead ? v.lean : 0, ready: 0, barrier: 0, dashing: false });
-      v.trail = [];
-    }
-    _die(v) {
-      v.dead = true; v.stance = null;
-      this.tween(v, { lean: -1.35 * 1, crouch: 0.25, alpha: 0.4 }, 520, 'out');
-    }
-    _returnAll(list) {
-      return Promise.all(list.filter(Boolean).map(v => {
-        if (v.dead) return this.tween(v, { x: v.home.x * 0.15 + v.x * 0.85 }, 300);
-        v.barrier = 0;
-        return this.tween(v, this._rest(v), 320, 'inOut');
-      }));
-    }
 
-    // Posturas defensivas e Proteção (no início da rodada)
+    // Posturas defensivas e Proteção (início da rodada)
     async playStances(ev) {
       this.caption = 'Posturas defensivas';
       const NAME = { block: 'BLOQUEIO', dodge: 'ESQUIVA', parry: 'APARO' };
       const moves = [];
+      const vs = [];
       for (const st of ev.list) {
         const v = this.vis[st.unitId];
+        vs.push(v);
+        await this.sync(v);
         v.stance = st.reaction;
+        this.setState(v, STANCE_STATE[st.reaction]);
         if (st.protectId) {
           const T = this.vis[st.protectId];
-          v.post = { x: T.home.x + T.face * 80, y: T.home.y + 6 };
-          this.float(T.x, T.y - 170, 'PROTEGIDO', '#9fd0ff', 18);
+          // fica entre o aliado e a ameaça mais próxima
+          const foe = this._nearestFoe(T) || v;
+          const dir = foe.x >= T.x ? 1 : -1;
+          this.float(T.x, T.y - 175, 'PROTEGIDO', '#9fd0ff', 18);
+          v.dashing = true;
+          this.faceTo(v, foe);
+          moves.push(this.moveTo(v, T.x + dir * 82, T.y + 8, 300 * MOVE[v.art].dash, 'out').then(() => { v.dashing = false; }));
+          vs.push(T);
         }
-        this.float(v.x, v.y - 175, st.protectId ? 'PROTEÇÃO' : NAME[st.reaction], '#9fd0ff', 18);
-        v.dashing = !!st.protectId;
-        moves.push(this.tween(v, this._rest(v), st.protectId ? 300 : 200, 'out').then(() => { v.dashing = false; }));
+        this.float(v.x, v.y - 180, st.protectId ? 'PROTEÇÃO' : NAME[st.reaction], '#9fd0ff', 18);
+        moves.push(this.tween(v, this._stancePose(v), 220, 'out'));
         if (st.reaction === 'dodge') this.sparks(v.x, v.y - 60, '#cfe9ff', 8, 0.2, -0.0003);
       }
+      this.focusOn(vs, -0.3);
       if (ev.list.some(st => st.protectId)) this.showBanner('PROTEÇÃO', '#7fc4ff', 800, 'o Cavaleiro guarda um aliado');
       await Promise.all(moves);
-      await this.wait(450);
+      await this.wait(300);
       this.caption = null;
     }
 
     async playSupport(ev) {
       const A = this.vis[ev.actorId], T = this.vis[ev.targetId];
+      await this.sync(A);
       this.caption = `${A.name}  ·  ${G.SKILLS[ev.skillId].name}  →  ${T.name}`;
-      this.focusOn([A, T], -0.1);
+      this.focusOn([A, T], -0.15);
+      this.setState(A, 'PREPARING');
       await this.tween(A, { cast: 1, arm: -0.5 }, 220);
-      this.addFx({ kind: 'proj', dur: 360, x0: A.x + A.face * 30, y0: A.y - 115, x1: T.x, y1: T.y - 80, color: '#7fe0a0' });
-      await this.wait(360);
+      this.addFx({ kind: 'proj', dur: 340, x0: A.x + A.face * 30, y0: A.y - 115, x1: T.x, y1: T.y - 80, color: '#7fe0a0' });
+      await this.wait(340);
       this.addFx({ kind: 'ring', dur: 400, x: T.x, y: T.y - 70, color: '#7fe0a0', r: 60 });
       this.sparks(T.x, T.y - 70, '#7fe0a0', 14, 0.25, -0.0004);
       this.float(T.x, T.y - 165, `+${G.CONFIG.support.amount} FORÇA`, '#7fe0a0', 22);
-      await this.wait(350);
+      this.followThrough(A);
+      await this.wait(220);
       this.caption = null;
-      await this._returnAll([A]);
     }
 
     async playFizzle(ev) {
       const A = this.vis[ev.actorId];
       this.float(A.x, A.y - 170, `${G.SKILLS[ev.skillId].name}: ${ev.reason}`, '#a99', 16, 900);
-      await this.wait(350);
+      await this.wait(300);
     }
 
     // ------------------------------------------------------------ CLASH
@@ -330,283 +545,331 @@
       const skA = G.SKILLS[ev.a.skillId], skB = G.SKILLS[ev.b.skillId];
       const magA = skA.tags.includes('magic'), magB = skB.tags.includes('magic');
       const T = ev.intercept ? this.vis[ev.originalTargetId] : null;
+      const margin = ev.winner ? Math.abs(ev.a.total - ev.b.total) : 0;
+      const variant = (this._eventIndex * 7 + (ev.a.roll + ev.b.roll)) % 3; // variação visual estável
       this.caption = `CLASH  ·  ${A.name} (${skA.name})  ×  ${B.name} (${skB.name})`;
 
-      // ponto de choque
-      let P;
-      if (T) P = { x: T.x + T.face * 125, y: T.y };
-      else if (magA !== magB) { const M = magA ? A : B; P = { x: M.x + M.face * 150, y: (A.y + B.y) / 2 }; }
-      else P = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
-
+      // 1-2. participantes e posições ATUAIS
       this.focusOn(T ? [A, B, T] : [A, B]);
-      // antecipação dos dois
-      const wind = v => v === A ? magA : magB;
-      for (const v of [A, B]) this.tween(v, wind(v) ? { cast: 1, arm: -0.5, lean: -0.1 } : { lean: -0.22, arm: -1.5, crouch: 0.08 }, 240);
-      if (T) {
-        // o inimigo parte para cima do alvo; o aliado surge no caminho
-        if (!magB) { B.dashing = true; this.tween(B, { x: lerp(B.x, P.x, 0.45) }, 260, 'in'); }
-        await this.wait(200);
-        this.showBanner('INTERCEPTAÇÃO!', '#7fc4ff', 900, `${A.name} entra na frente de ${T.name}`);
-        this.slowMo(0.5, 450);
-      } else await this.wait(260);
+      await this.sync(A, B);
+      this.faceTo(A, B); this.faceTo(B, A);
 
-      // avanço / projéteis até o ponto de choque
+      // 3. ponto de choque calculado dinamicamente
+      let P;
+      if (T) { const dir = B.x >= T.x ? 1 : -1; P = { x: T.x + dir * 120, y: T.y + 4 }; }
+      else if (magA !== magB) { const M = magA ? A : B, O = magA ? B : A; P = { x: lerp(M.x, O.x, 0.55), y: (A.y + B.y) / 2 }; }
+      else P = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+      P = this.clampPos(P.x, P.y);
+
+      // antecipação (cada personagem com seu peso)
+      const melee = v => !(v === A ? magA : magB);
+      for (const v of [A, B]) {
+        this.setState(v, 'PREPARING');
+        this.tween(v, melee(v) ? { lean: -0.24, arm: -1.5, crouch: 0.1 } : { cast: 1, arm: -0.5, lean: -0.1 }, 200 * MOVE[v.art].dash);
+      }
+      if (T) {
+        if (!magB) { this.setState(B, 'APPROACHING'); B.dashing = true; this.tween(B, { x: lerp(B.x, P.x, 0.45) }, 260, 'in'); }
+        await this.wait(190);
+        this.showBanner('INTERCEPTAÇÃO!', '#7fc4ff', 900, `${A.name} entra na frente de ${T.name}`);
+        this.slowMo(0.5, 420);
+      } else await this.wait(230);
+
+      // 4. aproximação / projéteis
       const go = [];
       for (const v of [A, B]) {
-        if (wind(v)) {
+        const dir = v === A ? (P.x >= A.x ? 1 : -1) : (P.x >= B.x ? 1 : -1);
+        if (!melee(v)) {
           this.tween(v, { arm: 0.3, lean: 0.08 }, 120);
           this.addFx({ kind: 'proj', dur: 300, x0: v.x + v.face * 30, y0: v.y - 115, x1: P.x, y1: P.y - 75, color: v.side === 'ally' ? '#8fd3ff' : '#c86bff' });
           go.push(this.wait(300));
         } else {
+          this.setState(v, 'APPROACHING');
           v.dashing = true;
-          go.push(this.tween(v, { x: P.x - v.face * 48, y: P.y + (v === A ? 4 : -4), lean: 0.25, crouch: 0 }, v === A && T ? 220 : 200, 'in')
-            .then(() => { v.dashing = false; this.tween(v, { arm: 1.1 }, 70, 'in'); }));
+          const reach = MOVE[v.art].reach;
+          go.push(this.moveTo(v, P.x - dir * reach, P.y + (v === A ? 5 : -5), (v === A && T ? 220 : 210) * MOVE[v.art].dash, 'in')
+            .then(() => { v.dashing = false; this.tween(v, { arm: variant === 1 ? 0.6 : 1.1, lean: 0.25 }, 70, 'in'); }));
         }
       }
       await Promise.all(go);
-      this.focusOn([A, B], ev.close ? 0.25 : 0.12);
+      for (const v of [A, B]) this.setState(v, 'CLASHING');
+      this.focusOn([A, B], 0.1);
 
-      // choque das armas
-      this.hitStop(ev.close ? 160 : 90);
-      this.addFx({ kind: 'star', dur: 380, x: P.x, y: P.y - 75, color: '#fff2a8' });
-      this.sparks(P.x, P.y - 75, '#ffe28a', ev.close ? 30 : 18, 0.6);
-      this.hurtShake(ev.close ? 9 : 5);
-      if (ev.close) this.slowMo(0.45, 700);
+      // 5. choque das armas + resistência (mais longa se for equilibrado)
+      const hy = P.y - (variant === 0 ? 95 : variant === 1 ? 55 : 75);
+      this.hitStop(ev.close ? 150 : 90);
+      this.addFx({ kind: 'star', dur: 380, x: P.x, y: hy, color: '#fff2a8' });
+      this.sparks(P.x, hy, '#ffe28a', ev.close ? 28 : 16, 0.6);
+      this.hurtShake(ev.close ? 7 : 4);
+      if (ev.close) this.slowMo(0.5, 650);
+      const struggle = ev.close ? 520 : 260;
+      const t0 = this.time;
+      const jitter = async () => {
+        for (let i = 0; i < 6 && !this.skipping; i++) {
+          const s = i % 2 ? 1 : -1;
+          await Promise.all([this.tween(A, { lean: 0.25 + 0.06 * s }, struggle / 6), this.tween(B, { lean: 0.25 - 0.06 * s }, struggle / 6)]);
+          if (i % 2) this.sparks(P.x, hy, '#ffe28a', 3, 0.3);
+        }
+      };
+      const jit = jitter();
 
-      // valores de força (sem tela separada)
+      // 6. valores de força (no próprio combate)
       const fmt = s => `${s.base}${s.mod ? (s.mod > 0 ? ' +' + s.mod : ' −' + -s.mod) : ''} + ${s.roll} = ${s.total}`;
-      const nA = { kind: 'num', x: P.x - 95, y: P.y - 215, text: fmt(ev.a), color: '#9fd8ff', s: 0.6, a: 1, dy: 0 };
-      const nB = { kind: 'num', x: P.x + 95, y: P.y - 185, text: fmt(ev.b), color: '#ff9a8a', s: 0.6, a: 1, dy: 0 };
+      const left = A.x <= B.x;
+      const nA = { kind: 'num', x: P.x + (left ? -95 : 95), y: P.y - 215, text: fmt(ev.a), color: '#9fd8ff', s: 0.6, a: 1, dy: 0 };
+      const nB = { kind: 'num', x: P.x + (left ? 95 : -95), y: P.y - 185, text: fmt(ev.b), color: '#ff9a8a', s: 0.6, a: 1, dy: 0 };
       if (!this.skipping) this.nums = [nA, nB];
       this.tween(nA, { s: 1 }, 140, 'back'); await this.tween(nB, { s: 1 }, 140, 'back');
-      await this.wait(ev.close ? 520 : 380);
+      await jit;
+      await this.wait(ev.close ? 280 : 200);
 
       if (!ev.winner) {
-        // empate: as forças se anulam
-        this.float(P.x, P.y - 230, 'EMPATE', '#e8dccb', 30);
+        // empate: as forças se anulam e os dois são repelidos
+        this.float(P.x, P.y - 240, 'EMPATE', '#e8dccb', 30);
         this.tween(nA, { a: 0 }, 300); this.tween(nB, { a: 0 }, 300);
-        await Promise.all([this.tween(A, { x: A.x - A.face * 60, lean: -0.3 }, 220, 'out'), this.tween(B, { x: B.x - B.face * 60, lean: -0.3 }, 220, 'out')]);
-        await this.wait(300);
+        this.sparks(P.x, hy, '#ffe28a', 14, 0.5);
+        this.react(A, 'medium', A.x < P.x ? -1 : 1);
+        this.react(B, 'medium', B.x < P.x ? -1 : 1);
+        await this.wait(380);
       } else {
         const aWins = ev.winner === A.id;
         const [W, L, nW, nL, skW] = aWins ? [A, B, nA, nB, skA] : [B, A, nB, nA, skB];
+        const dirL = L.x >= W.x ? 1 : -1;
         nW.color = '#ffe08a';
         this.tween(nW, { s: 1.45 }, 160, 'back');
         this.tween(nL, { a: 0, dy: 30 }, 260, 'in');
-        // perdedor recua, vencedor executa
-        await this.tween(L, { x: L.x - L.face * 50, lean: -0.4, arm: -0.3 }, 200, 'out');
+        // 7. intensidade visual pela margem (não muda o dano)
+        if (margin <= 2) {
+          // por pouco: o vencedor empurra a guarda devagar
+          await Promise.all([this.tween(W, { x: W.x + dirL * 22, lean: 0.35 }, 260, 'inOut'), this.tween(L, { x: L.x + dirL * 26, lean: -0.15 }, 260, 'inOut')]);
+        } else if (margin <= 4) {
+          this.sparks(P.x, hy, '#ffe28a', 10, 0.5);
+          await this.tween(L, { x: clamp(L.x + dirL * 50, ARENA.minX, ARENA.maxX), lean: -0.4, arm: -0.3 }, 180, 'out');
+        } else {
+          // domina: rompe a guarda
+          this.addFx({ kind: 'ring', dur: 300, x: P.x, y: hy, color: '#ffe28a', r: 50 });
+          this.hurtShake(6);
+          await this.tween(L, { x: clamp(L.x + dirL * 70, ARENA.minX, ARENA.maxX), lean: -0.6, arm: 0.4, crouch: 0.12 }, 160, 'out');
+        }
+        // golpe do vencedor
         const h = ev.hit;
+        this.setState(W, 'ATTACKING');
         if (skW.tags.includes('magic')) {
           this.tween(W, { cast: 1, arm: 0.3 }, 120);
-          this.addFx({ kind: 'proj', dur: 260, x0: W.x + W.face * 30, y0: W.y - 115, x1: L.x, y1: L.y - 70, color: W.side === 'ally' ? '#8fd3ff' : '#c86bff' });
-          await this.wait(260);
+          this.addFx({ kind: 'proj', dur: 240, x0: W.x + W.face * 30, y0: W.y - 115, x1: L.x, y1: L.y - 70, color: W.side === 'ally' ? '#8fd3ff' : '#c86bff' });
+          await this.wait(240);
         } else {
           W.dashing = true;
-          await this.tween(W, { x: L.x - W.face * 80, arm: -1.4, lean: 0.2 }, 140, 'in');
+          await this.moveTo(W, L.x - dirL * MOVE[W.art].reach, W.y, 130 * MOVE[W.art].dash, 'in');
           W.dashing = false;
           this.tween(W, { arm: 1.3 }, 80, 'in');
-          await this.wait(60);
-          this.addFx({ kind: 'slash', dur: 260, x: L.x - W.face * 30, y: L.y - 70, dir: W.face, heavy: skW.tags.includes('heavy'), color: '#fff3d6' });
+          await this.wait(55);
+          this.addFx({ kind: 'slash', dur: 260, x: L.x - dirL * 30, y: L.y - 70, dir: dirL, heavy: skW.tags.includes('heavy'), color: '#fff3d6' });
         }
+        // 8. impacto + reação física
+        this.hitStop(h.killed ? 140 : 70);
         L.flash = 1;
         this.sparks(L.x, L.y - 70, '#ff7a5a', 16, 0.55);
         this.float(L.x, L.y - 130, String(h.damage), L.side === 'ally' ? '#ff6a5a' : '#ffe08a', h.killed ? 46 : 34, h.killed ? 1500 : 1100);
         L.hp = h.hpAfter;
-        this.tween(L, { x: L.x - L.face * 30 }, 130, 'out');
-        this.hurtShake(4 + h.damage * 0.4);
-        this.tween(nW, { a: 0 }, 400);
+        const marginLv = margin >= 5 ? 'heavy' : margin >= 3 ? 'medium' : 'light';
+        const lv = LEVELS[Math.max(LEVELS.indexOf(h.impact || 'light'), LEVELS.indexOf(marginLv))];
+        this.hurtShake(3 + h.damage * 0.35);
+        this.react(L, lv, dirL, h.killed);
+        this.followThrough(W);
+        this.tween(nW, { a: 0 }, 420);
         if (h.applied) { const st = G.STATUS[h.applied]; this.float(L.x, L.y - 165, st.name.toUpperCase(), st.color, 20, 1300); }
-        if (h.killed) await this._decisive(L);
-        await this.wait(h.killed ? 450 : 300);
+        if (h.killed || lv === 'extreme') await this._decisive(L, h.killed);
+        await this.wait(lv === 'light' ? 220 : 320);
       }
       this.nums = [];
       this.caption = null;
-      this._applySnapshot(ev.after);
-      this.overview();
-      await this._returnAll([A, B]);
-      await this.wait(100);
     }
 
+    // ------------------------------------------------------------ ATAQUE SEM OPOSIÇÃO
     async playConfrontation(c) {
       const sk = c.skill;
       const A = this.vis[c.attackerId], T = this.vis[c.targetId], D = this.vis[c.defenderId];
       const P = c.protectorId ? this.vis[c.protectorId] : null;
       const magic = sk.tags.includes('magic'), heavy = sk.tags.includes('heavy'), fast = sk.tags.includes('fast');
-            this.caption = `${A.name}  ·  ${sk.name}  →  ${T.name}`;
+      this.caption = `${A.name}  ·  ${sk.name}  →  ${T.name}`;
 
-      // 1. câmera aproxima atacante e alvo
       this.focusOn([A, T]);
-      await this.wait(fast ? 180 : 280);
+      await this.sync(A);
+      this.faceTo(A, T);
 
-      // 2. preparação (antecipação)
+      // antecipação
+      this.setState(A, 'PREPARING');
       if (magic) {
-        this.tween(A, { cast: 1, lean: -0.1, arm: -0.5 }, 300);
-        for (let i = 0; i < 3; i++) { this.sparks(A.x + A.face * 26, A.y - 112, '#9ad8ff', 6, 0.18, -0.0005); await this.wait(110); }
+        this.tween(A, { cast: 1, lean: -0.1, arm: -0.5 }, 260);
+        for (let i = 0; i < 3; i++) { this.sparks(A.x + A.face * 26, A.y - 112, '#9ad8ff', 6, 0.18, -0.0005); await this.wait(90); }
       } else {
-        await this.tween(A, { lean: -0.22, arm: -1.5, crouch: 0.08 }, heavy ? 430 : fast ? 150 : 250, 'out');
-        if (heavy) await this.wait(120);
+        await this.tween(A, { lean: -0.22, arm: -1.5, crouch: 0.08 }, (heavy ? 380 : fast ? 130 : 220) * MOVE[A.art].dash, 'out');
+        if (heavy) await this.wait(90);
       }
 
-      // 3a. intervenção: protetor entra fisicamente no confronto
+      // intervenção: o protetor entra fisicamente no caminho
       if (P) {
+        await this.sync(P);
         this.showBanner('PROTEÇÃO!', '#7fc4ff', 900, `${P.name} recebe o golpe no lugar de ${T.name}`);
-        this.slowMo(0.45, 500);
+        this.slowMo(0.45, 480);
         this.focusOn([A, P, T]);
-        const px = T.x + T.face * 78, py = T.y + 6;
+        const dir = A.x >= T.x ? 1 : -1;
         P.dashing = true;
-        await this.tween(P, { x: px, y: py, guard: 1, lean: 0.15 }, 280, 'out');
+        this.setState(P, 'APPROACHING');
+        this.faceTo(P, A);
+        await Promise.all([this.moveTo(P, T.x + dir * 78, T.y + 6, 260, 'out'), this.tween(P, { guard: 1, lean: 0.15 }, 200)]);
         P.dashing = false;
-        this.sparks(px, py - 10, '#c8d6ff', 10, 0.3);
-        await this.wait(120);
+        this.sparks(P.x, P.y - 10, '#c8d6ff', 10, 0.3);
+        await this.wait(90);
       }
+      await this.sync(D);
+      this.faceTo(D, A);
 
-      // 3b. avanço / projétil + 4. reação do defensor
-      const reactAt = magic ? 300 : (fast ? 90 : heavy ? 150 : 120);
-      const contact = { x: D.x - A.face * 30, y: D.y - 70 };
+      // avanço / projétil + reação do defensor
+      const dirD = D.x >= A.x ? 1 : -1;
       if (magic) {
         this.tween(A, { arm: 0.3, lean: 0.08 }, 120);
-        const sx = A.x + A.face * 30, sy = A.y - 115;
-        this.addFx({ kind: 'proj', dur: 420, x0: sx, y0: sy, x1: contact.x + A.face * 10, y1: contact.y, color: A.side === 'ally' ? '#8fd3ff' : '#c86bff' });
-        this._react(c, D, A, reactAt);
-        await this.wait(420);
+        this.addFx({ kind: 'proj', dur: 380, x0: A.x + A.face * 30, y0: A.y - 115, x1: D.x - dirD * 20, y1: D.y - 70, color: A.side === 'ally' ? '#8fd3ff' : '#c86bff' });
+        this._react(c, D, A, 260);
+        await this.wait(380);
       } else {
-        const standX = D.x - A.face * 82;
+        this.setState(A, 'APPROACHING');
         A.dashing = true;
-        const dash = this.tween(A, { x: standX, y: D.y + 2, lean: 0.25, crouch: 0 }, fast ? 140 : heavy ? 240 : 180, 'in');
-        this._react(c, D, A, reactAt);
+        const dash = this.moveTo(A, D.x - dirD * MOVE[A.art].reach, D.y + 2, (fast ? 130 : heavy ? 230 : 175) * MOVE[A.art].dash, 'in');
+        this.tween(A, { lean: 0.25, crouch: 0 }, 150);
+        this._react(c, D, A, fast ? 80 : 120);
         await dash;
         A.dashing = false;
-        // golpe
+        this.setState(A, 'ATTACKING');
         this.tween(A, { arm: 1.3 }, fast ? 70 : 100, 'in');
-        await this.wait(fast ? 50 : 80);
-        this.addFx({ kind: 'slash', dur: 260, x: contact.x, y: contact.y, dir: A.face, heavy, color: c.outcome === 'dodged' ? 'rgba(255,255,255,0.5)' : '#fff3d6' });
+        await this.wait(fast ? 45 : 70);
+        this.addFx({ kind: 'slash', dur: 260, x: D.x - dirD * 30, y: D.y - 70, dir: dirD, heavy, color: c.outcome === 'dodged' ? 'rgba(255,255,255,0.5)' : '#fff3d6' });
       }
 
-      // 5. impacto / esquiva
-      await this._impact(c, A, D, magic);
+      await this._impact(c, A, D, magic, dirD);
 
-      // 6. resultado (status)
-      this._applySnapshot(c.after);
+      this._applySnapshot(c.after, false);
       if (c.applied) {
         const st = G.STATUS[c.applied];
         this.float(D.x, D.y - 150, st.name.toUpperCase(), st.color, 20, 1300);
         this.sparks(D.x, D.y - 70, st.color, 10, 0.2, -0.0003);
       }
-      await this.wait(c.decisive ? 520 : 320);
-
-      // 7. retorno às posições
+      if (!A.dead && A.state !== 'HIT_LIGHT' && A.state !== 'HIT_HEAVY') this.followThrough(A);
       this.caption = null;
-      this.overview();
-      await this._returnAll([A, D, P]);
-      await this.wait(120);
     }
 
     async _react(c, D, A, delay) {
       await this.wait(delay);
-      const awayX = -D.face; // afastando do atacante
+      const away = D.x >= A.x ? 1 : -1;
       switch (c.reaction) {
-        case 'block': this.tween(D, { guard: 1, lean: -0.08, crouch: 0.06 }, 110); break;
-        case 'barrier': this.tween(D, { barrier: 1, cast: 0.8, arm: -0.6 }, 120); break;
-        case 'dodge':
+        case 'block': this.setState(D, 'BLOCKING'); this.tween(D, { guard: 1, lean: -0.08, crouch: 0.06 }, 110); break;
+        case 'dodge': {
+          this.setState(D, 'DODGING');
+          // esquiva para trás e para o lado (muda de profundidade)
+          const side = D.y > (ARENA.minY + ARENA.maxY) / 2 ? -1 : 1;
           if (c.outcome === 'dodged') {
             D.dashing = true;
-            this.tween(D, { x: clamp(D.x + awayX * 95, 70, W - 70), hop: 38, lean: -0.35 }, 170, 'out').then(() => { D.dashing = false; this.tween(D, { hop: 0 }, 140, 'in'); });
-          } else this.tween(D, { x: D.x + awayX * 22, hop: 10, lean: -0.2 }, 160, 'out');
+            this.moveTo(D, D.x + away * 80, D.y + side * 42, 200, 'out').then(() => { D.dashing = false; });
+            this.tween(D, { hop: 30, lean: -0.35 }, 110, 'out').then(() => this.tween(D, { hop: 0, lean: 0 }, 160, 'in'));
+          } else this.tween(D, { x: clamp(D.x + away * 18, ARENA.minX, ARENA.maxX), hop: 10, lean: -0.2 }, 150, 'out').then(() => this.tween(D, { hop: 0 }, 100));
           break;
-        case 'parry': this.tween(D, { arm: -1.1, lean: 0.05 }, 90); break;
+        }
+        case 'parry': this.setState(D, 'PARRYING'); this.tween(D, { arm: -1.1, lean: 0.05 }, 90); break;
       }
     }
 
-    async _impact(c, A, D, magic) {
-      const hx = D.x - A.face * 18, hy = D.y - 72;
+    async _impact(c, A, D, magic, dir) {
+      const hx = D.x - dir * 18, hy = D.y - 72;
       const dmgColor = D.side === 'ally' ? '#ff6a5a' : '#ffe08a';
-      const decisive = c.decisive;
       const showDamage = (v, n, big) => this.float(v.x + (Math.random() * 20 - 10), v.y - 130, String(n), dmgColor, big ? 46 : 32, big ? 1500 : 1100);
-      const push = (v, dist, dur = 130) => this.tween(v, { x: v.x - v.face * dist }, dur, 'out');
 
       switch (c.outcome) {
         case 'dodged':
           this.float(D.x, D.y - 140, 'ESQUIVA', '#cfe9ff', 26);
           this.sparks(D.x, D.y - 40, 'rgba(220,230,255,0.6)', 8, 0.25, 0);
-          await this.wait(200);
+          await this.wait(220);
           return;
         case 'parried': {
+          // aparo: personagens ficam próximos no choque
           this.tween(D, { arm: 1.1 }, 60, 'in');
-          this.hitStop(110);
+          this.hitStop(120);
           this.addFx({ kind: 'star', dur: 420, x: hx, y: hy, color: '#fff2a8' });
           this.sparks(hx, hy, '#ffe28a', 26, 0.7);
-          this.hurtShake(7);
+          this.hurtShake(6);
           this.showBanner('APARADO!', '#ffe28a', 900, 'contra-ataque');
           this.slowMo(0.4, 450);
-          this.focusOn([A, D], 0.15);
-          this.tween(A, { x: A.x - A.face * 55, lean: -0.4, arm: -0.4 }, 220, 'out');
-          await this.wait(320);
-          // contra-ataque (não pode ser reagido)
+          this.focusOn([A, D], 0.18);
+          this.setState(A, 'STAGGERING');
+          this.tween(A, { x: clamp(A.x - dir * 40, ARENA.minX, ARENA.maxX), lean: -0.4, arm: -0.4 }, 200, 'out');
+          await this.wait(300);
           D.dashing = true;
-          await this.tween(D, { x: D.x + D.face * 45, arm: -1.4, lean: 0.2 }, 120, 'in');
+          this.setState(D, 'ATTACKING');
+          await this.moveTo(D, D.x - dir * 40, D.y, 110, 'in');
+          await this.tween(D, { arm: -1.4, lean: 0.2 }, 60, 'in');
           D.dashing = false;
           this.tween(D, { arm: 1.2 }, 80, 'in');
           await this.wait(60);
-          this.addFx({ kind: 'slash', dur: 240, x: A.x + D.face * 10, y: A.y - 70, dir: D.face, heavy: false, color: '#fff3d6' });
+          this.addFx({ kind: 'slash', dur: 240, x: A.x + dir * 10, y: A.y - 70, dir: -dir, heavy: false, color: '#fff3d6' });
           A.flash = 1;
           this.sparks(A.x, A.y - 70, '#ff8a6a', 14, 0.5);
           const cd = c.counter;
           this.float(A.x, A.y - 130, String(cd.damage), A.side === 'ally' ? '#ff6a5a' : '#ffe08a', cd.killed ? 46 : 32);
           this.float(A.x, A.y - 165, 'CONTRA-ATAQUE', '#ffe28a', 18);
           A.hp = cd.hpAfter;
-          push(A, 30);
-          if (cd.killed) { this.slowMo(0.3, 700); this.hitStop(140); this.hurtShake(14); this.screenFlash = 0.35; }
-          else this.hurtShake(6);
-          await this.wait(cd.killed ? 450 : 250);
+          this.react(A, 'medium', -dir, cd.killed);
+          this.followThrough(D);
+          if (cd.killed) await this._decisive(A, true);
+          else this.hurtShake(5);
+          await this.wait(cd.killed ? 380 : 220);
           return;
         }
-        case 'blocked':
-          if (c.reaction === 'barrier') {
-            this.addFx({ kind: 'ring', dur: 380, x: D.x + D.face * 20, y: D.y - 70, color: '#8fd3ff', r: 60 });
-            this.sparks(hx, hy, '#8fd3ff', 14, 0.4);
-          } else {
-            this.addFx({ kind: 'ring', dur: 260, x: hx + D.face * 12, y: hy, color: '#cfe3ff', r: 36 });
-            this.sparks(hx, hy, '#cfe3ff', 16, 0.55);
-          }
-          this.float(D.x, D.y - 165, c.reaction === 'barrier' ? 'BARREIRA' : 'BLOQUEIO', '#9fd0ff', 18);
+        case 'blocked': {
+          this.addFx({ kind: 'ring', dur: 260, x: hx + D.face * 12, y: hy, color: '#cfe3ff', r: 36 });
+          this.sparks(hx, hy, '#cfe3ff', 16, 0.55);
+          this.float(D.x, D.y - 165, 'BLOQUEIO', '#9fd0ff', 18);
           showDamage(D, c.damage, false);
           D.hp = c.hpAfter;
-          push(D, 22);
           this.hitStop(60);
-          this.hurtShake(3 + c.damage * 0.15);
-          if (decisive) await this._decisive(D);
-          await this.wait(220);
+          this.hurtShake(2 + c.damage * 0.15);
+          // bloqueio: desliza para trás pelo peso do golpe, sem perder a guarda
+          const slide = c.impact === 'extreme' || c.impact === 'heavy' ? 60 : c.impact === 'medium' ? 35 : 18;
+          this.routine(D, async () => {
+            this.dust(D, 5);
+            await this.tween(D, { x: clamp(D.x + dir * slide * MOVE[D.art].knock, ARENA.minX, ARENA.maxX), lean: -0.12, crouch: 0.08 }, 220, 'out');
+            await this.tween(D, { lean: 0, crouch: 0 }, 200);
+            this.setState(D, 'BLOCKING');
+          });
+          if (c.killed) { this.react(D, 'heavy', dir, true); await this._decisive(D, true); }
+          await this.wait(200);
           return;
+        }
         default: { // hit, dodgeFail, parryFail, guardBroken
-          if (c.outcome === 'guardBroken') {
-            this.float(D.x, D.y - 165, 'GUARDA ATRAVESSADA', '#ff9a3c', 18);
-            this.sparks(hx, hy, '#b0c4ff', 10, 0.6);
-          } else if (c.outcome === 'parryFail') this.float(D.x, D.y - 165, 'APARO FALHOU', '#ff8a6a', 18);
+          if (c.outcome === 'parryFail') this.float(D.x, D.y - 165, 'APARO FALHOU', '#ff8a6a', 18);
           else if (c.outcome === 'dodgeFail') this.float(D.x, D.y - 165, 'ESQUIVA FALHOU', '#ff8a6a', 18);
           D.flash = 1;
           if (magic) this.addFx({ kind: 'ring', dur: 360, x: hx, y: hy, color: A.side === 'ally' ? '#8fd3ff' : '#c86bff', r: 50 });
           this.sparks(hx, hy, magic ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ff7a5a', 18, 0.55);
-          showDamage(D, c.damage, decisive);
+          showDamage(D, c.damage, c.decisive);
           D.hp = c.hpAfter;
-          push(D, 30 + (decisive ? 30 : 0));
-          this.tween(D, { lean: -0.25, guard: 0 }, 120);
-          this.hitStop(decisive ? 0 : 70);
-          this.hurtShake(4 + c.damage * 0.25);
-          if (decisive) await this._decisive(D);
-          await this.wait(240);
+          this.hitStop(c.killed ? 0 : 70);
+          this.hurtShake(3 + c.damage * 0.3);
+          this.react(D, c.impact || 'light', dir, c.killed);
+          if (c.killed || c.impact === 'extreme') await this._decisive(D, c.killed);
+          await this.wait(c.impact === 'light' ? 200 : 300);
         }
       }
     }
 
-    async _decisive(D) {
-      this.hitStop(150);
-      this.slowMo(0.3, 750);
-      this.hurtShake(16);
-      this.screenFlash = 0.35;
-      this.focusOn([D], 0.25);
+    // Momento decisivo: aproximação extra + câmera lenta curta
+    async _decisive(D, killed) {
+      this.hitStop(130);
+      this.slowMo(0.32, killed ? 750 : 550);
+      this.hurtShake(killed ? 12 : 8);
+      if (killed) this.screenFlash = 0.3;
+      this.focusOn([D], 0.2);
       this.addFx({ kind: 'ring', dur: 600, x: D.x, y: D.y - 70, color: '#ffffff', r: 110 });
-      this.showBanner(D.hp <= 0 || D.dead ? 'DERRUBADO!' : 'GOLPE DECISIVO!', '#ff6a5a', 1000);
-      await this.wait(260);
+      this.showBanner(killed ? 'DERROTADO!' : 'DERRUBADA!', killed ? '#ff6a5a' : '#ffb36a', 950);
+      await this.wait(220);
     }
 
     // ============================================================ DESENHO
@@ -663,11 +926,12 @@
       }
       if (!this.vis) { ctx.restore(); return; }
       this._drawMarkers(ctx);
+      if (this.ui) this.ui.drawUnder(ctx);
       const list = Object.values(this.vis).sort((a, b) => (a.dead - b.dead) || (a.y - b.y));
       for (const v of list) this._drawUnit(ctx, v);
       this._drawFx(ctx);
       for (const v of list) this._drawHud(ctx, v);
-      this._drawArrows(ctx);
+      if (this.ui) this.ui.drawOver(ctx);
       this._drawNums(ctx);
       for (const p of this.particles) {
         ctx.globalAlpha = clamp(p.life / 300, 0, 1);
@@ -725,7 +989,7 @@
         const hl = this.highlight && this.highlight.has(id);
         if (!targeted && !hl) continue;
         const pulse = 0.6 + Math.sin(this.time * 0.008) * 0.25;
-        ctx.save(); ctx.translate(v.home.x, v.home.y + 4); ctx.scale(1, 0.32);
+        ctx.save(); ctx.translate(v.x, v.y + 4); ctx.scale(1, 0.32);
         ctx.lineWidth = 6;
         ctx.strokeStyle = hl ? `rgba(255,226,140,${pulse})` : `rgba(255,70,70,${pulse})`;
         ctx.beginPath(); ctx.arc(0, 0, 58, 0, 7); ctx.stroke();
@@ -733,49 +997,6 @@
       }
     }
 
-    _arrow(ctx, from, to, color, label, order, dashed, noHead, lift = 0) {
-      const x0 = from.x, y0 = from.y - 150, x1 = to.x, y1 = to.y - 150;
-      const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - 50 - Math.abs(x1 - x0) * 0.06 - lift;
-      ctx.save();
-      ctx.strokeStyle = color; ctx.lineWidth = 3.5; ctx.globalAlpha = 0.9;
-      if (dashed) { ctx.setLineDash([12, 8]); ctx.lineDashOffset = -this.time * 0.05; }
-      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1 - 8); ctx.stroke();
-      ctx.setLineDash([]);
-      if (!noHead) {
-        const ang = Math.atan2(y1 - 8 - my, x1 - mx);
-        ctx.fillStyle = color; ctx.beginPath();
-        ctx.moveTo(x1, y1 - 2); ctx.lineTo(x1 - Math.cos(ang - 0.45) * 18, y1 - 8 - Math.sin(ang - 0.45) * 18);
-        ctx.lineTo(x1 - Math.cos(ang + 0.45) * 18, y1 - 8 - Math.sin(ang + 0.45) * 18); ctx.fill();
-      }
-      // rótulo perto da origem (no meio, para Clashes)
-      const q = noHead ? 0.5 : 0.22, lx = (1 - q) * (1 - q) * x0 + 2 * q * (1 - q) * mx + q * q * x1, ly = (1 - q) * (1 - q) * y0 + 2 * q * (1 - q) * my + q * q * y1 - 6;
-      ctx.font = '700 15px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
-      const text = (order ? order + '. ' : '') + label;
-      const w = ctx.measureText(text).width + 16;
-      ctx.fillStyle = 'rgba(10,6,14,0.85)'; ctx.fillRect(lx - w / 2, ly - 16, w, 24);
-      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.strokeRect(lx - w / 2, ly - 16, w, 24);
-      ctx.fillStyle = '#f2e8da'; ctx.fillText(text, lx, ly + 1);
-      ctx.restore();
-    }
-
-    // overlay: [{ from, to, color, label, order, style: 'arrow'|'dashed'|'clash'|'badge' }]
-    _drawArrows(ctx) {
-      for (const o of this.overlay) {
-        const A = this.vis[o.from], B = this.vis[o.to];
-        if (!A || A.dead) continue;
-        if (o.style === 'badge') { this._badge(ctx, A, o.label, o.color); continue; }
-        if (!B) continue;
-        if (o.style === 'clash') this._arrow(ctx, A.home, B.home, o.color, o.label, o.order, false, true, 20 + (o.order || 0) * 26);
-        else this._arrow(ctx, A.home, B.home, o.color, o.label, o.order, o.style === 'dashed', false, o.lift || 0);
-      }
-    }
-    _badge(ctx, v, label, color) {
-      ctx.font = '700 14px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
-      const w = ctx.measureText(label).width + 16, x = v.home.x, y = v.home.y - 195;
-      ctx.fillStyle = 'rgba(10,6,14,0.85)'; ctx.fillRect(x - w / 2, y - 16, w, 24);
-      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.strokeRect(x - w / 2, y - 16, w, 24);
-      ctx.fillStyle = '#f2e8da'; ctx.fillText(label, x, y + 1);
-    }
     _drawNums(ctx) {
       for (const n of this.nums) {
         if (n.a <= 0.01) continue;
@@ -791,7 +1012,7 @@
       if (v.dead && v.alpha < 0.5) return;
       const dim = this.spot && !this.spot.has(v.id);
       if (dim && !this.showLabels) return; // menos ruído durante as animações
-      const x = v.x, y = v.y - 150 - v.hop;
+      const x = v.x, y = v.y - 150 - v.hop + (Math.abs(v.tilt) > 1 ? 95 : Math.abs(v.tilt) * 40 + v.crouch * 60);
       const w = 74, ratio = clamp(v.dispHp / v.maxHp, 0, 1), real = clamp(v.hp / v.maxHp, 0, 1);
       ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x - w / 2 - 2, y - 2, w + 4, 11);
       ctx.fillStyle = '#ffe9b0'; ctx.fillRect(x - w / 2, y, w * ratio, 7);
@@ -852,7 +1073,7 @@
     // ------------------------------------------------------------ personagens
     _drawUnit(ctx, v) {
       const t = this.time;
-      const dim = this.spot && !this.spot.has(v.id);
+      const dim = (this.spot && !this.spot.has(v.id)) || (this.dimIds && this.dimIds.has(v.id));
       // rastro do avanço
       if (v.trail.length > 1) {
         for (let i = 0; i < v.trail.length; i++) {
@@ -867,19 +1088,28 @@
       // sombra
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.beginPath(); ctx.ellipse(0, 2, 44 - v.hop * 0.3, 10, 0, 0, 7); ctx.fill();
-      const idle = v.dead ? 0 : Math.sin(t * 0.004 + v.phase);
+      const down = v.dead || v.state === 'KNOCKDOWN';
+      const idle = down ? 0 : Math.sin(t * 0.004 + v.phase);
+      // animações secundárias contextuais
+      let ctxLean = 0, ctxCrouch = 0;
+      if (v.state === 'PREPARING') ctxLean = Math.sin(t * 0.03) * 0.015;               // tensão antes do golpe
+      else if (v.state === 'STAGGERING' || v.state === 'GETTING_UP') ctxLean = Math.sin(t * 0.012) * 0.04;
+      else if (v.state === 'IDLE' && v.threat) ctxCrouch = 0.04;                          // ameaçado: abaixa a guarda
       ctx.translate(0, -v.hop);
       ctx.scale(v.face, 1);
-      ctx.rotate(v.lean * (v.dead ? 1 : 0.6));
-      ctx.scale(1 + v.crouch * 0.5, 1 - v.crouch);
+      ctx.rotate(v.lean * 0.6 + v.tilt + ctxLean);
+      ctx.scale(1 + (v.crouch + ctxCrouch) * 0.5, 1 - v.crouch - ctxCrouch);
       const filters = [];
-      if (v.flash > 0.05) filters.push(`brightness(${1 + v.flash * 2.2})`);
+      if (v.flash > 0.05) filters.push(`brightness(${1 + v.flash * 1.1})`);
       if (dim) filters.push('brightness(0.45)');
       if (v.dead) filters.push('grayscale(0.9) brightness(0.6)');
       ctx.filter = filters.length ? filters.join(' ') : 'none';
       ctx.globalAlpha = v.alpha;
-      const pose = { idle, t, arm: v.arm + (v.dead ? 0.8 : idle * 0.05) + (v.ready ? Math.sin(t * 0.01) * 0.05 : 0), guard: v.guard, cast: v.cast + (v.ready ? 0.2 * Math.sin(t * 0.01) : 0) };
+      const threatGuard = v.threat && v.state === 'IDLE' ? 0.45 : 0;
+      const pose = { idle, t, arm: v.arm + (down ? 0 : idle * 0.05) + (v.ready ? Math.sin(t * 0.01) * 0.05 : 0), guard: Math.max(v.guard, threatGuard), cast: v.cast + (v.ready ? 0.2 * Math.sin(t * 0.01) : 0) };
       ART[v.art](ctx, pose);
+      // apoio da mão no chão durante o desequilíbrio
+      if (v.kneel > 0.4 && !v.dead) { ctx.fillStyle = '#d9c3a8'; ctx.beginPath(); ctx.arc(30, -6, 6, 0, 7); ctx.fill(); }
       ctx.restore();
       ctx.filter = 'none'; ctx.globalAlpha = 1;
       if (v.barrier > 0.05) {

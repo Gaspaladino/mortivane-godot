@@ -1,0 +1,619 @@
+// =====================================================================
+// PLANEJAMENTO NA ARENA — seleção direta, menu radial e correntes.
+//   SelectionController + RadialAbilityMenu + TargetingController +
+//   InputController + ChainRenderer + ClashPreview, num só módulo.
+// Não decide nada de combate: registra escolhas via callbacks e pede a
+// prévia à lógica real (battle.buildPlan / previewPlan).
+// =====================================================================
+(function (G) {
+  'use strict';
+  const { SKILLS } = G;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const DRAG_PX = 8;
+  const KIND_STYLE = {
+    attack:  { color: '#d8664a', dark: '#5a1f16', link: 'oval',   label: 'Ataque' },
+    support: { color: '#72d18f', dark: '#16452a', link: 'round',  label: 'Suporte' },
+    protect: { color: '#8fc0ec', dark: '#1a3552', link: 'square', label: 'Proteção' },
+    defense: { color: '#8fc0ec', dark: '#1a3552', link: 'square', label: 'Defesa' },
+  };
+  const CAT_COLOR = { favorable: '#6fd890', even: '#ffd36a', unfavorable: '#ff7a6a' };
+  const CAT_NAME = { favorable: 'Favorável', even: 'Equilibrado', unfavorable: 'Desfavorável' };
+
+  class Planner {
+    // cb: { battle(), choices(), plan(), preview(), commit(uid, skillId, targetId), cancel(uid), toggleIntercept(uid) }
+    constructor(presenter, cb) {
+      this.p = presenter; this.cb = cb;
+      this.enabled = false; this.showIntents = false; this.fade = 1;
+      this.sel = null;      // { uid, skillId, openAt }
+      this.drag = null;     // { uid, skillId }
+      this.press = null;    // { kind, id, sx, sy }
+      this.mouse = { x: 0, y: 0, sx: 0, sy: 0 };
+      this.hover = { unit: null, item: null, badge: null };
+      this.connectAt = {}; this.retracts = []; this.items = []; this.badges = [];
+      this.previewCache = { key: null, lines: null };
+      presenter.ui = this;
+      this._bindInput(presenter.canvas);
+    }
+
+    get battle() { return this.cb.battle(); }
+    setEnabled(on) {
+      this.enabled = on;
+      if (!on) { this.sel = null; this.drag = null; this.press = null; this._applyHighlights(); }
+      this.p.canvas.style.cursor = 'default';
+      this.p.tween(this, { fade: on ? 1 : 0 }, on ? 200 : 320);
+    }
+
+    // ------------------------------------------------------------ TargetingController
+    validTargets(uid, skillId) {
+      const b = this.battle, sk = SKILLS[skillId];
+      if (!sk) return [];
+      if (sk.kind === 'attack') return b.alive('enemy').map(u => u.id);
+      if (sk.kind === 'support' || sk.kind === 'protect') return b.alive('ally').filter(u => u.id !== uid).map(u => u.id);
+      return []; // defesa: sem alvo
+    }
+    needsTarget(skillId) { return SKILLS[skillId].kind !== 'defense'; }
+    _activeSkill() { return this.drag ? this.drag.skillId : this.sel && this.sel.skillId; }
+    _activeUid() { return this.drag ? this.drag.uid : this.sel && this.sel.uid; }
+    _applyHighlights() {
+      const uid = this._activeUid(), sid = this._activeSkill();
+      if (this.enabled && uid && sid && this.needsTarget(sid)) {
+        const valid = new Set(this.validTargets(uid, sid));
+        this.p.highlight = valid;
+        this.p.dimIds = new Set(Object.keys(this.p.vis).filter(id => !valid.has(id) && id !== uid));
+      } else {
+        this.p.highlight = this.enabled && uid ? new Set([uid]) : null;
+        this.p.dimIds = null;
+      }
+    }
+
+    // ------------------------------------------------------------ RadialAbilityMenu
+    _layoutMenu() {
+      this.items = [];
+      if (!this.enabled || !this.sel) return;
+      const b = this.battle, u = b.unit(this.sel.uid), v = this.p.vis[this.sel.uid];
+      if (!u || u.hp <= 0) { this.sel = null; return; }
+      const k = this.p.pxPerWorld;
+      const c = { x: v.x, y: v.y - 88 };
+      const s = this.p.toScreen(c.x, c.y);
+      const cw = this.p.canvas.clientWidth;
+      // adapta à borda: perto da esquerda abre para a direita, etc.
+      let base = -90;
+      if (s.x < 200) base = -35; else if (s.x > cw - 200) base = -145;
+      if (s.y < 190) base = s.x < cw / 2 ? 10 : 170;
+      const ids = u.def.skills;
+      const hasPlan = !!this.cb.choices()[u.id];
+      const n = ids.length + (hasPlan ? 1 : 0);
+      const step = 36, R = 96;
+      const open = clamp((this.p.time - this.sel.openAt) / 160, 0, 1);
+      const eo = 1 - Math.pow(1 - open, 3);
+      for (let i = 0; i < n; i++) {
+        const ang = (base + (i - (n - 1) / 2) * step) * Math.PI / 180;
+        const cancel = hasPlan && i === n - 1;
+        const id = cancel ? null : ids[i];
+        const sk = id && SKILLS[id];
+        const main = sk && sk.kind === 'attack';
+        const rr = (cancel ? 14 : main ? 25 : 20) / k;
+        this.items.push({ cancel, skillId: id, kind: sk ? sk.kind : 'cancel', main,
+          x: c.x + Math.cos(ang) * (R / k) * eo, y: c.y + Math.sin(ang) * (R / k) * eo, r: rr * (0.4 + 0.6 * eo),
+          // indisponível: em recarga, ou sem nenhum alvo válido (ex.: Proteção sem aliados vivos)
+          disabled: !!(sk && (!b.skillReady(u, id) || (this.needsTarget(id) && !this.validTargets(u.id, id).length))),
+          cd: sk ? u.cooldowns[id] : 0, open });
+      }
+    }
+
+    // ------------------------------------------------------------ InputController
+    _bindInput(canvas) {
+      const pos = e => { const r = canvas.getBoundingClientRect(); return { sx: e.clientX - r.left, sy: e.clientY - r.top }; };
+      canvas.addEventListener('pointerdown', e => {
+        if (!this.enabled || e.button === 2) return;
+        const { sx, sy } = pos(e); this._move(sx, sy);
+        canvas.setPointerCapture(e.pointerId);
+        this.press = this._hitAt() ; this.press.sx = sx; this.press.sy = sy;
+        if (this.press.kind === 'ally' && !(this.sel && this.sel.skillId && this.validTargets(this.sel.uid, this.sel.skillId).includes(this.press.id))) {
+          if (!this.sel || this.sel.uid !== this.press.id || this.sel.skillId) this._select(this.press.id);
+        }
+      });
+      canvas.addEventListener('pointermove', e => {
+        const { sx, sy } = pos(e); this._move(sx, sy);
+        if (!this.enabled) return;
+        const pr = this.press;
+        if (pr && !this.drag && Math.hypot(sx - pr.sx, sy - pr.sy) > DRAG_PX) {
+          // vira arrasto: a partir do personagem ou de um círculo de habilidade
+          if (pr.kind === 'ally' && this.sel && this.sel.uid === pr.id) this.drag = { uid: pr.id, skillId: null };
+          else if (pr.kind === 'item' && !pr.item.cancel && !pr.item.disabled) this.drag = { uid: this.sel.uid, skillId: pr.item.skillId };
+        }
+        if (this.drag) {
+          // a primeira habilidade tocada é a escolhida; passar rapidamente por outros
+          // círculos a caminho do alvo não troca. Para trocar, pare ~0,25 s sobre outra.
+          const it = this._itemAt();
+          const ok = it && !it.cancel && !it.disabled;
+          if (!this.drag.skillId) { if (ok) this.drag.skillId = it.skillId; }
+          else if (ok && it.skillId !== this.drag.skillId) {
+            if (this.drag.dwell !== it.skillId) { this.drag.dwell = it.skillId; this.drag.dwellAt = this.p.time; }
+            else if (this.p.time - this.drag.dwellAt > 250) this.drag.skillId = it.skillId;
+          } else this.drag.dwell = null;
+        }
+        this._hoverUpdate();
+        this._applyHighlights();
+      });
+      canvas.addEventListener('pointerup', e => {
+        if (!this.enabled) { this.press = null; return; }
+        const { sx, sy } = pos(e); this._move(sx, sy);
+        const pr = this.press; this.press = null;
+        if (this.drag) { this._endDrag(); return; }
+        if (pr) this._click(pr);
+        this._applyHighlights();
+      });
+      canvas.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        if (!this.enabled) return;
+        const { sx, sy } = pos(e); this._move(sx, sy);
+        const h = this._hitAt();
+        if (h.kind === 'ally' && this.cb.choices()[h.id]) { this.cb.cancel(h.id); this._retract(h.id); }
+        this._cancelSelection();
+      });
+      window.addEventListener('keydown', e => {
+        if (e.key !== 'Escape' || !this.enabled) return;
+        if (this.drag) { this._retractDrag(); this.drag = null; }
+        else if (this.sel && this.sel.skillId) this.sel.skillId = null;
+        else this._cancelSelection();
+        this._applyHighlights();
+      });
+      canvas.addEventListener('pointerleave', () => { this.hover = { unit: null, item: null, badge: null }; });
+    }
+    _move(sx, sy) { const w = this.p.toWorld(sx, sy); this.mouse = { x: w.x, y: w.y, sx, sy }; }
+    _itemAt() {
+      this._layoutMenu();
+      return this.items.find(it => Math.hypot(this.mouse.x - it.x, this.mouse.y - it.y) <= it.r * 1.25) || null;
+    }
+    _badgeAt() { return this.badges.find(b => Math.hypot(this.mouse.x - b.x, this.mouse.y - b.y) <= b.r * 1.3) || null; }
+    _hitAt() {
+      const it = this._itemAt();
+      if (it) return { kind: 'item', item: it };
+      const bd = this._badgeAt();
+      if (bd) return { kind: 'badge', badge: bd };
+      const id = this.p.pick(this.mouse.sx, this.mouse.sy);
+      if (id) { const u = this.battle.unit(id); return { kind: u.side === 'ally' ? 'ally' : 'enemy', id }; }
+      return { kind: 'empty' };
+    }
+    _hoverUpdate() {
+      const h = this._hitAt();
+      // durante a mira, o alvo é sempre o personagem sob o cursor
+      const unit = h.id || (this._activeSkill() ? this.p.pick(this.mouse.sx, this.mouse.sy) : null);
+      this.hover = { unit, item: h.item || null, badge: h.kind === 'badge' ? h.badge : null };
+      const c = this.p.canvas;
+      c.style.cursor = this.drag ? 'grabbing' : (h.kind === 'empty' ? 'default' : 'pointer');
+    }
+    _select(uid) {
+      this.sel = { uid, skillId: null, openAt: this.p.time };
+      this._applyHighlights();
+    }
+    _cancelSelection() { this.sel = null; this.drag = null; this._applyHighlights(); }
+
+    _click(pr) {
+      const sel = this.sel;
+      if (pr.kind === 'item') {
+        const it = pr.item;
+        if (it.cancel) { this.cb.cancel(sel.uid); this._retract(sel.uid); this._cancelSelection(); return; }
+        if (it.disabled) return;
+        if (!this.needsTarget(it.skillId)) { this._commit(sel.uid, it.skillId, sel.uid); return; }
+        sel.skillId = it.skillId; // modo clique: agora clique no alvo
+        return;
+      }
+      if (pr.kind === 'badge' && sel && sel.skillId) { const id = this.p.pick(this.mouse.sx, this.mouse.sy); if (id) pr = { kind: this.battle.unit(id).side === 'ally' ? 'ally' : 'enemy', id }; }
+      if ((pr.kind === 'enemy' || pr.kind === 'ally') && sel && sel.skillId) {
+        if (this.validTargets(sel.uid, sel.skillId).includes(pr.id)) { this._commit(sel.uid, sel.skillId, pr.id); return; }
+        if (pr.kind === 'ally') { this._select(pr.id); return; }
+        return; // alvo inválido: ignora (fica desabilitado visualmente)
+      }
+      if (pr.kind === 'badge') { if (pr.badge.toggle) this.cb.toggleIntercept(pr.badge.uid); return; }
+      if (pr.kind === 'ally') return; // seleção já feita no pointerdown
+      if (pr.kind === 'empty') this._cancelSelection();
+    }
+    _endDrag() {
+      const d = this.drag; this.drag = null;
+      const h = this._hitAt();
+      if (d.skillId) {
+        if (!this.needsTarget(d.skillId)) {
+          // habilidade sem alvo: confirma soltando no próprio círculo
+          if (h.kind === 'item' && h.item.skillId === d.skillId) { this._commit(d.uid, d.skillId, d.uid); return; }
+        } else {
+          // o alvo é o personagem sob o cursor, mesmo que haja um selo/ícone por cima
+          const id = this.p.pick(this.mouse.sx, this.mouse.sy);
+          if (id && this.validTargets(d.uid, d.skillId).includes(id)) { this._commit(d.uid, d.skillId, id); return; }
+        }
+      }
+      // soltou em lugar inválido: a corrente se recolhe e nada muda
+      this._retractDrag(d);
+      this._applyHighlights();
+    }
+    _commit(uid, skillId, targetId) {
+      this.hover.item = null;
+      this.cb.commit(uid, skillId, targetId);
+      this.connectAt[uid] = this.p.time;
+      this.sel = null;
+      this._applyHighlights();
+      const v = this.p.vis[targetId];
+      if (v && targetId !== uid) this.p.sparks(v.x, v.y - 80, KIND_STYLE[SKILLS[skillId].kind].color, 8, 0.2, -0.0003);
+    }
+    _retract(uid) {
+      const v = this.p.vis[uid];
+      if (v) this.retracts.push({ x0: v.x, y0: v.y - 80, x1: v.x + v.face * 60, y1: v.y - 120, kind: 'attack', start: this.p.time });
+    }
+    _retractDrag(d = this.drag) {
+      if (!d) return;
+      const v = this.p.vis[d.uid];
+      this.retracts.push({ x0: v.x, y0: v.y - 80, x1: this.mouse.x, y1: this.mouse.y, kind: d.skillId ? SKILLS[d.skillId].kind : 'attack', start: this.p.time });
+    }
+
+    // ------------------------------------------------------------ ClashPreview
+    // Linhas da prévia para (uid, skill, alvo), usando as regras reais.
+    previewLines(uid, skillId, targetId, intercept) {
+      const key = [uid, skillId, targetId, intercept, JSON.stringify(this.cb.choices())].join('|');
+      if (this.previewCache.key === key) return this.previewCache.lines;
+      const b = this.battle, sk = SKILLS[skillId];
+      const choices = JSON.parse(JSON.stringify(this.cb.choices()));
+      choices[uid] = { skillId, targetId, intercept: intercept == null ? true : intercept };
+      let plan = b.buildPlan(choices);
+      const mine = plan.actions.find(a => a.actorId === uid);
+      if (intercept == null && mine && !(mine.interceptInfo && mine.interceptInfo.valid)) { choices[uid].intercept = false; plan = b.buildPlan(choices); }
+      const prev = b.previewPlan(plan);
+      const me = plan.actions.find(a => a.actorId === uid);
+      const lines = [];
+      const ev = me && prev.find(e => e.type === 'clash' && (e.a.id === me.id || e.b.id === me.id));
+      if (ev) {
+        const meFirst = ev.a.id === me.id, other = meFirst ? ev.b : ev.a;
+        const fMe = meFirst ? ev.fa : ev.fb, fOt = meFirst ? ev.fb : ev.fa;
+        const p = meFirst ? ev.odds.win : ev.odds.lose;
+        const cat = b.category(p);
+        lines.push({ t: ev.link.type === 'intercept' ? `⚔ INTERCEPTAÇÃO (protege ${b.unit(this.battle.intents.find(i => i.id === other.id).targetId).name})` : '⚔ CLASH', c: '#ffe9b0' });
+        lines.push({ t: `${b.unit(uid).name} — ${sk.name}   F ${fMe} + 0–3`, c: '#9fd8ff' });
+        lines.push({ t: `${b.unit(other.actorId).name} — ${SKILLS[other.skillId].name}   F ${fOt} + 0–3`, c: '#ff9a8a' });
+        lines.push({ t: `Previsão: ${CAT_NAME[cat]}  (vence ${Math.round(p * 100)}%, empata ${Math.round(ev.odds.tie * 100)}%)`, c: CAT_COLOR[cat] });
+      } else if (sk.kind === 'attack') {
+        const info = me && me.interceptInfo;
+        lines.push({ t: `${sk.name} → ${b.unit(targetId).name}`, c: '#ffe9b0' });
+        if (info && !info.valid) lines.push({ t: `Lento demais para interceptar (Vel ${info.mySpeed}${info.reach ? '+' + info.reach : ''} < ${info.enemySpeed})`, c: '#ff9a8a' });
+        else if (info && !choices[uid].intercept) lines.push({ t: 'Interceptação desligada', c: '#c9b' });
+        const it = b.intents.find(i => i.actorId === targetId);
+        if (it && SKILLS[it.skillId].kind === 'defense') lines.push({ t: `Alvo vai se defender (${SKILLS[it.skillId].name})`, c: '#9fd0ff' });
+        lines.push({ t: `Sem Clash · dano ${sk.dmg} se não houver defesa`, c: '#e8dccb' });
+      } else {
+        lines.push({ t: `${sk.name} → ${b.unit(targetId).name}`, c: '#ffe9b0' });
+        lines.push({ t: sk.desc, c: '#e8dccb' });
+      }
+      this.previewCache = { key, lines };
+      return lines;
+    }
+
+    // ============================================================ ChainRenderer
+    _chest(v) { return { x: v.x, y: v.y - 80 + (Math.abs(v.tilt) > 1 ? 60 : 0) }; }
+    _curve(p0, p1, lift, seed) {
+      const sway = Math.sin(this.p.time * 0.002 + seed) * 5;
+      return { p0, p1, c: { x: (p0.x + p1.x) / 2, y: Math.min(p0.y, p1.y) - lift + sway } };
+    }
+    _at(cv, t) {
+      const { p0, c, p1 } = cv, u = 1 - t;
+      return { x: u * u * p0.x + 2 * u * t * c.x + t * t * p1.x, y: u * u * p0.y + 2 * u * t * c.y + t * t * p1.y,
+        a: Math.atan2(2 * u * (c.y - p0.y) + 2 * t * (p1.y - c.y), 2 * u * (c.x - p0.x) + 2 * t * (p1.x - c.x)) };
+    }
+    drawChain(ctx, cv, kind, alpha, opts = {}) {
+      const st = KIND_STYLE[kind] || KIND_STYLE.attack;
+      const len = Math.hypot(cv.p1.x - cv.p0.x, cv.p1.y - cv.p0.y) + Math.abs(cv.c.y - (cv.p0.y + cv.p1.y) / 2) * 0.6;
+      const tEnd = opts.tEnd == null ? 1 : opts.tEnd;
+      const n = Math.max(4, Math.floor(len * tEnd / 13));
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      if (opts.glow) { ctx.shadowColor = st.color; ctx.shadowBlur = 10; }
+      for (let i = 0; i <= n; i++) {
+        const q = this._at(cv, (i / n) * tEnd);
+        ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.a);
+        const bright = opts.tension ? 1 + opts.tension * 0.6 : 1;
+        if (i % 2 === 0) {
+          ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(8,4,10,0.6)';
+          this._link(ctx, st.link); ctx.stroke();
+          ctx.lineWidth = 2 * bright; ctx.strokeStyle = st.color;
+          this._link(ctx, st.link); ctx.stroke();
+        } else {
+          ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(8,4,10,0.6)';
+          ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(4, 0); ctx.stroke();
+          ctx.lineWidth = 1.8; ctx.strokeStyle = st.color;
+          ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(4, 0); ctx.stroke();
+        }
+        ctx.restore();
+      }
+      if (tEnd >= 0.999 && !opts.noEnd) {
+        const q = this._at(cv, 1);
+        ctx.translate(q.x, q.y); ctx.rotate(q.a);
+        ctx.fillStyle = st.color; ctx.strokeStyle = 'rgba(8,4,10,0.7)'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        if (kind === 'attack') { ctx.moveTo(6, 0); ctx.lineTo(-7, -6); ctx.lineTo(-4, 0); ctx.lineTo(-7, 6); }      // ponta de lança
+        else if (kind === 'support') { ctx.moveTo(6, 0); ctx.lineTo(0, -6); ctx.lineTo(-6, 0); ctx.lineTo(0, 6); } // losango
+        else { ctx.moveTo(-6, -6); ctx.lineTo(6, -6); ctx.lineTo(6, 2); ctx.lineTo(0, 8); ctx.lineTo(-6, 2); }    // escudo
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    _link(ctx, type) {
+      ctx.beginPath();
+      if (type === 'oval') ctx.ellipse(0, 0, 6.5, 3.4, 0, 0, 7);
+      else if (type === 'round') ctx.arc(0, 0, 3.6, 0, 7);
+      else ctx.rect(-5, -3.2, 10, 6.4);
+    }
+
+    // ------------------------------------------------------------ desenho (atrás dos personagens)
+    drawUnder(ctx) {
+      if (this.fade <= 0.01 || !this.p.vis) return;
+      const b = this.battle;
+      this.badges = [];
+      const vis = this.p.vis;
+      const focus = this.sel ? this.sel.uid : this.hover.unit;
+      const plan = this.cb.plan(), choices = this.cb.choices();
+      const rel = (a, t) => !focus || a === focus || t === focus;
+
+      // intenções inimigas: linhas discretas e tracejadas (diferentes das correntes)
+      if (this.showIntents) {
+        for (const it of b.intents) {
+          const A = vis[it.actorId], sk = SKILLS[it.skillId];
+          if (!A || A.dead) continue;
+          if (sk.kind !== 'attack') continue;
+          const l = plan && plan.links[it.id];
+          if (l && l.type === 'direct') continue; // vira o Clash da corrente aliada
+          const T = vis[it.targetId];
+          const cv = this._curve(this._chest(A), this._chest(T), 40 + b.unit(it.actorId).slot * 22, A.phase);
+          const on = rel(it.actorId, it.targetId);
+          ctx.save();
+          ctx.globalAlpha = this.fade * (on ? 0.7 : 0.18);
+          ctx.strokeStyle = '#ff5a5a'; ctx.lineWidth = 2; ctx.setLineDash([7, 7]); ctx.lineDashOffset = -this.p.time * 0.04;
+          ctx.beginPath(); ctx.moveTo(cv.p0.x, cv.p0.y); ctx.quadraticCurveTo(cv.c.x, cv.c.y, cv.p1.x, cv.p1.y); ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      // correntes aliadas confirmadas (agrupadas por alvo para não se sobreporem)
+      if (plan) {
+        const byTarget = {};
+        const acts = plan.actions.filter(a => a.side === 'ally' && SKILLS[a.skillId].kind !== 'defense');
+        acts.forEach(a => { (byTarget[a.targetId] = byTarget[a.targetId] || []).push(a); });
+        for (const a of acts) {
+          if (this.drag && this.drag.uid === a.actorId) continue;
+          const A = vis[a.actorId], T = vis[a.targetId], sk = SKILLS[a.skillId];
+          const grp = byTarget[a.targetId], k = grp.indexOf(a);
+          const end = this._chest(T); end.y += (k - (grp.length - 1) / 2) * 20;
+          const since = this.p.time - (this.connectAt[a.actorId] || -1e9);
+          const tension = since < 350 ? Math.sin(Math.PI * since / 350) : 0;
+          const cv = this._curve(this._chest(A), end, (70 + k * 42) * (1 - tension * 0.5), A.phase + k);
+          const on = rel(a.actorId, a.targetId);
+          this.drawChain(ctx, cv, sk.kind, this.fade * (on ? 0.95 : 0.3), { tension });
+          a._cv = cv;
+        }
+      }
+
+      // corrente sendo arrastada / modo clique aguardando alvo
+      const uid = this._activeUid(), sid = this._activeSkill();
+      if (this.enabled && uid && (this.drag || sid)) {
+        const A = vis[uid];
+        const hoverValid = sid && this.hover.unit && this.validTargets(uid, sid).includes(this.hover.unit);
+        const p1 = hoverValid ? this._chest(vis[this.hover.unit]) : { x: this.mouse.x, y: this.mouse.y };
+        const kind = sid ? SKILLS[sid].kind : 'attack';
+        let p0 = this._chest(A);
+        // passa pelo círculo da habilidade escolhida
+        const it = sid && this.items.find(x => x.skillId === sid);
+        if (it) this.drawChain(ctx, this._curve(p0, { x: it.x, y: it.y }, 10, 0), kind, 0.9, { noEnd: true, glow: true });
+        if (it) p0 = { x: it.x, y: it.y };
+        if (!it || this.needsTarget(sid)) this.drawChain(ctx, this._curve(p0, p1, hoverValid ? 50 : 20, 1), kind, 0.95, { glow: true });
+      }
+
+      // correntes se recolhendo
+      this.retracts = this.retracts.filter(r => this.p.time - r.start < 220);
+      for (const r of this.retracts) {
+        const q = 1 - (this.p.time - r.start) / 220;
+        this.drawChain(ctx, this._curve({ x: r.x0, y: r.y0 }, { x: r.x1, y: r.y1 }, 20, 0), r.kind, 0.7 * q, { tEnd: Math.max(0.05, q), noEnd: true });
+      }
+
+      // destaque do alvo sob o cursor
+      if (this.enabled && sid && this.hover.unit && this.validTargets(uid, sid).includes(this.hover.unit)) {
+        const T = vis[this.hover.unit];
+        ctx.save(); ctx.translate(T.x, T.y + 4); ctx.scale(1, 0.32);
+        ctx.strokeStyle = KIND_STYLE[SKILLS[sid].kind].color; ctx.lineWidth = 9; ctx.globalAlpha = 0.9;
+        ctx.beginPath(); ctx.arc(0, 0, 62, 0, 7); ctx.stroke(); ctx.restore();
+      }
+    }
+
+    // ------------------------------------------------------------ desenho (na frente)
+    drawOver(ctx) {
+      if (this.fade <= 0.01 || !this.p.vis) return;
+      const b = this.battle, vis = this.p.vis, k = this.p.pxPerWorld;
+      const plan = this.cb.plan(), preview = this.cb.preview() || [], choices = this.cb.choices();
+      const focus = this.sel ? this.sel.uid : this.hover.unit;
+      ctx.save();
+      ctx.globalAlpha = this.fade;
+
+      // ícones das intenções inimigas
+      if (this.showIntents) {
+        for (const it of b.intents) {
+          const A = vis[it.actorId], sk = SKILLS[it.skillId];
+          if (!A || A.dead) continue;
+          const on = !focus || it.actorId === focus || it.targetId === focus;
+          let x, y;
+          if (sk.kind !== 'attack') { x = A.x; y = A.y - 200; }
+          else {
+            const l = plan && plan.links[it.id];
+            if (l && l.type === 'direct') continue;
+            const cv = this._curve(this._chest(A), this._chest(vis[it.targetId]), 40 + b.unit(it.actorId).slot * 22, A.phase);
+            const q = this._at(cv, 0.3); x = q.x; y = q.y;
+          }
+          ctx.globalAlpha = this.fade * (on ? 0.95 : 0.35);
+          this._disk(ctx, x, y, 12 / k, '#2a1216', '#ff6a5a', sk.icon, false);
+          this._tag(ctx, x + 15 / k, y + 4 / k, `F${sk.force}`, '#ffb0a8', 11 / k);
+        }
+        ctx.globalAlpha = this.fade;
+      }
+
+      // medalhão da habilidade + selo de Clash em cada corrente
+      if (plan) {
+        const orderOf = {};
+        preview.forEach((ev, i) => { [ev.a, ev.b].forEach(x => { if (x) orderOf[x.id] = i + 1; }); (ev.actions || []).forEach(x => { orderOf[x.id] = i + 1; }); });
+        for (const a of plan.actions.filter(x => x.side === 'ally')) {
+          const A = vis[a.actorId], sk = SKILLS[a.skillId];
+          const on = !focus || a.actorId === focus || a.targetId === focus;
+          ctx.globalAlpha = this.fade * (on ? 1 : 0.4);
+          if (sk.kind === 'defense') {
+            this._disk(ctx, A.x, A.y - 200, 14 / k, '#13202e', KIND_STYLE.defense.color, sk.icon, true);
+            this._tag(ctx, A.x - 22 / k, A.y - 208, String(orderOf[a.id] || ''), '#ffe9b0', 12 / k);
+            continue;
+          }
+          if (!a._cv || (this.drag && this.drag.uid === a.actorId)) continue;
+          const m = this._at(a._cv, 0.28);
+          this._disk(ctx, m.x, m.y, 13 / k, '#140c14', KIND_STYLE[sk.kind].color, sk.icon, true);
+          this._tag(ctx, m.x - 18 / k, m.y - 12 / k, String(orderOf[a.id] || ''), '#ffe9b0', 12 / k);
+          // selo de Clash / interceptação
+          const link = plan.links[a.id];
+          const info = a.interceptInfo;
+          if (link || info) {
+            const ev = link && preview.find(e => e.type === 'clash' && (e.a.id === a.id || e.b.id === a.id));
+            let col = '#888', label = '';
+            if (ev) { const p = ev.a.id === a.id ? ev.odds.win : ev.odds.lose; const cat = b.category(p); col = CAT_COLOR[cat]; label = CAT_NAME[cat]; }
+            const q = this._at(a._cv, 0.62);
+            const toggle = !!(info && info.valid && (!link || link.type === 'intercept'));
+            this._disk(ctx, q.x, q.y, 14 / k, '#140c14', col, link ? (link.type === 'intercept' ? 'protect' : 'clash') : 'clash', !!link);
+            if (label) this._tag(ctx, q.x + 18 / k, q.y + 4 / k, label, col, 12 / k);
+            else if (info) this._tag(ctx, q.x + 18 / k, q.y + 4 / k, info.valid ? 'interceptar?' : 'lento demais', '#c9b', 11 / k);
+            this.badges.push({ x: q.x, y: q.y, r: 14 / k, uid: a.actorId, toggle, act: a });
+          }
+        }
+        ctx.globalAlpha = this.fade;
+      }
+
+      // menu radial
+      this._layoutMenu();
+      if (this.items.length) {
+        const sel = this.sel;
+        const active = this._activeSkill();
+        const planned = choices[sel.uid] && choices[sel.uid].skillId;
+        for (const it of this.items) {
+          const hov = this.hover.item && this.hover.item === it || (this.hover.item && this.hover.item.skillId === it.skillId && !it.cancel && this.hover.item.skillId);
+          const r = it.r * (hov ? 1.15 : 1);
+          ctx.globalAlpha = this.fade * it.open * (it.disabled ? 0.45 : 1);
+          if (it.cancel) { this._disk(ctx, it.x, it.y, r, '#2a1414', '#ff8a7a', 'cancel', false); continue; }
+          const st = KIND_STYLE[it.kind];
+          const chosen = active === it.skillId || (!active && planned === it.skillId);
+          this._disk(ctx, it.x, it.y, r, chosen ? '#2b2118' : '#140c14', chosen ? '#ffe9b0' : st.color, SKILLS[it.skillId].icon, it.kind !== 'attack', it.kind);
+          if (it.disabled) this._tag(ctx, it.x, it.y + r + 12 / k, it.cd ? `recarga ${it.cd}` : 'sem alvo', '#ff9a8a', 11 / k, true);
+        }
+        ctx.globalAlpha = this.fade;
+      }
+
+      // dicas contextuais (tooltip)
+      const k2 = k;
+      if (this.enabled) {
+        const hi = this.hover.item;
+        if (hi && !hi.cancel && hi.skillId && this.sel) {
+          const sk = SKILLS[hi.skillId], u = b.unit(this.sel.uid);
+          const lines = [{ t: sk.name, c: '#ffe9b0' },
+            sk.kind === 'attack' ? { t: `Força ${sk.force} · Dano ${sk.dmg} · Vel ${b.actionSpeed(u, sk)}`, c: '#e8dccb' } : { t: KIND_STYLE[sk.kind].label + (sk.kind === 'defense' ? ' · age antes de tudo' : ` · Vel ${b.actionSpeed(u, sk)}`), c: '#9fd0ff' },
+            { t: sk.desc, c: '#bdb0a8', wrap: true }];
+          if (hi.disabled) lines.push({ t: `Em recarga (${hi.cd})`, c: '#ff9a8a' });
+          this._tooltip(ctx, hi.x, hi.y - hi.r - 10 / k2, lines);
+        } else {
+          const uid = this._activeUid(), sid = this._activeSkill();
+          if (uid && sid && this.hover.unit && this.validTargets(uid, sid).includes(this.hover.unit)) {
+            const T = vis[this.hover.unit];
+            this._tooltip(ctx, T.x, T.y - 175, this.previewLines(uid, sid, this.hover.unit, null));
+          } else if (this.hover.badge && !this.drag) {
+            const a = this.hover.badge.act, c = choices[a.actorId];
+            const lines = this.previewLines(a.actorId, a.skillId, a.targetId, c.intercept).slice();
+            if (this.hover.badge.toggle) lines.push({ t: 'Clique para ligar/desligar a interceptação', c: '#9fd0ff' });
+            this._tooltip(ctx, this.hover.badge.x, this.hover.badge.y - 22 / k2, lines);
+          } else if (!uid && this.hover.unit && this.showIntents) {
+            const it = b.intents.find(i => i.actorId === this.hover.unit);
+            if (it) {
+              const sk = SKILLS[it.skillId], A = vis[it.actorId];
+              this._tooltip(ctx, A.x, A.y - 215, sk.kind === 'attack'
+                ? [{ t: `${b.unit(it.actorId).name} → ${b.unit(it.targetId).name}`, c: '#ff9a8a' }, { t: `${sk.name} · Força ${sk.force} · Dano ${sk.dmg} · Vel ${b.actionSpeed(b.unit(it.actorId), sk)}`, c: '#e8dccb' }]
+                : [{ t: `${b.unit(it.actorId).name} vai se defender`, c: '#9fd0ff' }, { t: sk.name, c: '#e8dccb' }]);
+            }
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    // ------------------------------------------------------------ primitivas
+    _disk(ctx, x, y, r, fill, ring, icon, alt, kind) {
+      ctx.save();
+      ctx.fillStyle = fill; ctx.strokeStyle = ring; ctx.lineWidth = r * 0.14;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke();
+      // forma do anel também indica a categoria (não só a cor)
+      if (kind === 'support') { ctx.setLineDash([r * 0.25, r * 0.2]); ctx.beginPath(); ctx.arc(x, y, r * 1.22, 0, 7); ctx.stroke(); }
+      else if (kind === 'defense' || kind === 'protect') { ctx.lineWidth = r * 0.07; ctx.beginPath(); ctx.arc(x, y, r * 1.2, 0, 7); ctx.stroke(); }
+      ctx.restore();
+      drawIcon(ctx, icon, x, y, r * 0.62, ring);
+    }
+    _tag(ctx, x, y, text, color, size, center) {
+      if (!text) return;
+      ctx.save();
+      ctx.font = `800 ${size}px "Trebuchet MS", sans-serif`; ctx.textAlign = center ? 'center' : 'left';
+      ctx.lineWidth = size * 0.3; ctx.strokeStyle = 'rgba(8,4,10,0.9)'; ctx.strokeText(text, x, y);
+      ctx.fillStyle = color; ctx.fillText(text, x, y);
+      ctx.restore();
+    }
+    _tooltip(ctx, x, y, lines) {
+      const k = this.p.pxPerWorld, fs = 13 / k, lh = 17 / k, pad = 8 / k, maxW = 270 / k;
+      ctx.save();
+      ctx.font = `600 ${fs}px "Trebuchet MS", sans-serif`;
+      const rows = [];
+      for (const l of lines) {
+        if (!l.wrap) { rows.push(l); continue; }
+        let cur = '';
+        for (const w of l.t.split(' ')) {
+          const t = cur ? cur + ' ' + w : w;
+          if (ctx.measureText(t).width > maxW && cur) { rows.push({ t: cur, c: l.c }); cur = w; } else cur = t;
+        }
+        if (cur) rows.push({ t: cur, c: l.c });
+      }
+      const w = Math.min(maxW, Math.max(...rows.map(r => ctx.measureText(r.t).width))) + pad * 2;
+      const h = rows.length * lh + pad * 1.4;
+      // mantém dentro da tela visível
+      const tl = this.p.toWorld(8, 8), br = this.p.toWorld(this.p.canvas.clientWidth - 8, this.p.canvas.clientHeight - 8);
+      let bx = clamp(x - w / 2, tl.x, br.x - w), by = clamp(y - h, tl.y, br.y - h);
+      ctx.fillStyle = 'rgba(12,7,16,0.93)'; ctx.strokeStyle = 'rgba(216,180,90,0.6)'; ctx.lineWidth = 1.2 / k;
+      ctx.beginPath(); ctx.roundRect(bx, by, w, h, 6 / k); ctx.fill(); ctx.stroke();
+      ctx.textAlign = 'left';
+      rows.forEach((r, i) => { ctx.fillStyle = r.c; ctx.fillText(r.t, bx + pad, by + pad + fs + i * lh - 2 / k); });
+      ctx.restore();
+    }
+  }
+
+  // ------------------------------------------------------------ ÍCONES (procedurais)
+  function drawIcon(ctx, key, x, y, s, color) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = s * 0.16; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const L = (pts, close, fill) => { ctx.beginPath(); ctx.moveTo(pts[0] * s, pts[1] * s); for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i] * s, pts[i + 1] * s); if (close) ctx.closePath(); fill ? ctx.fill() : ctx.stroke(); };
+    switch (key) {
+      case 'sword': L([-0.7, 0.7, 0.6, -0.6]); L([-0.35, 0.15, -0.15, 0.35]); L([-0.7, 0.7, -0.85, 0.85]); break;
+      case 'slash': ctx.beginPath(); ctx.arc(-0.2 * s, 0.3 * s, 0.9 * s, -1.4, -0.1); ctx.stroke(); L([-0.6, 0.6, 0.5, -0.5]); break;
+      case 'precise': ctx.beginPath(); ctx.arc(0, 0, 0.6 * s, 0, 7); ctx.stroke(); L([0, -0.95, 0, -0.3]); L([0, 0.3, 0, 0.95]); L([-0.95, 0, -0.3, 0]); L([0.3, 0, 0.95, 0]); break;
+      case 'risky': L([-0.8, 0.6, 0.6, -0.8]); L([-0.4, 0.8, 0.8, -0.4]); L([0.35, -0.85, 0.85, -0.85, 0.85, -0.35], false); break;
+      case 'hammer': L([-0.6, 0.8, 0.25, -0.1]); L([-0.05, -0.75, 0.7, -0.05, 0.4, 0.25, -0.35, -0.45], true, true); break;
+      case 'shieldbash': L([-0.55, -0.7, 0.35, -0.7, 0.35, 0.1, -0.1, 0.75, -0.55, 0.1], true); L([0.55, -0.4, 0.95, -0.4]); L([0.55, 0, 0.95, 0]); break;
+      case 'shield': L([-0.65, -0.75, 0.65, -0.75, 0.65, 0.1, 0, 0.85, -0.65, 0.1], true); L([0, -0.55, 0, 0.55]); break;
+      case 'protect': L([-0.5, -0.7, 0.5, -0.7, 0.5, 0.05, 0, 0.7, -0.5, 0.05], true); ctx.beginPath(); ctx.arc(0, -0.1 * s, 0.18 * s, 0, 7); ctx.fill(); break;
+      case 'parry': L([-0.75, 0.75, 0.75, -0.75]); L([0.75, 0.75, -0.75, -0.75]); ctx.beginPath(); ctx.arc(0, 0, 0.22 * s, 0, 7); ctx.fill(); break;
+      case 'clash': L([-0.75, 0.75, 0.6, -0.6]); L([0.75, 0.75, -0.6, -0.6]); L([-0.55, -0.85, -0.25, -0.55]); L([0.55, -0.85, 0.25, -0.55]); break;
+      case 'bolt': ctx.beginPath(); ctx.arc(0.15 * s, -0.15 * s, 0.38 * s, 0, 7); ctx.fill(); L([-0.85, 0.85, -0.2, 0.2]); L([-0.85, 0.35, -0.45, 0.2]); L([-0.35, 0.85, -0.2, 0.45]); break;
+      case 'blast': { ctx.beginPath(); for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8, r = (i % 2 ? 0.38 : 0.95) * s; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); ctx.fill(); break; }
+      case 'weaken': ctx.beginPath(); for (let i = 0; i <= 30; i++) { const a = i * 0.42, r = 0.08 * s + i * 0.026 * s; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.stroke(); L([0.55, 0.35, 0.85, 0.85, 0.35, 0.75], true, true); break;
+      case 'support': L([0, -0.8, 0, 0.8]); L([-0.8, 0, 0.8, 0]); ctx.beginPath(); ctx.arc(0, 0, 0.95 * s, 0, 7); ctx.globalAlpha *= 0.5; ctx.stroke(); break;
+      case 'dodge': L([-0.85, -0.45, 0.2, -0.45]); L([-0.65, 0, 0.45, 0]); L([-0.85, 0.45, 0.2, 0.45]); L([0.35, -0.7, 0.85, 0, 0.35, 0.7], false); break;
+      case 'cancel': L([-0.6, -0.6, 0.6, 0.6]); L([0.6, -0.6, -0.6, 0.6]); break;
+      default: ctx.beginPath(); ctx.arc(0, 0, 0.5 * s, 0, 7); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  G.Planner = Planner;
+  G.drawIcon = drawIcon;
+})(window);

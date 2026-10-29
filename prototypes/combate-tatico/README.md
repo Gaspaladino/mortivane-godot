@@ -2,6 +2,32 @@
 
 Protótipo jogável e independente do projeto Godot. Basta abrir `index.html` no navegador; não precisa de servidor nem de build.
 
+## Planejamento na arena
+- **Seleção direta:** clique num aliado e as habilidades dele surgem em círculos ao redor. As três ofensivas ficam maiores; defesa, suporte e proteção ficam menores. O menu acompanha a posição atual do personagem e se adapta às bordas da tela.
+- **Correntes:** arraste do personagem até uma habilidade e continue até o alvo, num único gesto. A primeira habilidade tocada é a escolhida; para trocar no meio do gesto, pare cerca de 0,25 s sobre outra. Também funciona só com cliques: personagem → habilidade → alvo. Habilidades de defesa confirmam no próprio círculo.
+- **Leitura:**
+  - Intenções inimigas aparecem como linhas vermelhas tracejadas e discretas.
+  - As ações aliadas são correntes: elos ovais com ponta de lança para ataque, elos redondos com losango para suporte e elos quadrados com escudo para proteção.
+  - O medalhão perto do início mostra a habilidade e a ordem; o selo no meio mostra o Clash (Favorável, Equilibrado ou Desfavorável).
+  - Passar o mouse destaca só as conexões daquele personagem. Correntes para o mesmo alvo se abrem em leque.
+- **Prévia de Clash:** aparece ao mirar um inimigo ou ao passar o mouse no selo. Usa as regras reais, com modificadores e ordem. Clicar no selo liga ou desliga a interceptação.
+- **Alterar e cancelar:** clique de novo no personagem para trocar; ✕ no menu ou botão direito cancela; Esc desfaz o passo atual. Soltar a corrente fora de um alvo válido não muda nada.
+
+## Execução contínua
+- **Posições persistentes:** ninguém volta à formação depois de agir. Golpes empurram, interceptadores ficam no caminho e esquivas mudam a profundidade. Entre rodadas, cada lado só recua o necessário para voltar à sua metade, com espaçamento mínimo e dentro da arena.
+- **Reações físicas** (`impact`, calculado na lógica e por enquanto só visual):
+  - **leve:** inclina o tronco.
+  - **médio:** desliza para trás levantando poeira.
+  - **forte:** perde o equilíbrio e se apoia com a mão no chão.
+  - **extremo:** derrubada, só para habilidades com `impact: 'knockdown'`. O personagem cai, fica no chão, levanta e retoma a postura.
+  - **derrota:** fica caído, apagado.
+- **Clashes:** os dois avançam, as armas se chocam e há resistência (mais longa quando as forças são próximas). As forças aparecem na própria arena. A margem muda só a intensidade visual: por pouco o vencedor força a guarda devagar, numa margem média o perdedor recua, numa margem grande o perdedor perde o equilíbrio.
+- **Estados visuais por personagem:** IDLE, PREPARING, APPROACHING, ATTACKING, CLASHING, BLOCKING, DODGING, PARRYING, HIT_LIGHT, HIT_HEAVY, STAGGERING, KNOCKDOWN, GETTING_UP, REPOSITIONING e DEFEATED. A recuperação de um personagem continua enquanto o próximo confronto começa; quem precisa agir espera a própria recuperação terminar.
+- **Câmera:** acompanha os personagens focados, inclusive quando são empurrados, e vai direto ao próximo confronto. Só volta ao plano geral no fim da rodada.
+- **Peso:** o Cavaleiro e o Brutamontes se movem devagar e são pouco empurrados; o Espadachim e o Duelista são rápidos; os conjuradores se movem de forma suave.
+
+Use `index.html?seed=123` para repetir a mesma batalha. O resultado de cada rodada é idêntico em 1×, em 2× e com Pular.
+
 ## Rodada compartilhada
 1. **Preparação inimiga:** cada inimigo escolhe a ação e o alvo, e a escolha fica fixa durante a rodada. A arena mostra linhas tracejadas com habilidade, força (F) e dano (D), além das poses de preparação.
 2. **Planejamento:** escolha uma ação para cada personagem. Pode ser atacar, usar uma habilidade especial, interceptar, assumir uma postura defensiva, proteger um aliado ou dar suporte.
@@ -26,7 +52,8 @@ Enfraquecimento tira 2 de força do alvo e Suporte dá +2 de força para a próx
 | `js/data.js` | **Balanceamento:** fórmulas (`CONFIG`), personagens, habilidades, reações e status. Edite aqui. |
 | `js/combat.js` | Lógica pura (`Battle`): intenções, `buildPlan` (valida as ações e liga os Clashes e as interceptações), `previewPlan` (prévia), `resolveRound` (fila de eventos com o resultado completo e um snapshot do estado). Usa RNG com semente. |
 | `js/ai.js` | IA: Brutamontes prefere golpes fortes, Duelista prefere alvos frágeis ou enfraquecidos e Conjurador usa magias e Maldição. Com pouca vida, às vezes eles se defendem. |
-| `js/presenter.js` | Apresentação: câmera, tweens, câmera lenta, hit-stop, partículas e personagens. Reproduz os eventos `stances`, `support`, `clash` (aproximação, choque, forças, vencedor e golpe) e `attack`. |
-| `js/ui.js` | Interface DOM por fase. |
+| `js/presenter.js` | Apresentação: estados visuais, rotinas paralelas de recuperação, reações físicas, espaçamento (`settle`), câmera que acompanha, e reprodução dos eventos `stances`, `support`, `clash` e `attack`. |
+| `js/planner.js` | Planejamento na arena: seleção, menu radial, correntes, alvos válidos, entrada (clique ou arrasto, Esc, botão direito) e prévia de Clash. |
+| `js/ui.js` | Barra compacta: dica, ordem prevista e botão para executar. |
 | `js/main.js` | Máquina de estados: `INTENTS → PLAN → RESOLVE → (INTENTS \| END)`. |
 | `tools/sim.js` | Simulação sem interface para balanceamento: `node tools/sim.js 1000`. |
