@@ -137,53 +137,64 @@
 
   // interceptReach: bônus de velocidade só para interceptar ataques contra aliados
   const UNITS = {
-    knight: { name: 'Cavaleiro', offense: 'Golpes firmes; Golpe Pesado derruba.', defense: 'Bloqueio de 60%, Proteção de aliados, Firmar Guarda recupera Postura.', specialty: 'Proteção e bloqueio', accent: '#7fb0e0', glyph: 'shield', role: 'Defensor', side: 'ally', art: 'knight', posture: 100, formation: 0,
+    knight: { name: 'Cavaleiro', element: 'blue', good: 'Segura a linha de frente, protege aliados frágeis e intercepta golpes.', bestVs: 'Brutamontes (Azul > Vermelho)', limits: 'Lento; pouco dano por ação.', offense: 'Golpes firmes; Golpe Pesado derruba.', defense: 'Bloqueio de 60%, Proteção de aliados, Firmar Guarda recupera Postura.', specialty: 'Proteção e bloqueio', accent: '#7fb0e0', glyph: 'shield', role: 'Defensor', side: 'ally', art: 'knight', posture: 100, formation: 0,
       style: 'Linha de frente: resiste, bloqueia e protege os aliados.',
       hp: 62, spd: 3, interceptReach: 4, blockPower: 0.6,
       skills: ['k_basic', 'k_shield', 'k_heavy', 'k_guard', 'k_protect'],
       trait: 'Intercepta ataques mesmo sendo lento (+4 de alcance). Bloqueio de 60%.' },
-    swordsman: { name: 'Espadachim', offense: 'Rápido e preciso; vence Clashes com Golpe Preciso.', defense: 'Aparo com contra-ataque.', specialty: 'Aparo e precisão', accent: '#3fc0b0', glyph: 'parry', role: 'Duelista', side: 'ally', art: 'swordsman', posture: 70, formation: 1,
+    swordsman: { name: 'Espadachim', element: 'red', good: 'Vence Clashes com Golpe Preciso e pune com o Ataque Arriscado.', bestVs: 'Duelista (Vermelho > Amarelo)', limits: 'Postura média; frágil contra Esmagar.', offense: 'Rápido e preciso; vence Clashes com Golpe Preciso.', defense: 'Aparo com contra-ataque.', specialty: 'Aparo e precisão', accent: '#3fc0b0', glyph: 'parry', role: 'Duelista', side: 'ally', art: 'swordsman', posture: 70, formation: 1,
       style: 'Duelos rápidos e precisos; vence Clashes com Golpe Preciso.',
       hp: 44, spd: 8, interceptReach: 0, dodgeSkill: 0.10, parrySkill: 0.10,
       skills: ['s_basic', 's_precise', 's_risky', 's_parry'],
       trait: 'Muito rápido: age cedo e intercepta golpes mais lentos.' },
-    mage: { name: 'Mago', offense: 'Magia à distância (não pode ser aparada).', defense: 'Esquiva etérea; frágil de perto.', specialty: 'Magia e suporte', accent: '#9f8fff', glyph: 'blast', role: 'Conjurador', side: 'ally', art: 'mage', posture: 40, formation: 2,
+    mage: { name: 'Mago', element: 'purple', good: 'Dano mágico à distância; Enfraquecimento e Reforço Arcano preparam a equipe.', bestVs: 'Alvos Verdes (Roxo > Verde)', limits: 'Pouca vida e Postura; sofre contra o Duelista.', offense: 'Magia à distância (não pode ser aparada).', defense: 'Esquiva etérea; frágil de perto.', specialty: 'Magia e suporte', accent: '#9f8fff', glyph: 'blast', role: 'Conjurador', side: 'ally', art: 'mage', posture: 40, formation: 2,
       style: 'Magia à distância e preparação: enfraquece inimigos e apoia aliados.',
       hp: 34, spd: 5, interceptReach: 0,
       skills: ['m_bolt', 'm_blast', 'm_weaken', 'm_support', 'm_dodge'],
       trait: 'Frágil. Enfraquecimento e Suporte agem cedo e preparam os Clashes dos aliados.' },
 
-    lancer: { name: 'Lanceiro', offense: 'Alcance longo; Varredura empurra, Investida desequilibra.', defense: 'Aparo com a haste.', specialty: 'Alcance e controle de distância', accent: '#6fbf7f', glyph: 'spear', role: 'Alcance', side: 'ally', art: 'lancer', posture: 75, formation: 1,
+    lancer: { name: 'Lanceiro', element: 'green', good: 'Controla a distância e desgasta Postura com a Varredura.', bestVs: 'Alvos Azuis (Verde > Azul)', limits: 'Perde para magia roxa (Conjurador).', offense: 'Alcance longo; Varredura empurra, Investida desequilibra.', defense: 'Aparo com a haste.', specialty: 'Alcance e controle de distância', accent: '#6fbf7f', glyph: 'spear', role: 'Alcance', side: 'ally', art: 'lancer', posture: 75, formation: 1,
       hp: 50, spd: 7, interceptReach: 2, parrySkill: 0.05,
       skills: ['l_thrust', 'l_sweep', 'l_pierce', 'l_parry'],
       style: 'Disciplinado: mantém o inimigo na ponta da lança e controla a distância.',
       trait: 'Alcance longo (+2 para interceptar). Apara com a haste.' },
-    brawler: { name: 'Lutador', offense: 'Socos rápidos; Sequência de 3 golpes; Ascendente derruba.', defense: 'Esquiva lateral alta.', specialty: 'Múltiplos impactos e pressão', accent: '#e0705a', glyph: 'fist', role: 'Pressão', side: 'ally', art: 'brawler', posture: 65, formation: 0,
+    brawler: { name: 'Lutador', element: 'yellow', good: 'Pressão constante: muitos impactos e o Golpe Ascendente derruba.', bestVs: 'Conjurador (Amarelo > Roxo)', limits: 'Alcance curto; sofre contra o Brutamontes.', offense: 'Socos rápidos; Sequência de 3 golpes; Ascendente derruba.', defense: 'Esquiva lateral alta.', specialty: 'Múltiplos impactos e pressão', accent: '#e0705a', glyph: 'fist', role: 'Pressão', side: 'ally', art: 'brawler', posture: 65, formation: 0,
       hp: 48, spd: 9, interceptReach: 0, dodgeSkill: 0.20,
       skills: ['f_jab', 'f_flurry', 'f_upper', 'f_dodge'],
       style: 'Punhos rápidos e pressão constante: muitos impactos e reações no alvo.',
       trait: 'O mais rápido. Especialista em esquiva.' },
-    archer: { name: 'Arqueira', offense: 'Flechas à distância; Disparo Duplo e Flecha Perfurante.', defense: 'Esquiva e reposicionamento; frágil de perto.', specialty: 'Precisão à distância', accent: '#a9d36f', glyph: 'arrow', role: 'Precisão', side: 'ally', art: 'archer', posture: 45, formation: 2,
+    archer: { name: 'Arqueira', element: 'green', good: 'Precisão à distância; Disparo Duplo e Flecha Perfurante de longe.', bestVs: 'Alvos Azuis (Verde > Azul)', limits: 'Frágil de perto; Conjurador tem vantagem.', offense: 'Flechas à distância; Disparo Duplo e Flecha Perfurante.', defense: 'Esquiva e reposicionamento; frágil de perto.', specialty: 'Precisão à distância', accent: '#a9d36f', glyph: 'arrow', role: 'Precisão', side: 'ally', art: 'archer', posture: 45, formation: 2,
       hp: 36, spd: 7, interceptReach: 0, dodgeSkill: 0.15,
       skills: ['a_shot', 'a_double', 'a_pierce', 'a_evade'],
       style: 'Ataca de longe com flechas físicas (podem ser aparadas). Frágil de perto.',
       trait: 'Ataques à distância. Esquiva e reposiciona.' },
 
-    brute: { name: 'Brutamontes', role: 'Força bruta', side: 'enemy', art: 'brute', posture: 110,
+    brute: { name: 'Brutamontes', element: 'red', role: 'Força bruta', side: 'enemy', art: 'brute', posture: 110,
       hp: 56, spd: 2, blockPower: 0.5, skills: ['b_smash', 'b_bash', 'b_guard'],
       ai: { prefers: 'strong', defendBelow: 0.35 } },
-    duelist: { name: 'Duelista', role: 'Lâminas', side: 'enemy', art: 'duelist', posture: 70,
+    duelist: { name: 'Duelista', element: 'yellow', role: 'Lâminas', side: 'enemy', art: 'duelist', posture: 70,
       hp: 40, spd: 7, dodgeSkill: 0.05, parrySkill: 0.05, skills: ['d_lunge', 'd_flurry', 'd_parry'],
       ai: { prefers: 'weak', defendBelow: 0.30 } },
-    conjurer: { name: 'Conjurador', role: 'Magia negra', side: 'enemy', art: 'conjurer', posture: 45,
+    conjurer: { name: 'Conjurador', element: 'purple', role: 'Magia negra', side: 'enemy', art: 'conjurer', posture: 45,
       hp: 32, spd: 4, skills: ['c_curse', 'c_ray', 'c_veil'],
       ai: { prefers: 'threat', defendBelow: 0.30 } },
   };
+
+  // ELEMENTOS — ciclo fechado: Vermelho > Amarelo > Roxo > Verde > Azul > Vermelho
+  const ELEMENTS = {
+    red:    { name: 'Vermelho', color: '#e0503c', beats: 'yellow' },
+    yellow: { name: 'Amarelo',  color: '#e8c33a', beats: 'purple' },
+    purple: { name: 'Roxo',     color: '#a26ae0', beats: 'green' },
+    green:  { name: 'Verde',    color: '#5cc46a', beats: 'blue' },
+    blue:   { name: 'Azul',     color: '#4c9ee8', beats: 'red' },
+  };
+  const ELEMENT_ORDER = ['red', 'yellow', 'purple', 'green', 'blue'];
+  CONFIG.element = { advantage: 1.2, disadvantage: 0.8 }; // só no dano, por enquanto
 
   const PARTY = ['knight', 'swordsman', 'mage']; // equipe padrão
   const ROSTER = ['knight', 'swordsman', 'mage', 'lancer', 'brawler', 'archer']; // jogáveis
   const FOES = ['brute', 'duelist', 'conjurer'];
   const AI_THREAT = { mage: 0.6, archer: 0.6, swordsman: 0.4, lancer: 0.3, brawler: 0.35, knight: 0.0 };
 
-  Object.assign(G, { CONFIG, REACTIONS, STATUS, SKILLS, COMBOS, AI_COMBO_CHANCE, UNITS, PARTY, ROSTER, FOES, AI_THREAT });
+  Object.assign(G, { ELEMENTS, ELEMENT_ORDER, CONFIG, REACTIONS, STATUS, SKILLS, COMBOS, AI_COMBO_CHANCE, UNITS, PARTY, ROSTER, FOES, AI_THREAT });
 })(typeof window !== 'undefined' ? window : globalThis);

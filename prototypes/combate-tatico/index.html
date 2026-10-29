@@ -7,39 +7,45 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header id="top">
-    <div class="brand">DUELO SOMBRIO <small>protótipo</small></div>
-    <div id="round">Rodada 1</div>
-    <div id="phase"></div>
-    <div class="ctrl">
-      <button data-speed="1">1×</button>
-      <button data-speed="2.2">2×</button>
-      <button id="btn-skip" title="Pular animações (Espaço)">Pular ⏭</button>
+  <main id="arena"><canvas id="stage"></canvas>
+    <!-- HUD limpo: só o essencial na tela; o resto fica em ⚙ -->
+    <div id="hud-top">
+      <span id="round" title="Rodada">R1</span>
+      <button data-speed="1" title="Velocidade normal">1×</button>
+      <button data-speed="2.2" title="Velocidade acelerada">2×</button>
+      <button id="btn-skip" title="Pular animações (Espaço)">⏭</button>
       <button id="btn-team" title="Trocar equipe">👥</button>
-      <button id="btn-audio" title="Áudio">🔊</button>
-      <button id="btn-help">?</button>
-      <button id="btn-restart">↻</button>
+      <button id="btn-audio" title="Configurações">⚙</button>
+      <button id="btn-help" title="Como jogar">?</button>
+      <button id="btn-restart" title="Reiniciar batalha">↻</button>
     </div>
-  </header>
-  <main id="arena"><canvas id="stage"></canvas><div id="overlay"></div></main>
+    <canvas id="legend" width="170" height="170" title="Ciclo de elementos: cada cor vence a próxima"></canvas>
+    <div id="fs-hint">Clique para entrar em tela cheia</div>
+    <div id="overlay"></div>
+  </main>
   <section id="panel"></section>
   <div id="audio-pop" class="pop">
     <label>Volume geral <input type="range" id="vol-master" min="0" max="1" step="0.05"></label>
     <label>Efeitos <input type="range" id="vol-sfx" min="0" max="1" step="0.05"></label>
     <label class="chk"><input type="checkbox" id="vol-mute"> Silenciar</label>
     <label class="chk"><input type="checkbox" id="vol-reduce"> Reduzir animações</label>
+    <label class="chk"><input type="checkbox" id="opt-legend" checked> Mostrar ciclo de elementos</label>
+    <button id="btn-fs">⛶ Tela cheia</button>
+    <div class="dbg">Duelo Sombrio · protótipo<br>Fase: <span id="phase">—</span></div>
   </div>
   <div id="team" class="team">
     <div class="team-box">
-      <h1>Formação da equipe</h1>
-      <p class="muted">Escolha <b>três</b> combatentes. Clique para ver detalhes; clique de novo (ou no espaço da equipe) para adicionar ou remover.</p>
-      <div class="team-main">
+      <header class="team-head"><h1>Formação da equipe</h1><span class="muted">Escolha três combatentes · clique para ver a ficha · clique de novo para adicionar</span></header>
+      <div class="team-grid">
         <div id="roster" class="roster"></div>
         <div id="detail" class="detail"></div>
-      </div>
-      <div class="team-foot">
-        <div id="slots" class="slots"></div>
-        <button id="btn-start" class="confirm">Iniciar batalha ▶</button>
+        <aside class="team-side">
+          <div id="skillpane" class="skillpane"></div>
+          <button id="btn-toggle" class="confirm alt">Adicionar à equipe</button>
+          <div class="sh">Sua equipe</div>
+          <div id="slots" class="slots"></div>
+          <button id="btn-start" class="confirm">Iniciar batalha ▶</button>
+        </aside>
       </div>
     </div>
   </div>
@@ -51,6 +57,8 @@
       <p><b>Clash:</b> cada lado rola <b>Força + (0 a 3)</b>; o maior interrompe o outro e acerta seu dano. Empate anula os dois. Interceptar exige velocidade (+ alcance do Cavaleiro) ≥ a do golpe inimigo.</p>
       <p><b>Defesas</b> agem antes de tudo: Postura de Escudo, Proteção (o Cavaleiro recebe os golpes no lugar de um aliado), Aparar (1º golpe físico), Passo Etéreo (esquiva). Enfraquecimento (−2 força) e Suporte (+2) afetam só o que vem depois deles.</p>
       <p><b>Postura:</b> barra âmbar abaixo da vida. Perder um Clash tira Postura (a Pressão da habilidade vencedora). Em 0 ocorre a <b>Quebra</b>: o personagem perde a próxima ação, depois volta com a Postura cheia e fica protegido contra nova Quebra até agir. Firmar Guarda (+25) e Reforço Arcano (+15) recuperam Postura. ⚡ QUEBRA? indica que o golpe escolhido pode quebrar o alvo se vencer.</p>
+      <p><b>Elementos:</b> Vermelho &gt; Amarelo &gt; Roxo &gt; Verde &gt; Azul &gt; Vermelho. Atacar quem você vence dá +20% de dano; atacar quem vence você, −20%. O ciclo fica no canto superior esquerdo (pode esconder em ⚙).</p>
+      <p><b>Seleção:</b> clique num aliado: as habilidades surgem num arco à frente dele. Roda do mouse/setas giram, Enter escolhe, ou clique direto. <b>AUTO</b> preenche um plano que você pode editar antes de executar.</p>
       <p><b>Críticos:</b> 10% por habilidade que acerta, 1,5× de dano; não interferem no Clash.</p>
       <p><b>Equipe:</b> 👥 volta à formação (6 combatentes, escolha 3). 🔊 ajusta o áudio.</p>
       <p><b>Controles:</b> 1×/2×, Pular (ou Espaço), Enter executa a rodada. Os resultados já estão decididos antes da animação.</p>

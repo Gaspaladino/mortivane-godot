@@ -88,7 +88,7 @@
       this.banner = null; this.caption = null; this.screenFlash = 0;
       this.cam = { x: W / 2, y: H / 2, z: 1 }; this.camT = { x: W / 2, y: H / 2, z: 1 }; this.viewCY = H / 2;
       this.shake = 0; this.spot = null; this.time = 0;
-      this.threatened = null; this.nums = []; this.showLabels = true; this.highlight = null;
+      this.threatened = null; this.nums = []; this.xfx = []; this.showLabels = true; this.highlight = null;
       this.bg = this._buildBackground();
       this.fog = Array.from({ length: 20 }, (_, i) => ({ x: Math.random() * (W + BG_M.x * 2) - BG_M.x, y: GROUND - 40 + Math.random() * 120, r: 80 + Math.random() * 120, v: 0.004 + Math.random() * 0.01 }));
       this._last = performance.now();
@@ -150,7 +150,7 @@
       for (const tw of this.tweens) { Object.assign(tw.obj, tw.to); tw.res(); }
       for (const w of this.waits) w.res();
       this.tweens = []; this.waits = [];
-      this.particles = []; this.texts = []; this.fx = []; this.banner = null; this.nums = [];
+      this.particles = []; this.texts = []; this.fx = []; this.banner = null; this.nums = []; this.xfx = [];
       this.slow = 1; this.freeze = 0;
     }
 
@@ -945,6 +945,7 @@
         const strong = last && (lvHere === 'heavy' || lvHere === 'extreme' || hit.killed);
         this._hitSound(st.motion, opts.blocked, last, strong);
         this.sparks(L.x - dir * 18, L.y - 72, opts.blocked ? '#cfe3ff' : (st.motion === 'proj' ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ff7a5a'), last ? 16 : 8, 0.5);
+        if (last && hit.elem) this.float(L.x + 50, L.y - 112, hit.elem > 0 ? '▲ VANTAGEM' : '▼ DESVANTAGEM', hit.elem > 0 ? '#7fe0a0' : '#ff9a8a', 12, 1000);
         if (st.motion === 'proj' || strong) this.flashAt(L.x - dir * 18, L.y - 72, st.motion === 'proj' ? (A.side === 'ally' ? '#8fd3ff' : '#c86bff') : '#ffe2b0', strong ? 90 : 60);
         const big = last && (hit.killed || steps.length === 1);
         const crit = hit.crit && last; // crítico: decidido uma vez pela lógica; destacado no golpe final
@@ -988,6 +989,90 @@
       // depois de golpes fortes o atacante mostra o esforço (recuperação mais lenta)
       for (const a of attackers) if (a && !a.dead) this.followThrough(a, finalLv === 'extreme' || finalLv === 'heavy');
       return lv;
+    }
+
+    // ============================================================ CLASH: RAIOS EM X
+    // Só APRESENTA o resultado já calculado pela lógica. Curto (~0,75 s) e legível:
+    // raio 1 = lado esquerdo (base + bônus), raio 2 cruza = lado direito; no centro, o valor vencedor.
+    async _clashX(ev, A, B, cx, cy, skA, skB, together) {
+      // o X fica sempre inteiro na tela (mesmo com o Clash na borda da arena)
+      { const half = (skA.tags.includes('ranged') || skB.tags.includes('ranged') ? 190 : 230) / 2 * 0.75 + 60;
+        const tl = this.toWorld(0, 0), br = this.toWorld(this.canvas.clientWidth, this.canvas.clientHeight);
+        cx = clamp(cx, tl.x + half, br.x - half); cy = clamp(cy, tl.y + half + 20, br.y - half); }
+      const left = A.x <= B.x;
+      const L = left ? { s: ev.a, v: A } : { s: ev.b, v: B }, Rr = left ? { s: ev.b, v: B } : { s: ev.a, v: A };
+      const magic = skA.tags.includes('magic') || skB.tags.includes('magic');
+      const ranged = !magic && (skA.tags.includes('ranged') || skB.tags.includes('ranged'));
+      const crit = !!(ev.hit && ev.hit.crit);
+      const sideCol = v => v.side === 'ally' ? '#8fd3ff' : '#ff8a7a';
+      const lab = s => `${s.base}${s.mod ? (s.mod > 0 ? '+' + s.mod : '−' + -s.mod) : ''} +${s.roll}`;
+      const jag = n => Array.from({ length: n + 1 }, (_, i) => (i === 0 || i === n) ? 0 : (Math.random() - 0.5) * (magic ? 10 : 18));
+      const win = ev.winner ? (ev.winner === L.v.id ? 'L' : 'R') : null;
+      const X = { cx, cy, len: ranged ? 190 : 230, b1: 0, b2: 0, cs: 0.3, a: 1, crit, magic, ranged,
+        j1: jag(9), j2: jag(9), colL: sideCol(L.v), colR: sideCol(Rr.v), labL: lab(L.s), labR: lab(Rr.s),
+        totL: L.s.total, totR: Rr.s.total, win, center: 0 };
+      if (this.skipping) return X;
+      this.xfx.push(X);
+      SFX('zap');
+      await this.tween(X, { b1: 1 }, 110, 'out');              // 1º raio
+      await this.wait(60);
+      SFX('zapCross', { vol: ev.close ? 1 : 0.85 });
+      await this.tween(X, { b2: 1 }, 110, 'out');              // 2º raio cruza: forma o X
+      this.hitStop(60);
+      this.flashAt(cx, cy, crit ? '#ffcf6a' : '#fff2c0', 70);
+      this.sparks(cx, cy, crit ? '#ffcf6a' : '#fff2c0', 12, 0.45);
+      SFX('clashDecide');
+      X.center = 1;
+      await this.tween(X, { cs: 1 }, 170, 'back');             // valor decisivo no centro
+      await together;
+      await this.wait(ev.close ? 260 : 170);
+      return X;
+    }
+    _drawX(ctx, X) {
+      if (X.a <= 0.01) return;
+      const d = X.len / 2, k = this.pxPerWorld || 1;
+      ctx.save(); ctx.globalAlpha = X.a; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      const bolt = (dir, prog, jg, col) => {
+        // dir: +1 = ↘ (do canto superior esquerdo), −1 = ↙ (do superior direito)
+        const x0 = X.cx - dir * d * 0.75, y0 = X.cy - d * 0.75, x1 = X.cx + dir * d * 0.75, y1 = X.cy + d * 0.75;
+        const nx = -(y1 - y0), ny = x1 - x0, nl = Math.hypot(nx, ny), n = jg.length - 1;
+        const pts = jg.map((o, i) => ({ x: x0 + (x1 - x0) * i / n + nx / nl * o, y: y0 + (y1 - y0) * i / n + ny / nl * o }));
+        const m = Math.max(1, Math.ceil(prog * n));
+        const path = () => { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i <= m; i++) { const f = i === m ? (prog * n - (m - 1)) : 1; ctx.lineTo(pts[i - 1].x + (pts[i].x - pts[i - 1].x) * f, pts[i - 1].y + (pts[i].y - pts[i - 1].y) * f); } };
+        ctx.shadowColor = X.crit ? '#ffcf6a' : X.magic ? '#c8a0ff' : col; ctx.shadowBlur = X.crit ? 22 : 14;
+        ctx.strokeStyle = col; ctx.lineWidth = X.ranged ? 6 : 9; path(); ctx.stroke();
+        ctx.shadowBlur = 0; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = X.ranged ? 2 : 3; path(); ctx.stroke();
+        return pts;
+      };
+      const p1 = X.b1 > 0 ? bolt(1, X.b1, X.j1, X.colL) : null;
+      const p2 = X.b2 > 0 ? bolt(-1, X.b2, X.j2, X.colR) : null;
+      // valores de cada lado, na ponta superior de cada raio
+      const pill = (x, y, text, col, dim) => {
+        ctx.font = '800 17px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
+        const w = ctx.measureText(text).width + 16;
+        ctx.globalAlpha = X.a * (dim ? 0.45 : 1);
+        ctx.fillStyle = 'rgba(10,6,14,0.88)'; ctx.beginPath(); ctx.roundRect(x - w / 2, y - 14, w, 24, 8); ctx.fill();
+        ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.fillStyle = col; ctx.fillText(text, x, y + 4);
+        ctx.globalAlpha = X.a;
+      };
+      const loserDim = s => X.center && X.win && X.win !== s;
+      if (p1 && X.labL) pill(p1[0].x - 8, p1[0].y - 14, X.labL, X.colL, loserDim('L'));
+      if (p2 && X.labR) pill(p2[0].x + 8, p2[0].y - 14, X.labR, X.colR, loserDim('R'));
+      // centro do X: valor que decidiu (vencedor em destaque, perdedor discreto)
+      if (X.center) {
+        ctx.translate(X.cx, X.cy); ctx.scale(X.cs, X.cs);
+        const col = X.win === 'L' ? X.colL : X.win === 'R' ? X.colR : '#e8dccb';
+        ctx.fillStyle = 'rgba(10,6,14,0.9)'; ctx.beginPath(); ctx.arc(0, 0, 34, 0, 7); ctx.fill();
+        ctx.strokeStyle = X.crit ? '#ffcf6a' : col; ctx.lineWidth = 3; ctx.stroke();
+        ctx.textAlign = 'center';
+        if (X.win) {
+          const big = X.win === 'L' ? X.totL : X.totR, small = X.win === 'L' ? X.totR : X.totL;
+          ctx.font = '900 34px "Trebuchet MS", sans-serif'; ctx.fillStyle = X.crit ? '#ffcf6a' : '#ffe9b0'; ctx.fillText(String(big), 0, 11);
+          ctx.font = '700 12px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#b8a8a0'; ctx.fillText(`vs ${small}`, 0, 50);
+        } else { ctx.font = '900 22px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#e8dccb'; ctx.fillText(`${X.totL}=${X.totR}`, 0, 8); ctx.font = '700 12px "Trebuchet MS", sans-serif'; ctx.fillText('EMPATE', 0, 50); }
+      }
+      ctx.restore();
     }
 
     // ------------------------------------------------------------ CLASH
@@ -1073,21 +1158,14 @@
       };
       const jit = jitter();
 
-      // 6. valores de força (no próprio combate)
-      const fmt = s => `${s.base}${s.mod ? (s.mod > 0 ? ' +' + s.mod : ' −' + -s.mod) : ''} + ${s.roll} = ${s.total}`;
-      const left = A.x <= B.x;
-      const nA = { kind: 'num', x: P.x + (left ? -95 : 95), y: P.y - 215, text: fmt(ev.a), color: '#9fd8ff', s: 0.6, a: 1, dy: 0 };
-      const nB = { kind: 'num', x: P.x + (left ? 95 : -95), y: P.y - 185, text: fmt(ev.b), color: '#ff9a8a', s: 0.6, a: 1, dy: 0 };
-      if (!this.skipping) this.nums = [nA, nB];
-      this.tween(nA, { s: 1 }, 140, 'back'); await this.tween(nB, { s: 1 }, 140, 'back');
-      await jit;
-      await this.wait(ev.close ? 280 : 200);
+      // 6. resolução do Clash: dois raios em X (cada raio = um lado; o centro = valor decisivo)
+      const X = await this._clashX(ev, A, B, P.x, hy - 30, skA, skB, jit);
 
       if (!ev.winner) {
         // empate: as forças se anulam e os dois são repelidos
         this.float(P.x, P.y - 240, 'EMPATE', '#e8dccb', 30);
         SFX('block');
-        this.tween(nA, { a: 0 }, 300); this.tween(nB, { a: 0 }, 300);
+        this.tween(X, { a: 0 }, 300);
         this.sparks(P.x, hy, '#ffe28a', 14, 0.5);
         this.react(A, 'medium', A.x < P.x ? -1 : 1);
         this.react(B, 'medium', B.x < P.x ? -1 : 1);
@@ -1095,13 +1173,11 @@
         await this.wait(380);
       } else {
         const aWins = ev.winner === A.id;
-        const [W, L, nW, nL, skW, pW, pL] = aWins ? [A, B, nA, nB, skA, pA, pB] : [B, A, nB, nA, skB, pB, pA];
+        const [W, L, skW, pW, pL] = aWins ? [A, B, skA, pA, pB] : [B, A, skB, pB, pA];
         pL.forEach(p => this.react(p, 'light', p.x < P.x ? -1 : 1)); // a combinação perdida é interrompida
         const dirL = L.x >= W.x ? 1 : -1;
-        nW.color = '#ffe08a';
-        SFX(W.side === 'ally' ? 'clashWin' : 'clashLose', { vol: 0.8 });
-        this.tween(nW, { s: 1.45 }, 160, 'back');
-        this.tween(nL, { a: 0, dy: 30 }, 260, 'in');
+        SFX(W.side === 'ally' ? 'clashWin' : 'clashLose', { vol: 0.6 });
+        this.tween(X, { a: 0 }, 420, 'in'); // o X sai enquanto o vencedor parte para o golpe
         // 7. intensidade visual pela margem (não muda o dano)
         if (margin <= 2) {
           // por pouco: o vencedor empurra a guarda devagar
@@ -1119,13 +1195,12 @@
         const h = ev.hit;
         const marginLv = margin >= 5 ? 'heavy' : margin >= 3 ? 'medium' : 'light';
         const lv = LEVELS[Math.max(LEVELS.indexOf(h.impact || 'light'), LEVELS.indexOf(marginLv))];
-        this.tween(nW, { a: 0 }, 600);
         await this._sequence([W, ...pW], L, skW, h, lv, { posture: ev.posture });
         if (h.applied) { const st = G.STATUS[h.applied]; this.float(L.x, L.y - 165, st.name.toUpperCase(), st.color, 20, 1300); }
         if (h.killed || lv === 'extreme') await this._decisive(L, h.killed);
         await this.wait(lv === 'light' ? 220 : 320);
       }
-      this.nums = [];
+      this.xfx = this.xfx.filter(x => x !== X);
       this.caption = null;
     }
 
@@ -1262,6 +1337,8 @@
           // aparo: personagens ficam próximos no choque
           this.tween(D, { arm: 1.1 }, 60, 'in');
           SFX('parry');
+          { const X = { cx: hx, cy: hy, len: 170, b1: 1, b2: 1, cs: 1, a: 1, crit: false, magic: false, ranged: false, j1: [0, 6, -8, 5, 0], j2: [0, -6, 7, -4, 0], colL: '#fff2a8', colR: '#fff2a8', labL: '', labR: '', center: 0 };
+            if (!this.skipping) { this.xfx.push(X); this.tween(X, { a: 0 }, 520, 'in').then(() => { this.xfx = this.xfx.filter(x => x !== X); }); } }
           this.hitStop(120);
           this.addFx({ kind: 'star', dur: 420, x: hx, y: hy, color: '#fff2a8' });
           this.sparks(hx, hy, '#ffe28a', 26, 0.7);
@@ -1423,6 +1500,7 @@
       for (const v of list) this._drawHud(ctx, v);
       if (this.ui) this.ui.drawOver(ctx);
       this._drawNums(ctx);
+      for (const X of this.xfx) this._drawX(ctx, X);
       for (const p of this.particles) {
         ctx.globalAlpha = clamp(p.life / 300, 0, 1);
         ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
@@ -1506,9 +1584,14 @@
       ctx.fillStyle = '#ffe9b0'; ctx.fillRect(x - w / 2, y, w * ratio, 7);
       ctx.fillStyle = v.side === 'ally' ? (real < 0.3 ? '#ff6a4a' : '#5fd08a') : '#d8484a';
       ctx.fillRect(x - w / 2, y, w * Math.min(ratio, real), 7);
+      // elemento: gema colorida à esquerda das barras (sempre visível)
+      const el = G.ELEMENTS && G.UNITS[v.id] && G.ELEMENTS[G.UNITS[v.id].element];
+      if (el) { ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.beginPath(); ctx.arc(x - w / 2 - 9, y + 5, 7, 0, 7); ctx.fill(); ctx.fillStyle = el.color; ctx.beginPath(); ctx.arc(x - w / 2 - 9, y + 5, 4.6, 0, 7); ctx.fill(); }
       if (this.showLabels) {
         ctx.font = '700 13px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
-        ctx.fillStyle = '#e9dfcf'; ctx.fillText(`${v.name}  ${Math.max(0, Math.round(v.hp))}`, x, y - 6);
+        // aliados em tom claro/azulado, inimigos em tom avermelhado: separação imediata
+        ctx.fillStyle = v.side === 'ally' ? '#dfeaf5' : '#f5c9bd';
+        ctx.fillText(`${v.name}  ${Math.max(0, Math.round(v.hp))}`, x, y - 6);
       }
       // Postura: barra secundária âmbar, mais fina, logo abaixo da Vida
       const pr = clamp(v.dispPost / v.postMax, 0, 1), preal = clamp(v.post / v.postMax, 0, 1), py = y + 9;

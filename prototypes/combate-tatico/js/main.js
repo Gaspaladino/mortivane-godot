@@ -51,11 +51,13 @@
     try { const t = JSON.parse(localStorage.getItem('duelo-team') || 'null'); if (Array.isArray(t) && t.length === 3 && t.every(id => G.ROSTER.includes(id))) return t; } catch (e) { /* ok */ }
     return G.PARTY.slice();
   }
-  const teamState = { team: team.slice(), focus: team[0] };
+  const teamState = { team: team.slice(), focus: team[0], skill: null };
   const preview = new G.SkillPreview();
   const teamCb = {
     preview,
-    focus(id) { teamState.focus = id; G.SFX.play('uiSelect'); UI.renderTeam(teamState, teamCb); },
+    focus(id) { teamState.focus = id; teamState.skill = null; preview.pause(); G.SFX.play('uiSelect'); UI.renderTeam(teamState, teamCb); },
+    // prévia animada só quando o jogador clica numa habilidade
+    pickSkill(sid) { teamState.skill = sid; G.SFX.play('uiSkill'); UI.renderTeam(teamState, teamCb); preview.play(teamState.focus, sid); },
     toggle(id) {
       const i = teamState.team.indexOf(id);
       if (i >= 0) teamState.team.splice(i, 1);                 // remover
@@ -167,8 +169,73 @@
     view.hint = (lost.length ? `<b style="color:#ffd36a">${lost.join(' e ')} perde${lost.length > 1 ? 'm' : ''} a ação (Quebra de Postura).</b> ` : '') + (firstAction ? '<b>Selecione um personagem e conecte uma habilidade ao alvo.</b> <small>(clique ou arraste · botão direito/✕ cancela · Esc desfaz)</small>'
       : view.complete ? 'Tudo pronto. Passe o mouse nas correntes para ver os Clashes.' : 'Planeje os personagens restantes.');
     UI.setTop(battle, 'Planejamento', false);
-    UI.renderBar(battle, view, () => { if (view.complete && fsm.state === Phase.PLAN) fsm.go(Phase.RESOLVE); });
+    UI.renderBar(battle, view, () => { if (view.complete && fsm.state === Phase.PLAN) fsm.go(Phase.RESOLVE); }, autoPlan);
   }
+
+  // ------------------------------------------------------------ AutoPlanner
+  // Preenche ações reais (com correntes) para revisão; NÃO executa a rodada.
+  function scoreAttack(u, sid, e) {
+    const sk = SKILLS[sid], b = battle;
+    const dmg = sk.dmg * b.elementMult(u, e);
+    let sc = Math.min(1.5, dmg / Math.max(1, e.hp)) + (dmg >= e.hp ? 1.2 : 0);
+    if (sk.pressure && !e.stable && !e.broken && e.post <= sk.pressure) sc += 0.6;      // pode quebrar a Postura
+    const it = b.intents.find(i => i.actorId === e.id || (i.partners || []).includes(e.id));
+    if (it && SKILLS[it.skillId].kind === 'attack' && (it.targetId === u.id)) {
+      // Clash direto: pesa a chance real de vencer
+      const odds = b.clashOdds(sk.force + b.forceMods(u, false), SKILLS[it.skillId].force + b.forceMods(e, false));
+      sc = sc * (0.3 + odds.win) + odds.win * 0.4;
+    } else if (it && SKILLS[it.skillId].kind === 'defense') sc *= 0.55;                  // alvo vai se defender
+    return sc + Math.random() * 0.08;
+  }
+  function autoPlan() {
+    if (fsm.state !== Phase.PLAN) return;
+    view.choices = {};
+    const b = battle, free = b.alive('ally').filter(u => !u.broken);
+    const best = {};
+    for (const u of free) {
+      let top = null;
+      for (const sid of u.def.skills) {
+        const sk = SKILLS[sid];
+        if (!b.skillReady(u, sid)) continue;
+        if (sk.kind === 'attack') for (const e of b.alive('enemy')) { const sc = scoreAttack(u, sid, e); if (!top || sc > top.sc) top = { sid, tid: e.id, sc }; }
+        else if (sk.kind === 'defense') {
+          // defende se um golpe pesado pode derrubá-lo
+          const threat = b.intents.filter(i => i.targetId === u.id && SKILLS[i.skillId].kind === 'attack').reduce((m, i) => Math.max(m, SKILLS[i.skillId].dmg), 0);
+          const sc = threat >= u.hp ? 1.6 : threat >= u.hp * 0.6 ? 0.7 : 0;
+          if (sc && (!top || sc > top.sc)) top = { sid, tid: u.id, sc };
+        } else if (sk.kind === 'support') {
+          const ally = free.filter(a => a !== u).sort((x, y) => x.post / x.postMax - y.post / y.postMax)[0];
+          const sc = ally && ally.post / ally.postMax < 0.4 ? 0.9 : 0.25;
+          if (ally && (!top || sc > top.sc)) top = { sid, tid: ally.id, sc };
+        }
+      }
+      if (top) best[u.id] = top;
+    }
+    // combinação só se render mais que as duas ações separadas
+    for (const cid of Object.keys(G.COMBOS)) {
+      const c = G.COMBOS[cid];
+      if (c.side !== 'ally' || !c.members.every(m => best[m]) || !b.combosFor(c.members[0]).includes(cid)) continue;
+      const lead = b.unit(c.members[0]);
+      let ct = null; for (const e of b.alive('enemy')) { const sc = scoreAttack(lead, cid, e) * 1.25; if (!ct || sc > ct.sc) ct = { tid: e.id, sc }; }
+      if (ct && ct.sc > c.members.reduce((t, m) => t + best[m].sc, 0) * 0.75) { c.members.forEach(m => delete best[m]); planner.cb.commit(c.members[0], cid, ct.tid); }
+    }
+    for (const id in best) planner.cb.commit(id, best[id].sid, best[id].tid);
+    G.SFX.play('uiConfirm');
+    refreshPlan();
+  }
+
+  // ------------------------------------------------------------ legenda de elementos e tela cheia
+  UI.drawLegend();
+  try { if (localStorage.getItem('duelo-legend') === '0') { document.getElementById('legend').classList.add('hide'); document.getElementById('opt-legend').checked = false; } } catch (e) { /* ok */ }
+  document.getElementById('opt-legend').onchange = e => { document.getElementById('legend').classList.toggle('hide', !e.target.checked); try { localStorage.setItem('duelo-legend', e.target.checked ? '1' : '0'); } catch (er) { /* ok */ } };
+  // FullscreenController: navegadores não deixam simular F11; usamos a Fullscreen API no primeiro gesto.
+  let fsAsked = false;
+  const fsHint = document.getElementById('fs-hint');
+  const goFullscreen = () => { const el = document.documentElement; if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen().catch(() => { /* negado: segue normal */ }); };
+  window.addEventListener('pointerdown', () => { if (fsAsked) return; fsAsked = true; fsHint.classList.add('hide'); goFullscreen(); }, { capture: true });
+  setTimeout(() => fsHint.classList.add('hide'), 7000);
+  document.getElementById('btn-fs').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else goFullscreen(); };
+  window.addEventListener('keydown', e => { if ((e.key === 'a' || e.key === 'A') && fsm.state === Phase.PLAN) autoPlan(); });
 
   document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => { presenter.speed = +b.dataset.speed; UI.setSpeed(presenter.speed); });
   document.getElementById('btn-skip').onclick = () => presenter.skip();
@@ -209,5 +276,5 @@
   UI.setSpeed(1);
   // ?seed=… vai direto para a batalha (testes); senão começa pela formação
   if (new URLSearchParams(location.search).get('seed')) start(); else { battle = new Battle(1, team); presenter.reset(battle); openTeam(); }
-  G.debug = { get battle() { return battle; }, presenter, planner, fsm, get view() { return view; }, teamCb, teamState };
+  G.debug = { autoPlan, get battle() { return battle; }, presenter, planner, fsm, get view() { return view; }, teamCb, teamState };
 })(window);

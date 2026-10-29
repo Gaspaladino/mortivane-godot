@@ -105,6 +105,14 @@
           T(0.45, { type: 'sine', f0: 95, f1: 45, peak: 0.55 }); break;
         case 'recover': T(0.25, { type: 'sine', f0: 330, f1: 495, peak: 0.12, a: 0.05 }); T(0.3, { type: 'sine', f0: 495, f1: 660, peak: 0.08, a: 0.08 }, 0.08); break;
         case 'crit': N(0.08, { type: 'highpass', f0: 2500, peak: 0.4 }); T(0.4, { type: 'sine', f0: 140, f1: 50, peak: 0.6 }); T(0.25, { type: 'square', f0: 1320, f1: 880, peak: 0.05 }); break;
+        // corrente metálica: chocalhar curto de elos (abre o seletor) / trava (confirma)
+        case 'chainOpen': for (let i = 0; i < 5; i++) { N(0.03, { type: 'bandpass', f0: 3200 + i * 300, q: 8, peak: 0.16 }); [1, 2.7].forEach(m => T(0.08, { type: 'sine', f0: 1900 * m * (1 + i * 0.04), peak: 0.035 }, i * 0.035)); } break;
+        case 'chainLock': T(0.12, { type: 'square', f0: 620, f1: 420, peak: 0.05 }); N(0.04, { type: 'bandpass', f0: 2600, q: 6, peak: 0.18 }); break;
+        case 'chainTick': N(0.02, { type: 'bandpass', f0: 3600, q: 10, peak: 0.12 }); break;
+        // raios do Clash
+        case 'zap': N(0.09, { type: 'highpass', f0: 2400, peak: 0.3 }); T(0.08, { type: 'sawtooth', f0: 1400, f1: 300, peak: 0.07 }); break;
+        case 'zapCross': N(0.12, { type: 'highpass', f0: 1800, peak: 0.4 }); T(0.14, { type: 'sawtooth', f0: 900, f1: 160, peak: 0.1 }); T(0.2, { type: 'sine', f0: 120, f1: 50, peak: 0.45 }); break;
+        case 'clashDecide': T(0.18, { type: 'triangle', f0: 660, peak: 0.12 }); T(0.24, { type: 'triangle', f0: 990, peak: 0.1 }, 0.05); break;
         // interface
         case 'uiSelect': T(0.07, { type: 'triangle', f0: 660, peak: 0.1 }); break;
         case 'uiSkill': T(0.08, { type: 'triangle', f0: 880, peak: 0.09 }); break;

@@ -49,6 +49,13 @@
       return null;
     }
     skillReady(u, id) { return !(u.cooldowns[id] > 0); }
+    // Elemento: vantagem/desvantagem do atacante contra o defensor (multiplica só o dano)
+    elementRel(att, def) {
+      const a = att.def.element, d = def.def.element, E = G.ELEMENTS;
+      if (!a || !d) return 0;
+      return E[a].beats === d ? 1 : E[d].beats === a ? -1 : 0;
+    }
+    elementMult(att, def) { const r = this.elementRel(att, def); return r > 0 ? CONFIG.element.advantage : r < 0 ? CONFIG.element.disadvantage : 1; }
     allAlive(act) { return members(act).every(id => this.unit(id).hp > 0); }
 
     // ------------------------------------------------------------ POSTURA
@@ -358,7 +365,8 @@
       const sk = SKILLS[skillId];
       // crítico: uma rolagem por habilidade que acerta (não influencia o Clash)
       const crit = this.rand() < (sk.critChance != null ? sk.critChance : CONFIG.crit.chance);
-      let dmg = Math.max(1, Math.round(sk.dmg * dmgMult * (crit ? CONFIG.crit.mult : 1)));
+      const elem = this.elementRel(att, def);
+      let dmg = Math.max(1, Math.round(sk.dmg * dmgMult * (crit ? CONFIG.crit.mult : 1) * this.elementMult(att, def)));
       const hpBefore = def.hp;
       def.hp = Math.max(0, def.hp - dmg);
       let applied = null;
@@ -367,7 +375,7 @@
         applied = sk.applies;
       }
       return { attackerId: att.id, defenderId: def.id, skillId,
-        damage: dmg, crit, hpBefore, hpAfter: def.hp, killed: def.hp <= 0, applied, impact: this.impactOf(sk, dmg, def, dmgMult < 1) };
+        damage: dmg, crit, elem, hpBefore, hpAfter: def.hp, killed: def.hp <= 0, applied, impact: this.impactOf(sk, dmg, def, dmgMult < 1) };
     }
 
     // Classificação do impacto físico: light | medium | heavy | extreme.
@@ -433,7 +441,7 @@
       }
       return { type: 'attack', attackerId: a.id, partners: act.partners || [], skillId: act.skillId, skill: sk, targetId: t.id, defenderId: d.id,
         protectorId, reaction, chance: ch, success, outcome, damage: hit.damage, hpBefore: hit.hpBefore, hpAfter: hit.hpAfter,
-        killed: hit.killed, applied: hit.applied, impact: hit.impact, crit: hit.crit, consumed: [], counter,
+        killed: hit.killed, applied: hit.applied, impact: hit.impact, crit: hit.crit, elem: hit.elem || 0, consumed: [], counter,
         decisive: hit.killed || !!(counter && counter.killed), after: this.snapshot() };
     }
 

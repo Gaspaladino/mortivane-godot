@@ -78,49 +78,55 @@
       }
     }
 
-    // ------------------------------------------------------------ RadialAbilityMenu
-    // Leque À FRENTE do personagem: as três ofensivas num arco vertical (a do meio
-    // mais à frente), extras (defesa/suporte/proteção/combinação) num arco externo menor.
+    // ------------------------------------------------------------ AbilityArcSelector (carrossel em arco)
+    // Um trecho de uma roda maior, com o eixo no personagem: o arco visível fica À FRENTE dele.
+    // O item em foco fica no centro (maior). Roda do mouse / setas giram; Enter escolhe; clique em qualquer item.
+    _menuIds(u) { return [...u.def.skills.filter(id => SKILLS[id].kind === 'attack'), ...u.def.skills.filter(id => SKILLS[id].kind !== 'attack'), ...this.battle.combosFor(u.id)]; }
     _layoutMenu() {
-      this.items = [];
+      this.items = []; this.arc = null;
       if (!this.enabled || !this.sel) return;
       const b = this.battle, u = b.unit(this.sel.uid), v = this.p.vis[this.sel.uid];
       if (!u || u.hp <= 0) { this.sel = null; return; }
       const k = this.p.pxPerWorld;
       const cw = this.p.canvas.clientWidth, ch = this.p.canvas.clientHeight;
       let f = v.face || 1;
-      const hand = dir => ({ x: v.x + dir * 26, y: v.y - 84 });
-      // perto da borda: abre para o lado que tem espaço
-      const sx = this.p.toScreen(hand(f).x, 0).x;
-      if (f > 0 && sx + 210 > cw) f = -1; else if (f < 0 && sx - 210 < 0) f = 1;
-      const H = hand(f);
-      const own = u.def.skills;
-      const main = own.filter(id => SKILLS[id].kind === 'attack');
-      const extras = [...own.filter(id => SKILLS[id].kind !== 'attack'), ...b.combosFor(u.id)];
-      const slots = [];
-      const mainA = [-72, -28, 16], mainR = [86, 108, 86];
-      main.forEach((id, i) => slots.push({ id, ang: mainA[i] ?? (i - 1) * 52, R: mainR[i] ?? 90, r: 25 }));
-      extras.forEach((id, i) => slots.push({ id, ang: -28 + (i - (extras.length - 1) / 2) * 28, R: 168, r: SKILLS[id].combo ? 21 : 18 }));
-      if (this.cb.choices()[u.id]) slots.push({ cancel: true, ang: -90, R: 70, r: 14 });
-      const open = clamp((this.p.time - this.sel.openAt) / 170, 0, 1);
-      const eo = 1 - Math.pow(1 - open, 3);
-      const pts = slots.map(sl => {
-        const a = sl.ang * Math.PI / 180;
-        return { sl, x: H.x + f * Math.cos(a) * sl.R / k, y: H.y + Math.sin(a) * sl.R / k };
+      const sx = this.p.toScreen(v.x, 0).x;
+      if (f > 0 && sx + 260 > cw) f = -1; else if (f < 0 && sx - 260 < 0) f = 1;
+      const ids = this._menuIds(u);
+      const step = 30, R = 150;
+      if (this.sel.focus == null) this.sel.focus = Math.min(1, ids.length - 1);
+      this.sel.focus = clamp(this.sel.focus, 0, ids.length - 1);
+      // animação: entra girando e deslizando para baixo, e se acomoda (leve passada do ponto)
+      const t = clamp((this.p.time - this.sel.openAt) / 340, 0, 1);
+      const back = t => { const c = 1.6; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+      const e = back(t);
+      const now = this.p.time, dt = Math.min(50, now - (this.sel.lastT || now)); this.sel.lastT = now;
+      const goal = this.sel.focus * step;
+      this.sel.rot = this.sel.rot == null ? goal : lerp(this.sel.rot, goal, 1 - Math.exp(-dt * 0.018));
+      const spin = (1 - e) * -70, slide = (1 - e) * -60;
+      let C = { x: v.x, y: v.y - 92 + slide / k };
+      // mantém o arco dentro da tela (desloca na vertical)
+      const sy = this.p.toScreen(0, C.y).y;
+      if (sy - R * 0.9 < 30) C.y += (30 - (sy - R * 0.9)) / k; else if (sy + R * 0.9 > ch - 30) C.y -= (sy + R * 0.9 - (ch - 30)) / k;
+      this.arc = { C, f, R: R / k, k, open: clamp(t * 1.4, 0, 1), spin };
+      ids.forEach((id, i) => {
+        const sk = SKILLS[id];
+        const angDeg = i * step - this.sel.rot + spin;               // 0 = à frente, horizontal
+        if (Math.abs(angDeg) > 80) return;                           // fora do trecho visível da roda
+        const a = angDeg * Math.PI / 180, focusAmt = clamp(1 - Math.abs(angDeg) / step, 0, 1);
+        const ownerId = sk.combo ? sk.members[0] : u.id;
+        this.items.push({ skillId: id, idx: i, kind: styleOf(sk), main: sk.kind === 'attack' && !sk.combo, focus: focusAmt, ang: a,
+          x: C.x + f * Math.cos(a) * R / k, y: C.y + Math.sin(a) * R / k, r: (20 + 7 * focusAmt) / k,
+          disabled: !b.skillReady(b.unit(ownerId), id) || (this.needsTarget(id) && !this.validTargets(u.id, id).length),
+          cd: b.unit(ownerId).cooldowns[id], open: this.arc.open, fade: clamp(1 - (Math.abs(angDeg) - 50) / 30, 0.15, 1) });
       });
-      // mantém o leque dentro da área útil (desloca na vertical se preciso)
-      const ys = pts.map(q => this.p.toScreen(q.x, q.y).y);
-      let dy = 0;
-      if (Math.min(...ys) < 26) dy = (26 - Math.min(...ys)) / k;
-      else if (Math.max(...ys) > ch - 26) dy = (ch - 26 - Math.max(...ys)) / k;
-      for (const { sl, x, y } of pts) {
-        const id = sl.id, sk = id && SKILLS[id];
-        this.items.push({ cancel: !!sl.cancel, skillId: id || null, kind: sk ? styleOf(sk) : 'cancel', main: !!(sk && sk.kind === 'attack' && !sk.combo),
-          // surge a partir da mão/arma e se abre no arco
-          x: lerp(H.x, x, eo), y: lerp(H.y, y + dy, eo), r: (sl.r / k) * (0.4 + 0.6 * eo),
-          disabled: !!(sk && (!b.skillReady(b.unit(sk.combo ? sk.members[0] : u.id), id) || (this.needsTarget(id) && !this.validTargets(u.id, id).length))),
-          cd: sk ? b.unit(sk.combo ? sk.members[0] : u.id).cooldowns[id] : 0, open });
-      }
+      if (this.cb.choices()[u.id]) this.items.push({ cancel: true, skillId: null, kind: 'cancel', x: C.x - f * 18 / k, y: C.y - 70 / k, r: 13 / k, open: this.arc.open, fade: 1 });
+    }
+    _rotateMenu(d) {
+      if (!this.sel) return;
+      const u = this.battle.unit(this.sel.uid), n = this._menuIds(u).length;
+      const nf = clamp(this.sel.focus + d, 0, n - 1);
+      if (nf !== this.sel.focus) { this.sel.focus = nf; G.SFX && G.SFX.play('chainTick'); }
     }
 
     // ------------------------------------------------------------ InputController
@@ -175,7 +181,15 @@
         if (h.kind === 'ally' && this.cb.choices()[h.id]) { this.cb.cancel(h.id); this._retract(h.id); }
         this._cancelSelection();
       });
+      canvas.addEventListener('wheel', e => { if (!this.enabled || !this.sel || this.sel.skillId) return; e.preventDefault(); this._rotateMenu(e.deltaY > 0 ? 1 : -1); }, { passive: false });
       window.addEventListener('keydown', e => {
+        if (this.enabled && this.sel && !this.sel.skillId && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) { e.preventDefault(); this._rotateMenu(e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1); return; }
+        if (this.enabled && this.sel && !this.sel.skillId && e.key === 'Enter') {
+          e.preventDefault(); e.stopImmediatePropagation();
+          this._layoutMenu(); const it = this.items.find(x => x.idx === this.sel.focus);
+          if (it) this._click({ kind: 'item', item: it });
+          return;
+        }
         if (e.key !== 'Escape' || !this.enabled) return;
         if (this.drag) { this._retractDrag(); this.drag = null; }
         else if (this.sel && this.sel.skillId) this.sel.skillId = null;
@@ -203,13 +217,22 @@
       const h = this._hitAt();
       // durante a mira, o alvo é sempre o personagem sob o cursor
       const unit = h.id || (this._activeSkill() ? this.p.pick(this.mouse.sx, this.mouse.sy) : null);
-      this.hover = { unit, item: h.item || null, badge: h.kind === 'badge' ? h.badge : null };
+      this.hover = { unit, item: h.item || null, badge: h.kind === 'badge' ? h.badge : null, intent: null };
+      // EnemyIntentTooltip: mouse sobre a própria corrente curva de uma intenção inimiga
+      if (h.kind === 'empty' && this.showIntents && this.routes) {
+        const tol = 14 / this.p.pxPerWorld; let best = null, bd = tol;
+        for (const it of this.battle.intents) {
+          const cv = this.routes[it.id]; if (!cv) continue;
+          for (let i = 0; i <= 32; i++) { const q = this._at(cv, i / 32), d = Math.hypot(q.x - this.mouse.x, q.y - this.mouse.y); if (d < bd) { bd = d; best = { id: it.id, x: q.x, y: q.y }; } }
+        }
+        this.hover.intent = best;
+      }
       const c = this.p.canvas;
-      c.style.cursor = this.drag ? 'grabbing' : (h.kind === 'empty' ? 'default' : 'pointer');
+      c.style.cursor = this.drag ? 'grabbing' : (h.kind === 'empty' ? (this.hover.intent ? 'help' : 'default') : 'pointer');
     }
     _select(uid) {
-      G.SFX && G.SFX.play('uiSelect');
-      this.sel = { uid, skillId: null, openAt: this.p.time };
+      G.SFX && G.SFX.play('chainOpen'); // som de corrente ao abrir o seletor
+      this.sel = { uid, skillId: null, openAt: this.p.time, focus: null, rot: null };
       this._applyHighlights();
     }
     _cancelSelection() { this.sel = null; this.drag = null; this._applyHighlights(); }
@@ -254,7 +277,7 @@
     }
     _commit(uid, skillId, targetId) {
       this.hover.item = null;
-      G.SFX && G.SFX.play('uiConnect');
+      G.SFX && G.SFX.play('uiConnect'); G.SFX && G.SFX.play('chainLock', { vol: 0.6 });
       this.cb.commit(uid, skillId, targetId);
       this.connectAt[uid] = this.p.time;
       this.sel = null;
@@ -305,6 +328,7 @@
         lines.push({ t: `${who(me)} — ${sk.name}   F ${fMe} + 0–3`, c: '#9fd8ff' });
         lines.push({ t: `${who(other)} — ${SKILLS[other.skillId].name}   F ${fOt} + 0–3`, c: '#ff9a8a' });
         lines.push({ t: `Previsão: ${CAT_NAME[cat]}  (vence ${Math.round(p * 100)}%, empata ${Math.round(ev.odds.tie * 100)}%)`, c: CAT_COLOR[cat] });
+        { const el = this.elemLine(b.unit(me.actorId), b.unit(other.actorId)); if (el) lines.push(el); }
         // Postura: o que acontece com o alvo SE vencer (e o risco para mim se perder)
         const foeU = b.unit(other.actorId), meU = b.unit(me.actorId);
         const myP = sk.pressure || 0, theirP = SKILLS[other.skillId].pressure || 0;
@@ -317,7 +341,8 @@
         else if (info && !choices[uid].intercept) lines.push({ t: 'Interceptação desligada', c: '#c9b' });
         const it = b.intents.find(i => i.actorId === targetId);
         if (it && SKILLS[it.skillId].kind === 'defense') lines.push({ t: `Alvo vai se defender (${SKILLS[it.skillId].name})`, c: '#9fd0ff' });
-        lines.push({ t: `Sem Clash · dano ${sk.dmg}${sk.hits ? ` em ${sk.hits.length} golpes` : ''} se não houver defesa`, c: '#e8dccb' });
+        { const el = this.elemLine(b.unit(uid), b.unit(targetId)); if (el) lines.push(el); }
+        lines.push({ t: `Sem Clash · dano ${Math.round(sk.dmg * b.elementMult(b.unit(uid), b.unit(targetId)))}${sk.hits ? ` em ${sk.hits.length} golpes` : ''} se não houver defesa`, c: '#e8dccb' });
         if (sk.combo) lines.push({ t: `Custa a ação de ${sk.members.map(m => b.unit(m).name).join(' e ')}`, c: KIND_STYLE.combo.color });
       } else {
         lines.push({ t: `${sk.name} → ${b.unit(targetId).name}`, c: '#ffe9b0' });
@@ -325,6 +350,24 @@
       }
       this.previewCache = { key, lines };
       return lines;
+    }
+
+    // Linhas do tooltip de uma intenção inimiga (ataque, números, elemento, combo)
+    intentLines(it) {
+      const b = this.battle, sk = SKILLS[it.skillId], A = b.unit(it.actorId), T = b.unit(it.targetId);
+      const who = [it.actorId, ...(it.partners || [])].map(id => b.unit(id).name).join(' + ');
+      const type = sk.combo ? 'Ataque combinado' : sk.tags.includes('magic') ? 'Magia' : sk.tags.includes('ranged') ? 'À distância' : 'Corpo a corpo';
+      const E = G.ELEMENTS[A.def.element], rel = b.elementRel(A, T);
+      const lines = [{ t: `${who} — ${sk.name}${sk.combo ? '  ⚔ COMBO' : ''}`, c: '#ff9a8a' },
+        { t: `${type} · alvo: ${T.name}`, c: '#cbbfb0' },
+        { t: `Força ${sk.force} + 0–3 · Dano ${sk.dmg} · Pressão ${sk.pressure || 0}`, c: '#e8dccb' },
+        { t: `Elemento: ${E.name}` + (rel > 0 ? '  ▲ vantagem sobre ' + T.name + ' (+20% dano)' : rel < 0 ? '  ▼ desvantagem contra ' + T.name + ' (−20% dano)' : ''), c: rel > 0 ? '#ff9a8a' : rel < 0 ? '#9fe0a0' : E.color }];
+      return lines;
+    }
+    // Tag de elemento (vantagem/desvantagem) de um ataque
+    elemLine(att, def) {
+      const r = this.battle.elementRel(att, def);
+      return r > 0 ? { t: `▲ Vantagem elemental (+20% de dano)`, c: '#7fe0a0' } : r < 0 ? { t: `▼ Desvantagem elemental (−20% de dano)`, c: '#ff9a8a' } : null;
     }
 
     // ============================================================ ChainRenderer
@@ -449,13 +492,14 @@
       this.routes = {};
       for (const c of this._routesFor(conns)) {
         this.routes[c.key] = c.cv;
-        const on = !focus || c.members.includes(focus) || c.to === focus;
+        const hi = this.hover.intent && this.hover.intent.id === c.key;
+        const on = this.hover.intent ? hi : (!focus || c.members.includes(focus) || c.to === focus);
         if (c.enemy) {
           // intenções: tracejado fino e semitransparente (nunca confundir com corrente aliada)
           const cv = c.cv;
           ctx.save();
-          ctx.globalAlpha = this.fade * (on ? 0.6 : 0.16);
-          ctx.strokeStyle = SKILLS[c.it.skillId].combo ? '#ff9a5a' : '#ff5a5a'; ctx.lineWidth = 2; ctx.setLineDash([7, 7]); ctx.lineDashOffset = -this.p.time * 0.04;
+          ctx.globalAlpha = this.fade * (hi ? 1 : on ? 0.6 : 0.16);
+          ctx.strokeStyle = SKILLS[c.it.skillId].combo ? '#ff9a5a' : '#ff5a5a'; ctx.lineWidth = hi ? 3.5 : 2; ctx.setLineDash([7, 7]); ctx.lineDashOffset = -this.p.time * 0.04;
           ctx.beginPath(); ctx.moveTo(cv.p0.x, cv.p0.y); ctx.bezierCurveTo(cv.c1.x, cv.c1.y, cv.c2.x, cv.c2.y, cv.p1.x, cv.p1.y); ctx.stroke();
           ctx.setLineDash([]);
           // seta de direção: ponta perto do alvo + chevron que percorre devagar o arco (inimigo → alvo)
@@ -464,8 +508,9 @@
           const tt = ((this.p.time * 0.00028 + c.seed * 0.1) % 1) * 0.8 + 0.1, ch = this._at(cv, tt);
           ctx.globalAlpha *= 0.8; this._arrowHead(ctx, ch.x, ch.y, ch.a, 8, col, true);
           ctx.restore();
-          // inimigo sob o cursor: destaca também o alvo
-          if (this.hover.unit === c.from) {
+          // inimigo (ou sua corrente) sob o cursor: destaca origem e alvo
+          if (hi) { const A = vis[c.from]; ctx.save(); ctx.translate(A.x, A.y + 4); ctx.scale(1, 0.32); ctx.strokeStyle = 'rgba(255,150,120,0.9)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, 60, 0, 7); ctx.stroke(); ctx.restore(); }
+          if (this.hover.unit === c.from || hi) {
             const T = vis[c.to]; ctx.save(); ctx.translate(T.x, T.y + 4); ctx.scale(1, 0.32);
             ctx.strokeStyle = 'rgba(255,90,90,0.9)'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(0, 0, 64, 0, 7); ctx.stroke(); ctx.restore();
           }
@@ -617,22 +662,42 @@
       }
       ctx.globalAlpha = this.fade;
 
-      // menu radial
+      // carrossel em arco
       this._layoutMenu();
-      if (this.items.length) {
-        const sel = this.sel;
-        const active = this._activeSkill();
-        const planned = this._plannedSkill(sel.uid);
-        for (const it of this.items) {
-          const hov = this.hover.item && this.hover.item === it || (this.hover.item && this.hover.item.skillId === it.skillId && !it.cancel && this.hover.item.skillId);
-          const r = it.r * (hov ? 1.15 : 1);
-          ctx.globalAlpha = this.fade * it.open * (it.disabled ? 0.45 : 1);
+      if (this.arc) {
+        const { C, f, R, open } = this.arc;
+        ctx.save(); ctx.globalAlpha = this.fade * open;
+        // faixa curva (trecho de uma roda maior) com bordas douradas e marcações
+        const a0 = -84 * Math.PI / 180, a1 = 84 * Math.PI / 180, th = 50 / k;
+        const ang = a => f > 0 ? a : Math.PI - a;
+        ctx.lineCap = 'butt';
+        const gr = ctx.createRadialGradient(C.x, C.y, R - th / 2, C.x, C.y, R + th / 2);
+        gr.addColorStop(0, 'rgba(18,10,22,0.0)'); gr.addColorStop(0.25, 'rgba(18,10,22,0.82)'); gr.addColorStop(0.75, 'rgba(18,10,22,0.82)'); gr.addColorStop(1, 'rgba(18,10,22,0.0)');
+        ctx.strokeStyle = gr; ctx.lineWidth = th;
+        ctx.beginPath(); f > 0 ? ctx.arc(C.x, C.y, R, a0, a1) : ctx.arc(C.x, C.y, R, Math.PI - a0, Math.PI - a1, true); ctx.stroke();
+        ctx.strokeStyle = 'rgba(216,180,90,0.55)'; ctx.lineWidth = 1.4 / k;
+        for (const rr of [R - th * 0.42, R + th * 0.42]) { ctx.beginPath(); f > 0 ? ctx.arc(C.x, C.y, rr, a0, a1) : ctx.arc(C.x, C.y, rr, Math.PI - a0, Math.PI - a1, true); ctx.stroke(); }
+        for (let d = -80; d <= 80; d += 10) { const a = ang((d + (this.sel.rot % 10)) * Math.PI / 180); ctx.globalAlpha = this.fade * open * 0.35 * (1 - Math.abs(d) / 95); ctx.beginPath(); ctx.moveTo(C.x + Math.cos(a) * (R + th * 0.42), C.y + Math.sin(a) * (R + th * 0.42)); ctx.lineTo(C.x + Math.cos(a) * (R + th * 0.32), C.y + Math.sin(a) * (R + th * 0.32)); ctx.stroke(); }
+        // janela de foco no centro do arco
+        ctx.globalAlpha = this.fade * open * 0.9; ctx.strokeStyle = '#ffe9b0'; ctx.lineWidth = 2 / k;
+        ctx.beginPath(); f > 0 ? ctx.arc(C.x, C.y, R + th * 0.5, -0.13, 0.13) : ctx.arc(C.x, C.y, R + th * 0.5, Math.PI - 0.13, Math.PI + 0.13); ctx.stroke();
+        ctx.restore();
+        const sel = this.sel, active = this._activeSkill(), planned = this._plannedSkill(sel.uid);
+        for (const it of this.items.slice().sort((a, b) => (a.focus || 0) - (b.focus || 0))) {
+          const hov = this.hover.item && (this.hover.item === it || (it.skillId && this.hover.item.skillId === it.skillId));
+          const r = it.r * (hov ? 1.12 : 1);
+          ctx.globalAlpha = this.fade * it.open * it.fade * (it.disabled ? 0.45 : 1);
           if (it.cancel) { this._disk(ctx, it.x, it.y, r, '#2a1414', '#ff8a7a', 'cancel', false); continue; }
-          const st = KIND_STYLE[it.kind];
+          const st = KIND_STYLE[it.kind], sk = SKILLS[it.skillId];
           const chosen = active === it.skillId || (!active && planned === it.skillId);
-          this._disk(ctx, it.x, it.y, r, chosen ? '#2b2118' : '#140c14', chosen ? '#ffe9b0' : st.color, SKILLS[it.skillId].icon, it.kind !== 'attack', it.kind);
-          if (it.kind === 'combo') this._tag(ctx, it.x, it.y + r + 12 / k, 'COMBO', st.color, 10 / k, true);
-          if (it.disabled) this._tag(ctx, it.x, it.y + r + 12 / k, it.cd ? `recarga ${it.cd}` : 'sem alvo', '#ff9a8a', 11 / k, true);
+          this._disk(ctx, it.x, it.y, r, chosen ? '#2b2118' : '#140c14', chosen ? '#ffe9b0' : st.color, sk.icon, it.kind !== 'attack', it.kind);
+          // nome curto do lado de fora da roda (maior no item em foco)
+          const lx = this.arc.C.x + this.arc.f * Math.cos(it.ang) * (this.arc.R + 40 / k), ly = this.arc.C.y + Math.sin(it.ang) * (this.arc.R + 40 / k);
+          ctx.save(); ctx.font = `${it.focus > 0.5 ? 800 : 600} ${(it.focus > 0.5 ? 14 : 11.5) / k}px "Trebuchet MS", sans-serif`;
+          ctx.textAlign = this.arc.f > 0 ? 'left' : 'right'; ctx.lineWidth = 3.5 / k; ctx.strokeStyle = 'rgba(8,4,10,0.9)';
+          const label = sk.name + (it.kind === 'combo' ? ' (combo)' : '') + (it.disabled ? (it.cd ? ` · recarga ${it.cd}` : ' · sem alvo') : '');
+          ctx.strokeText(label, lx - this.arc.f * 10 / k, ly + 4 / k); ctx.fillStyle = it.focus > 0.5 ? '#fff1d0' : '#cbbfb0'; ctx.fillText(label, lx - this.arc.f * 10 / k, ly + 4 / k);
+          ctx.restore();
         }
         ctx.globalAlpha = this.fade;
       }
@@ -647,6 +712,7 @@
             sk.kind === 'attack' ? { t: `Força ${sk.force} · Dano ${sk.dmg} · Pressão ${sk.pressure || 0} · Vel ${b.actionSpeed(u, sk)}`, c: '#e8dccb' } : { t: KIND_STYLE[sk.kind].label + (sk.kind === 'defense' ? ' · age antes de tudo' : ` · Vel ${b.actionSpeed(u, sk)}`), c: '#9fd0ff' },
             { t: sk.desc, c: '#bdb0a8', wrap: true }];
           if (sk.postureHeal) lines.push({ t: `Recupera ${sk.postureHeal} de Postura`, c: '#ffd36a' });
+          { const E = G.ELEMENTS[u.def.element]; if (E && sk.kind === 'attack') lines.push({ t: `Elemento ${E.name}: forte contra ${G.ELEMENTS[E.beats].name}`, c: E.color }); }
           if (sk.combo) lines.push({ t: `Participantes: ${sk.members.map(m => b.unit(m).name).join(' + ')} · custa a ação dos dois`, c: KIND_STYLE.combo.color, wrap: true });
           if (hi.disabled) lines.push({ t: hi.cd ? `Em recarga (${hi.cd})` : 'Sem alvo válido', c: '#ff9a8a' });
           this._tooltip(ctx, hi.x, hi.y - hi.r - 10 / k2, lines);
@@ -660,6 +726,9 @@
             const lines = this.previewLines(a.actorId, a.skillId, a.targetId, c.intercept).slice();
             if (this.hover.badge.toggle) lines.push({ t: 'Clique para ligar/desligar a interceptação', c: '#9fd0ff' });
             this._tooltip(ctx, this.hover.badge.x, this.hover.badge.y - 22 / k2, lines);
+          } else if (this.hover.intent) {
+            const it = b.intents.find(i => i.id === this.hover.intent.id);
+            if (it) this._tooltip(ctx, this.hover.intent.x, this.hover.intent.y - 18 / k2, this.intentLines(it));
           } else if (!uid && this.hover.unit && this.showIntents) {
             const it = b.intents.find(i => i.actorId === this.hover.unit || (i.partners || []).includes(this.hover.unit));
             if (it) {

@@ -2,6 +2,29 @@
 
 Protótipo jogável e independente do projeto Godot. Basta abrir `index.html` no navegador; não precisa de servidor nem de build.
 
+## Interface de batalha
+- **HUD limpo:** só um pequeno grupo de botões no canto: rodada (R1), 1×/2×, pular, equipe, ⚙, ajuda e reiniciar. Título, fase e textos ficam em ⚙, junto com áudio, reduzir animações, mostrar o ciclo de elementos, tela cheia e informações de depuração.
+- **Seletor em arco (carrossel):** ao clicar num aliado, um trecho de uma roda maior entra girando e deslizando à frente dele, com as habilidades sobre o arco (ícone e nome; o item em foco fica no centro, maior). A roda do mouse ou as setas giram o arco, Enter escolhe o item em foco, e dá para clicar em qualquer item visível. Clique, arrasto e correntes funcionam como antes. Há um som de corrente ao abrir e uma trava ao confirmar.
+- **Tooltip das correntes inimigas:** passar o mouse sobre a corrente curva mostra o inimigo, a habilidade (marcando se é COMBO), o tipo, Força + 0–3, Dano, Pressão, o elemento e a vantagem sobre o alvo. A corrente, a origem e o alvo ficam em destaque.
+- **AUTO** (ou a tecla A): preenche ações reais com correntes, considerando vida, elemento, chance de Quebra, chance no Clash, defesa do alvo, defesa própria quando está em risco e a combinação quando vale a pena. Nada é executado: você revisa, altera e só então executa.
+- **Tela cheia:** navegadores não permitem simular o F11, então o jogo pede tela cheia pela Fullscreen API no primeiro clique, uma única vez. Se o navegador negar, o jogo segue normalmente; também há um botão em ⚙.
+
+## Elementos
+Ciclo fechado: **Vermelho > Amarelo > Roxo > Verde > Azul > Vermelho**. Vantagem dá +20% de dano e desvantagem −20% (só no dano, sem mudar o Clash; `CONFIG.element`).
+
+| Elemento | Personagens |
+|---|---|
+| Vermelho | Espadachim, Brutamontes |
+| Amarelo | Lutador, Duelista |
+| Roxo | Mago, Conjurador |
+| Verde | Lanceiro, Arqueira |
+| Azul | Cavaleiro |
+
+O ciclo fica num pentágono com setas no canto superior esquerdo (pode ser escondido em ⚙). O elemento aparece numa gema ao lado da vida, nos cards e na ficha, na prévia de Clash ("▲ Vantagem / ▼ Desvantagem elemental"), no tooltip da habilidade e das correntes inimigas, e no impacto.
+
+## Clash em X
+A resolução do Clash virou dois raios. O primeiro raio entra na diagonal com o valor do lado esquerdo (base + bônus), e o segundo cruza na diagonal oposta com o valor do lado direito, formando um **X**. No centro aparece o **valor que decidiu**: o do vencedor em destaque, e o do perdedor discreto ("vs 7"). No empate aparece "7=7 EMPATE". Tudo leva cerca de 0,75 s e acontece junto com a disputa das armas, com sons de raio, cruzamento e decisão. Em magia o brilho é roxo e o raio menos serrilhado, à distância o raio é mais fino, num crítico do vencedor o X fica dourado, e o aparo ganha um X rápido sem números. Há **um X por Clash**, inclusive para golpes múltiplos e combinações. Depois dele vêm o golpe, o dano, a Pressão e a eventual Quebra, nessa ordem. A Pressão não é rolada: é sempre a da habilidade vencedora.
+
 ## Postura e Quebra de Guarda
 Cada personagem tem **Vida** (barra vermelha/verde) e **Postura** (barra âmbar, mais fina, logo abaixo).
 - **Desgaste:** só quem **perde um Clash** perde Postura, igual à **Pressão** da habilidade vencedora. A Pressão é aplicada **uma vez por habilidade**, mesmo com vários golpes; a barra cai em etapas junto com os impactos. Empates e ataques sem Clash não desgastam. Na interceptação, quem perde Postura é quem interceptou.
@@ -27,7 +50,7 @@ Na formação, cada personagem tem uma ficha com moldura na cor da classe: retra
 Durante o planejamento, os personagens dão pequenos passos em **X e Y** (Y é profundidade: quem está mais abaixo aparece maior e desenhado na frente). Seguem a preferência de formação (a frente fica mais à frente, a retaguarda mais ao fundo) e recuam se um inimigo chega perto. Também fazem **gestos de classe** de vez em quando: o Cavaleiro ajusta o escudo, o Espadachim gira a espada, o Mago move as mãos, o Lanceiro reposiciona a lança, o Lutador alterna a guarda e a Arqueira ajusta o arco ou mira. Os inimigos gesticulam sobre a pose de preparação. Nada disso acontece com quem está selecionado, atacando, caído ou quebrado. As **posturas defensivas** escolhidas (bloqueio, aparo, esquiva, proteção) aparecem já no planejamento, com pose própria por classe, e voltam suavemente ao neutro ao cancelar. As intenções inimigas ganharam **setas** na ponta e um chevron que percorre o arco.
 
 ## Formação da equipe
-Antes da batalha, escolha 3 dos 6 combatentes: Cavaleiro, Espadachim, Mago, **Lanceiro**, **Lutador** e **Arqueira**. Cada card tem retrato e barras de vida, velocidade e resistência; clique para ver os detalhes (habilidades com força, dano e número de golpes, a defesa e o estilo). Não dá para repetir personagem e o botão Iniciar só libera com 3 escolhidos. A posição em campo segue a especialidade: Cavaleiro e Lutador na frente, Mago e Arqueira atrás. No fim da batalha dá para lutar de novo com a mesma equipe ou trocar; o botão 👥 também volta à formação, e a última equipe fica salva.
+A tela cabe inteira, sem rolagem: a grade dos 6 personagens fica à esquerda, a ficha em blocos no centro (identidade e elemento, atributos, habilidades e papel tático: faz bem, melhor contra, limitações), e à direita ficam o painel da habilidade clicada (descrição, números e **prévia, só ao clicar**) e os 3 espaços da equipe. Escolha 3 dos 6 combatentes: Cavaleiro, Espadachim, Mago, **Lanceiro**, **Lutador** e **Arqueira**. Cada card tem retrato e barras de vida, velocidade e resistência; clique para ver os detalhes (habilidades com força, dano e número de golpes, a defesa e o estilo). Não dá para repetir personagem e o botão Iniciar só libera com 3 escolhidos. A posição em campo segue a especialidade: Cavaleiro e Lutador na frente, Mago e Arqueira atrás. No fim da batalha dá para lutar de novo com a mesma equipe ou trocar; o botão 👥 também volta à formação, e a última equipe fica salva.
 
 | Novo | Papel | Habilidades | Defesa |
 |---|---|---|---|
