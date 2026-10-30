@@ -17,7 +17,7 @@
       document.body.classList.toggle('resolving', !!resolving);
     },
     setSpeed(s) { document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === s)); },
-    renderWaiting(text) { $('#panel').innerHTML = `<div class="waiting">${text}</div>`; },
+    renderWaiting() { $('#panel').innerHTML = ''; }, // BattleActionButtonsUI: fora do planejamento, nada na parte inferior
 
     // view: { choices, plan, preview, complete, hint }
     renderBar(battle, view, onConfirm, onAuto) {
@@ -40,8 +40,7 @@
         return `<span class="ochip ${cls}"><i>${i + 1}</i>${txt}</span>`;
       }).join('');
       const done = battle.alive('ally').filter(u => view.choices[u.id]).length; // parceiro de combinação conta
-      $('#panel').innerHTML = `<div class="bar-hint">${view.hint}</div><div class="order-strip">${chips}</div>` +
-        `<button class="auto" title="Escolher ações automaticamente (você pode editar)">AUTO</button><button class="confirm" ${view.complete ? '' : 'disabled'}>Executar ▶ <small>${done}/${battle.alive('ally').length}</small></button>`;
+      $('#panel').innerHTML = `<button class="auto" title="Escolher ações automaticamente (você pode editar)">AUTO</button><button class="confirm" ${view.complete ? '' : 'disabled'}>Executar ▶ <small>${done}/${battle.alive('ally').length}</small></button>`;
       $('#panel .confirm').onclick = onConfirm;
       $('#panel .auto').onclick = onAuto;
     },

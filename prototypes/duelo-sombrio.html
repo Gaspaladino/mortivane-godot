@@ -203,6 +203,19 @@ body.resolving #panel { opacity:.6; }
 .pop { top:52px; } .pop .dbg { font-size:11px; color:var(--muted); border-top:1px dashed var(--line); padding-top:6px; }
 #panel .auto { margin:0; flex:0 0 auto; padding:9px 14px; font-weight:900; letter-spacing:1px; background:#1c2a3a; border-color:#4c7ea8; color:#cfe6ff; }
 
+/* BattleActionButtonsUI: sem barra inferior — só AUTO e EXECUTAR soltos sobre a arena */
+#panel { position:fixed; right:22px; bottom:20px; z-index:20; min-height:0 !important; max-height:none; padding:0; gap:10px;
+  background:none !important; border:0 !important; overflow:visible; opacity:1 !important; align-items:center; flex-wrap:nowrap; pointer-events:none; }
+#panel:empty { display:none; }
+#panel button { pointer-events:auto; margin:0; padding:10px 20px; border-radius:10px; font-weight:800; letter-spacing:.5px;
+  background:rgba(20,12,24,.72); border:1.5px solid rgba(255,233,176,.55); color:#ffe9b0; box-shadow:0 4px 14px rgba(0,0,0,.45);
+  backdrop-filter:blur(3px); transition:transform .12s, background .15s, border-color .15s, box-shadow .15s; cursor:pointer; }
+#panel button:hover:not([disabled]) { background:rgba(60,40,22,.85); border-color:#ffe9b0; box-shadow:0 0 14px rgba(255,211,106,.35), 0 4px 14px rgba(0,0,0,.45); transform:translateY(-1px); }
+#panel button:active:not([disabled]) { transform:translateY(1px) scale(.97); }
+#panel button[disabled] { opacity:.45; cursor:default; }
+#panel .auto { border-color:rgba(143,211,255,.6); color:#cfeaff; }
+@media (max-width: 900px) { #panel { right:12px; bottom:12px; } }
+
 </style>
 </head>
 <body>
@@ -1803,7 +1816,7 @@ body.resolving #panel { opacity:.6; }
           const Ps = (it.partners || []).map(id => this.vis[id]);
           this.focusOn([A, ...Ps, T], -0.25);
           for (const v of [A, ...Ps]) { this.faceTo(v, T); this.setState(v, 'PREPARING'); this.tween(v, { ready: 1, arm: -1.1, lean: -0.1 }, 240); this.sparks(v.x, v.y - 150, '#ffb36a', 8, 0.2, -0.0004); }
-          this.showBanner('ATAQUE COMBINADO', '#ff9a5a', 1000, `${[A, ...Ps].map(v => v.name).join(' + ')} → ${T.name}`);
+          
           this.caption = `${[A, ...Ps].map(v => v.name).join(' e ')} preparam ${sk.name} contra ${T.name}!`;
           await this.wait(350);
         } else {
@@ -1963,7 +1976,7 @@ body.resolving #panel { opacity:.6; }
 
     async playFizzle(ev) {
       const A = this.vis[ev.actorId];
-      this.float(A.x, A.y - 170, `${G.SKILLS[ev.skillId].name}: ${ev.reason}`, '#a99', 16, 900);
+      this.statusIcon(A, 'fail', '#c9b', 900);
       await this.wait(300);
     }
 
@@ -2154,7 +2167,6 @@ body.resolving #panel { opacity:.6; }
         { const kind = opts.blocked ? 'metal' : st.motion === 'proj' ? 'magic' : /punch|upper/.test(st.motion) ? 'body' : /thrust|lunge|arrow/.test(st.motion) ? 'pierce' : 'metal';
           this._impactBurst(L.x - dir * 18, L.y - 72, dir > 0 ? 0 : Math.PI, opts.blocked ? '#cfe3ff' : kind === 'magic' ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ffd2a0', last ? (strong ? 1.25 : 0.95) : 0.7, kind);
           if (last && strong) this.dust(L, 8); }
-        if (last && hit.elem) this.float(L.x + 50, L.y - 112, hit.elem > 0 ? '▲ VANTAGEM' : '▼ DESVANTAGEM', hit.elem > 0 ? '#7fe0a0' : '#ff9a8a', 12, 1000);
         if (st.motion === 'proj' || strong) this.flashAt(L.x - dir * 18, L.y - 72, st.motion === 'proj' ? (A.side === 'ally' ? '#8fd3ff' : '#c86bff') : '#ffe2b0', strong ? 90 : 60);
         const big = last && (hit.killed || steps.length === 1);
         const crit = hit.crit && last; // crítico: decidido uma vez pela lógica; destacado no golpe final
@@ -2403,40 +2415,67 @@ body.resolving #panel { opacity:.6; }
       const k = this.pxPerWorld || 1, w = h.w, half = w / 2 - 34;
       const COL = { ally: { main: '#4fc8ff', glow: '#9fe8ff', dark: '#0e2433' }, enemy: { main: '#ff6a3c', glow: '#ffb070', dark: '#331208' } };
       const tie = L.win === 2;
-      // marcador de tensão: aliado vencendo → esquerda; inimigo → direita
-      const tgt = tie ? 0 : clamp((R.disp - L.disp) / 6, -1, 1);
-      h.ten += (tgt - h.ten) * 0.18;
+      // ClashBarRenderer: cabo-de-guerra. Aliado vencendo → o azul avança e EMPURRA o ponto de contato
+      // para o lado inimigo; inimigo vencendo → o vermelho avança para o lado aliado; empate → centro.
+      const tgt = tie ? 0 : clamp((L.disp - R.disp) / 6, -1, 1);
+      const prev = h.ten;
+      h.vel = (h.vel || 0) * 0.78 + (tgt - h.ten) * 0.09;      // mola: o contato "escorrega" e assenta com leve sobra
+      h.ten = clamp(h.ten + h.vel, -1.08, 1.08);
+      if (Math.sign(tgt) !== Math.sign(h.lastTgt || 0) && tgt !== 0) h.kick = 1; // troca de domínio
+      h.lastTgt = tgt; h.kick = Math.max(0, (h.kick || 0) - 0.04); h.boom = Math.max(0, (h.boom || 0) - 0.03);
+      if ((L.win === 1 || R.win === 1 || tie) && !h.done) { h.done = true; h.boom = 1; }
       ctx.save(); ctx.globalAlpha = al;
       ctx.translate(h.x, h.y); ctx.scale(1 / k, 1 / k); const sc = 0.92 + 0.08 * Math.min(L.s, 1); ctx.scale(sc, sc);
-      // conexão central: duas linhas finas + rebites
-      const lx = -half + 30, rx = half - 30;
-      const g = ctx.createLinearGradient(lx, 0, rx, 0);
-      g.addColorStop(0, COL.ally.main); g.addColorStop(0.5, tie ? '#e8dccb' : '#d8c8a8'); g.addColorStop(1, COL.enemy.main);
-      ctx.fillStyle = 'rgba(8,5,12,0.72)'; ctx.fillRect(lx, -7, rx - lx, 14);
-      ctx.strokeStyle = g; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(lx, -5); ctx.lineTo(rx, -5); ctx.moveTo(lx, 5); ctx.lineTo(rx, 5); ctx.stroke();
-      ctx.fillStyle = 'rgba(200,190,170,0.5)';
-      for (let x = lx + 18; x < rx - 10; x += 26) ctx.fillRect(x - 1, -1, 2, 2);
-      // domínio: o lado que lidera "enche" o seu trecho com um brilho discreto
-      const mx = -h.ten * (half - 60);
-      if (Math.abs(h.ten) > 0.04) {
-        const c = h.ten < 0 ? COL.ally : COL.enemy;
-        const gg = ctx.createLinearGradient(h.ten < 0 ? lx : rx, 0, mx, 0); gg.addColorStop(0, c.main); gg.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.globalAlpha = al * 0.55; ctx.fillStyle = gg; ctx.fillRect(Math.min(h.ten < 0 ? lx : rx, mx), -3, Math.abs(mx - (h.ten < 0 ? lx : rx)), 6); ctx.globalAlpha = al;
-      }
-      // marcador de tensão (losango)
-      const shk = (L.shake + R.shake) > 0.05 ? Math.sin(this.time * 0.1) * 2 : 0;
-      ctx.save(); ctx.translate(mx + shk, 0); ctx.rotate(Math.PI / 4);
-      ctx.fillStyle = tie ? '#e8dccb' : h.ten < -0.04 ? COL.ally.glow : h.ten > 0.04 ? COL.enemy.glow : '#f0e2c0';
-      ctx.strokeStyle = '#0a0610'; ctx.lineWidth = 2; ctx.fillRect(-6, -6, 12, 12); ctx.strokeRect(-6, -6, 12, 12); ctx.restore();
-      if (tie) { ctx.font = '800 10px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#e8dccb'; ctx.fillText('EMPATE', 0, -14); }
+      const lx = -half + 30, rx = half - 30, span = rx - lx, bh = 16;
+      const imp = (L.shake + R.shake) > 0.05 ? Math.sin(this.time * 0.11) * 2.5 * Math.max(L.shake, R.shake) : 0; // tremor no impacto
+      const cx = clamp((lx + rx) / 2 + h.ten * (span / 2 - 22), lx + 10, rx - 10) + imp;
+      // trilho (moldura discreta e escura; sem aparência de barra de Vida: pontas chanfradas e contato no meio)
+      const chamf = (x0, x1, y0, y1, c) => { ctx.beginPath(); ctx.moveTo(x0 + c, y0); ctx.lineTo(x1 - c, y0); ctx.lineTo(x1, (y0 + y1) / 2); ctx.lineTo(x1 - c, y1); ctx.lineTo(x0 + c, y1); ctx.lineTo(x0, (y0 + y1) / 2); ctx.closePath(); };
+      chamf(lx - 6, rx + 6, -bh / 2 - 4, bh / 2 + 4, 9); ctx.fillStyle = 'rgba(8,5,12,0.82)'; ctx.fill();
+      ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(232,214,170,0.35)'; ctx.stroke();
+      // forças: azul da esquerda até o contato, vermelho do contato até a direita (brilho mais forte no lado que domina)
+      const domL = clamp(0.55 + h.ten * 0.45, 0.35, 1), domR = clamp(0.55 - h.ten * 0.45, 0.35, 1);
+      const pulse = 0.08 * Math.sin(this.time * 0.012);
+      let g = ctx.createLinearGradient(lx, 0, cx, 0); g.addColorStop(0, '#1b5f8f'); g.addColorStop(0.75, '#3fb4f0'); g.addColorStop(1, '#bfeeff');
+      ctx.save(); chamf(lx, cx, -bh / 2, bh / 2, 7); ctx.clip(); ctx.globalAlpha = al * (domL + pulse); ctx.fillStyle = g; ctx.fillRect(lx, -bh / 2, cx - lx, bh);
+      // estrias que correm em direção ao contato (sensação de empurrão)
+      ctx.globalAlpha = al * 0.25; ctx.fillStyle = '#e8f8ff';
+      for (let x = lx + ((this.time * 0.06) % 18); x < cx - 4; x += 18) { ctx.beginPath(); ctx.moveTo(x, -bh / 2); ctx.lineTo(x + 6, -bh / 2); ctx.lineTo(x + 10, 0); ctx.lineTo(x + 6, bh / 2); ctx.lineTo(x, bh / 2); ctx.lineTo(x + 4, 0); ctx.fill(); }
+      ctx.restore();
+      g = ctx.createLinearGradient(cx, 0, rx, 0); g.addColorStop(0, '#ffd0b8'); g.addColorStop(0.25, '#ff5a3a'); g.addColorStop(1, '#8f2414');
+      ctx.save(); chamf(cx, rx, -bh / 2, bh / 2, 7); ctx.clip(); ctx.globalAlpha = al * (domR - pulse); ctx.fillStyle = g; ctx.fillRect(cx, -bh / 2, rx - cx, bh);
+      ctx.globalAlpha = al * 0.25; ctx.fillStyle = '#fff0e8';
+      for (let x = rx - ((this.time * 0.06) % 18); x > cx + 4; x -= 18) { ctx.beginPath(); ctx.moveTo(x, -bh / 2); ctx.lineTo(x - 6, -bh / 2); ctx.lineTo(x - 10, 0); ctx.lineTo(x - 6, bh / 2); ctx.lineTo(x, bh / 2); ctx.lineTo(x - 4, 0); ctx.fill(); }
+      ctx.restore();
+      ctx.globalAlpha = al;
+      // marca do meio (referência fixa do equilíbrio)
+      ctx.fillStyle = 'rgba(255,240,210,0.55)'; ctx.fillRect(-1, -bh / 2 - 7, 2, 5); ctx.fillRect(-1, bh / 2 + 2, 2, 5);
+      // ClashCenterMarker: ponto de contato com faíscas, brilho de tensão e "chute" na troca de domínio
+      const glowC = tie ? '#f0e6d0' : h.ten > 0.04 ? '#bfeeff' : h.ten < -0.04 ? '#ffc0a0' : '#fff1c8';
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const rg = ctx.createRadialGradient(cx, 0, 0, cx, 0, 26 + h.kick * 18 + Math.abs(h.vel) * 60);
+      rg.addColorStop(0, 'rgba(255,245,220,0.9)'); rg.addColorStop(1, 'rgba(255,200,140,0)');
+      ctx.fillStyle = rg; ctx.fillRect(cx - 50, -50, 100, 100); ctx.restore();
+      ctx.save(); ctx.translate(cx, 0); ctx.rotate(Math.PI / 4 + (h.ten - prev) * 6 + h.kick * 0.6);
+      const ms = 8 + h.kick * 4 + (L.pulse + R.pulse) * 2;
+      ctx.fillStyle = glowC; ctx.strokeStyle = '#0a0610'; ctx.lineWidth = 2.5; ctx.shadowColor = glowC; ctx.shadowBlur = 10;
+      ctx.fillRect(-ms, -ms, ms * 2, ms * 2); ctx.shadowBlur = 0; ctx.strokeRect(-ms, -ms, ms * 2, ms * 2);
+      ctx.fillStyle = '#0a0610'; ctx.fillRect(-2.5, -2.5, 5, 5); ctx.restore();
+      // seta de pressão (para onde o contato está sendo empurrado)
+      if (Math.abs(h.ten) > 0.08 && !tie) { const d = Math.sign(h.ten); ctx.fillStyle = d > 0 ? '#bfeeff' : '#ffc0a0'; ctx.globalAlpha = al * clamp(Math.abs(h.ten), 0.3, 0.9);
+        for (const o of [16, 24]) { ctx.beginPath(); ctx.moveTo(cx + d * (o + 6), 0); ctx.lineTo(cx + d * o, -5); ctx.lineTo(cx + d * o, 5); ctx.fill(); } ctx.globalAlpha = al; }
+      // explosão no centro ao fim do Clash
+      if (h.boom > 0.02) { ctx.save(); ctx.globalAlpha = al * h.boom; ctx.strokeStyle = tie ? '#e8dccb' : L.win === 1 ? '#9fe8ff' : '#ffb070'; ctx.lineWidth = 3 * h.boom;
+        ctx.beginPath(); ctx.arc(cx, 0, 14 + (1 - h.boom) * 46, 0, 7); ctx.stroke();
+        for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + 0.3, r0 = 12 + (1 - h.boom) * 20, r1 = r0 + 12 * h.boom; ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r0, Math.sin(a) * r0); ctx.lineTo(cx + Math.cos(a) * r1, Math.sin(a) * r1); ctx.stroke(); }
+        ctx.restore(); }
       // extremidades
       for (const [p, side, d, edge] of [[L, 'ally', -1, h.edgeL], [R, 'enemy', 1, h.edgeR]]) {
         const C = tie ? { main: '#c8c0b8', glow: '#e8dccb', dark: '#2a2628' } : COL[side];
         const dim = p.win === -1 ? 0.5 : p.lead === -1 ? 0.8 : 1;
         const sh = p.shake > 0.05 ? Math.sin(this.time * 0.09) * 3 * p.shake : 0;
         ctx.save(); ctx.globalAlpha = al * dim; ctx.translate(d * half + sh, 0);
-        const s2 = (p.win === 1 ? 1.12 : p.win === -1 ? 0.9 : 1) * (1 + p.pulse * 0.14); ctx.scale(s2, s2);
+        const s2 = (p.win === 1 ? 1.12 : p.win === -1 ? 0.9 : 1) * (1 + p.pulse * 0.14 + (p.lead === 1 && !p.win ? 0.035 * Math.sin(this.time * 0.014) : 0)); // ponta que lidera pulsa ctx.scale(s2, s2);
         const Rr = 25;
         ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + Math.PI / 8; ctx.lineTo(Math.cos(a) * (Rr + 5), Math.sin(a) * (Rr + 5)); } ctx.closePath();
         const mg = ctx.createLinearGradient(0, -Rr, 0, Rr); mg.addColorStop(0, '#5a5560'); mg.addColorStop(0.5, '#2a2530'); mg.addColorStop(1, '#4a4450');
@@ -2449,21 +2488,12 @@ body.resolving #panel { opacity:.6; }
         ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(5,3,8,0.9)'; ctx.strokeText(String(Math.round(p.disp)), 0, 10);
         ctx.fillStyle = p.win === 1 ? '#ffe9a0' : '#fff'; ctx.shadowColor = C.glow; ctx.shadowBlur = 6 + p.pulse * 12;
         ctx.fillText(String(Math.round(p.disp)), 0, 10); ctx.shadowBlur = 0;
-        // símbolo da equipe (inicial do personagem) na ponta externa
-        ctx.fillStyle = C.dark; ctx.strokeStyle = C.main; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(d * 40, -14, 10, 0, 7); ctx.fill(); ctx.stroke();
-        ctx.font = '900 11px "Trebuchet MS", sans-serif'; ctx.fillStyle = C.glow; ctx.fillText(p.name[0], d * 40, -10);
         // marcadores de batida
         for (let i = 0; i < p.pips; i++) {
           const px = (i - (p.pips - 1) / 2) * 10, used = i < p.used;
           ctx.save(); ctx.translate(px, Rr + 11); ctx.rotate(Math.PI / 4);
           ctx.fillStyle = used ? 'rgba(120,110,120,0.5)' : C.main; ctx.fillRect(-3, -3, 6, 6); ctx.restore();
         }
-        // rótulo pequeno com a habilidade (fora da barra, para o lado externo)
-        ctx.font = '800 10px "Trebuchet MS", sans-serif'; ctx.textAlign = d < 0 ? 'right' : 'left';
-        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(5,3,8,0.85)';
-        const lbl = p.skill + (p.combo ? ' ⚔' : '');
-        ctx.strokeText(lbl, d * 34, 30); ctx.fillStyle = '#f2e6cc'; ctx.fillText(lbl, d * 34, 30);
         // owner fora do quadro: seta na ponta
         if (edge) { ctx.fillStyle = C.main; ctx.beginPath(); ctx.moveTo(edge * 52, 4); ctx.lineTo(edge * 44, -2); ctx.lineTo(edge * 44, 10); ctx.fill(); }
         // "+N" do impulso
@@ -2489,7 +2519,6 @@ body.resolving #panel { opacity:.6; }
       const variant = (this._eventIndex * 7 + (ev.a.roll + ev.b.roll)) % 3; // variação visual estável
       const names = (v, ps) => [v, ...ps].map(x => x.name).join(' + ');
       this.caption = `${skA.combo || skB.combo ? 'CLASH COMBINADO' : 'CLASH'}  ·  ${names(A, pA)} (${skA.name})  ×  ${names(B, pB)} (${skB.name})`;
-      if (skA.combo || skB.combo) this.showBanner('ATAQUE COMBINADO', '#ffd36a', 900, (skA.combo ? names(A, pA) : names(B, pB)));
 
       // 1-2. participantes e posições ATUAIS
       this.focusOn([...(T ? [A, B, T] : [A, B]), ...pA, ...pB]);
@@ -2581,7 +2610,7 @@ body.resolving #panel { opacity:.6; }
         const marginLv = margin >= 5 ? 'heavy' : margin >= 3 ? 'medium' : 'light';
         const lv = LEVELS[Math.max(LEVELS.indexOf(h.impact || 'light'), LEVELS.indexOf(marginLv))];
         await this._sequence([W, ...pW], L, skW, h, lv, { posture: ev.posture });
-        if (h.applied) { const st = G.STATUS[h.applied]; this.float(L.x, L.y - 165, st.name.toUpperCase(), st.color, 20, 1300); }
+        if (h.applied) { const st = G.STATUS[h.applied]; this.statusIcon(L, 'weak', st.color, 1200); }
         if (h.killed || lv === 'extreme') await this._decisive(L, h.killed);
         await this.wait(lv === 'light' ? 220 : 320);
       }
@@ -2598,7 +2627,6 @@ body.resolving #panel { opacity:.6; }
       const magic = isRanged(sk), heavy = sk.tags.includes('heavy'), fast = sk.tags.includes('fast');
       const arrow = sk.tags.includes('ranged');
       this.caption = `${[A, ...partners].map(v => v.name).join(' + ')}  ·  ${sk.name}  →  ${T.name}`;
-      if (sk.combo) this.showBanner('ATAQUE COMBINADO', '#ffd36a', 900, [A, ...partners].map(v => v.name).join(' + '));
 
       this.focusOn([A, T, ...partners]);
       await this.sync(A, ...partners);
@@ -2679,7 +2707,7 @@ body.resolving #panel { opacity:.6; }
       this._applySnapshot(c.after, false);
       if (c.applied) {
         const st = G.STATUS[c.applied];
-        this.float(D.x, D.y - 150, st.name.toUpperCase(), st.color, 20, 1300);
+        this.statusIcon(D, 'weak', st.color, 1200);
         this.sparks(D.x, D.y - 70, st.color, 10, 0.2, -0.0003);
       }
       if (!['blocked', 'hit', 'dodgeFail', 'parryFail', 'guardBroken'].includes(c.outcome) && !A.dead && A.state !== 'HIT_LIGHT' && A.state !== 'HIT_HEAVY') this.followThrough(A);
@@ -2904,7 +2932,7 @@ body.resolving #panel { opacity:.6; }
       vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(0,0,0,${focusing ? 0.7 : 0.5})`);
       ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
       if (this.screenFlash > 0) { ctx.fillStyle = `rgba(255,245,235,${this.screenFlash})`; ctx.fillRect(0, 0, W, H); }
-      if (this.caption) {
+      if (this.caption && this.showCaption) { // ClashPresentationCleaner: legenda desligada na execução
         ctx.font = '600 20px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
         const w = ctx.measureText(this.caption).width + 40;
         ctx.fillStyle = 'rgba(10,6,14,0.75)'; ctx.fillRect(W / 2 - w / 2, 58, w, 34);
@@ -3020,6 +3048,7 @@ body.resolving #panel { opacity:.6; }
         case 'parry': ctx.moveTo(-6, -6); ctx.lineTo(6, 6); ctx.moveTo(6, -6); ctx.lineTo(-6, 6); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 2.2, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); break;
         case 'fail': case 'lost': ctx.moveTo(-5, -5); ctx.lineTo(5, 5); ctx.moveTo(5, -5); ctx.lineTo(-5, 5); ctx.stroke(); break;
         case 'restore': case 'stable': ctx.arc(0, 0, 5.5, -2.4, 2.2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(4, -6); ctx.lineTo(4.5, -1.5); ctx.lineTo(0, -2.5); ctx.stroke(); break;
+        case 'weak': ctx.moveTo(0, -7); ctx.lineTo(0, 5); ctx.moveTo(-5, 0); ctx.lineTo(0, 6); ctx.lineTo(5, 0); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 9, 0, 7); ctx.globalAlpha *= 0.4; ctx.stroke(); break;
         case 'down': ctx.moveTo(0, -7); ctx.lineTo(0, 5); ctx.moveTo(-5, 0); ctx.lineTo(0, 6); ctx.lineTo(5, 0); ctx.stroke(); break;
         case 'skull': ctx.arc(0, -1.5, 6, 0, 7); ctx.fill(); ctx.fillRect(-3.5, 3, 7, 4); ctx.fillStyle = '#0a0610'; ctx.beginPath(); ctx.arc(-2.3, -1.5, 1.7, 0, 7); ctx.arc(2.3, -1.5, 1.7, 0, 7); ctx.fill(); break;
         default: ctx.arc(0, 0, 4, 0, 7); ctx.fill();
@@ -4524,7 +4553,7 @@ body.resolving #panel { opacity:.6; }
       document.body.classList.toggle('resolving', !!resolving);
     },
     setSpeed(s) { document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === s)); },
-    renderWaiting(text) { $('#panel').innerHTML = `<div class="waiting">${text}</div>`; },
+    renderWaiting() { $('#panel').innerHTML = ''; }, // BattleActionButtonsUI: fora do planejamento, nada na parte inferior
 
     // view: { choices, plan, preview, complete, hint }
     renderBar(battle, view, onConfirm, onAuto) {
@@ -4547,8 +4576,7 @@ body.resolving #panel { opacity:.6; }
         return `<span class="ochip ${cls}"><i>${i + 1}</i>${txt}</span>`;
       }).join('');
       const done = battle.alive('ally').filter(u => view.choices[u.id]).length; // parceiro de combinação conta
-      $('#panel').innerHTML = `<div class="bar-hint">${view.hint}</div><div class="order-strip">${chips}</div>` +
-        `<button class="auto" title="Escolher ações automaticamente (você pode editar)">AUTO</button><button class="confirm" ${view.complete ? '' : 'disabled'}>Executar ▶ <small>${done}/${battle.alive('ally').length}</small></button>`;
+      $('#panel').innerHTML = `<button class="auto" title="Escolher ações automaticamente (você pode editar)">AUTO</button><button class="confirm" ${view.complete ? '' : 'disabled'}>Executar ▶ <small>${done}/${battle.alive('ally').length}</small></button>`;
       $('#panel .confirm').onclick = onConfirm;
       $('#panel .auto').onclick = onAuto;
     },

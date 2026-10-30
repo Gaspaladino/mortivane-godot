@@ -195,3 +195,16 @@ body.resolving #panel { opacity:.6; }
 #fs-hint.hide { opacity:0; }
 .pop { top:52px; } .pop .dbg { font-size:11px; color:var(--muted); border-top:1px dashed var(--line); padding-top:6px; }
 #panel .auto { margin:0; flex:0 0 auto; padding:9px 14px; font-weight:900; letter-spacing:1px; background:#1c2a3a; border-color:#4c7ea8; color:#cfe6ff; }
+
+/* BattleActionButtonsUI: sem barra inferior — só AUTO e EXECUTAR soltos sobre a arena */
+#panel { position:fixed; right:22px; bottom:20px; z-index:20; min-height:0 !important; max-height:none; padding:0; gap:10px;
+  background:none !important; border:0 !important; overflow:visible; opacity:1 !important; align-items:center; flex-wrap:nowrap; pointer-events:none; }
+#panel:empty { display:none; }
+#panel button { pointer-events:auto; margin:0; padding:10px 20px; border-radius:10px; font-weight:800; letter-spacing:.5px;
+  background:rgba(20,12,24,.72); border:1.5px solid rgba(255,233,176,.55); color:#ffe9b0; box-shadow:0 4px 14px rgba(0,0,0,.45);
+  backdrop-filter:blur(3px); transition:transform .12s, background .15s, border-color .15s, box-shadow .15s; cursor:pointer; }
+#panel button:hover:not([disabled]) { background:rgba(60,40,22,.85); border-color:#ffe9b0; box-shadow:0 0 14px rgba(255,211,106,.35), 0 4px 14px rgba(0,0,0,.45); transform:translateY(-1px); }
+#panel button:active:not([disabled]) { transform:translateY(1px) scale(.97); }
+#panel button[disabled] { opacity:.45; cursor:default; }
+#panel .auto { border-color:rgba(143,211,255,.6); color:#cfeaff; }
+@media (max-width: 900px) { #panel { right:12px; bottom:12px; } }
