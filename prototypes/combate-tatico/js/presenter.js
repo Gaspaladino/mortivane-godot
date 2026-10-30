@@ -29,6 +29,7 @@
     lancer:    { dash: 0.90, ease: 'out',   reach: 128, knock: 0.90, width: 86 },
     brawler:   { dash: 0.60, ease: 'out',   reach: 60, knock: 0.95, width: 80 },
     archer:    { dash: 0.90, ease: 'inOut', reach: 70, knock: 1.10, width: 80 },
+    valkyrie:  { dash: 0.60, ease: 'out',   reach: 116, knock: 0.95, width: 84 },
   };
   const LEVELS = ['light', 'medium', 'heavy', 'extreme'];
   // Poses defensivas (bloqueio / aparo / esquiva) por classe — preparadas no planejamento
@@ -39,6 +40,7 @@
     lancer:    { parry: { arm: 0.9, crouch: 0.07, lean: 0.04 }, block: { arm: 0.9, crouch: 0.07 } },
     brawler:   { dodge: { crouch: 0.14, lean: -0.12, arm: -0.25 }, block: { arm: -0.35, crouch: 0.1 } },
     archer:    { dodge: { crouch: 0.13, lean: -0.12, cast: 0.15 } },
+    valkyrie:  { dodge: { crouch: 0.12, lean: -0.1, arm: 0.3, wing: 0.55 }, block: { arm: 0.9, crouch: 0.07, wing: 0.3 }, parry: { arm: 0.8, lean: 0.05, wing: 0.25 } },
     brute:     { block: { guard: 1, arm: -0.6, crouch: 0.1 } },
     duelist:   { parry: { arm: -1.0, lean: 0.06, crouch: 0.05 } },
     conjurer:  { dodge: { cast: 0.5, crouch: 0.06, lean: -0.08 } },
@@ -51,6 +53,7 @@
     brawler: { arm: -0.5, lean: -0.42, crouch: 0.1 }, archer: { cast: 0, lean: -0.34, crouch: 0.1, arm: 0.5 },
     brute: { kneel: 1, tilt: 0.36, crouch: 0.3, arm: 0.9 }, duelist: { arm: 1.4, lean: -0.42, crouch: 0.06 },
     conjurer: { cast: 0, arm: 1.0, lean: -0.35 },
+    valkyrie: { arm: -1.3, lean: -0.36, crouch: 0.07, wing: 0.9 },
   };
   // Gestos ocasionais de espera, por classe: [propriedades, duração] — sempre voltam à pose base
   const GESTURES = {
@@ -63,6 +66,12 @@
     brute:     [[[{ arm: -0.55 }, 420], [{ arm: 0 }, 460]], [[{ crouch: 0.08 }, 320], [{ crouch: 0 }, 360]]],
     duelist:   [[[{ arm: -0.4 }, 220], [{ arm: 0.2 }, 220], [{ arm: 0 }, 220]], [[{ lean: 0.08 }, 260], [{ lean: 0 }, 260]]],
     conjurer:  [[[{ cast: 0.5 }, 380], [{ cast: 0 }, 420]]],
+    // Valquíria: o repertório mais rico (asas, giro da lança, troca de peso, postura agressiva)
+    valkyrie:  [[[{ wing: 0.75 }, 260], [{ wing: 0.6 }, 220], [{ wing: 0.15 }, 420]],                                   // abre e recolhe as asas
+                [[{ arm: 1.2, lean: 0.04 }, 170], [{ arm: -0.6 }, 170], [{ arm: 0.4 }, 160], [{ arm: 0 }, 220]],         // gira a lança
+                [[{ lean: 0.08, crouch: 0.05 }, 300], [{ lean: -0.05, crouch: 0 }, 320], [{ lean: 0 }, 260]],             // troca o peso entre as pernas
+                [[{ crouch: 0.1, arm: 0.9, lean: 0.12, wing: 0.35 }, 260], [{ crouch: 0.1, arm: 0.9, lean: 0.12, wing: 0.35 }, 500], [{ crouch: 0, arm: 0, lean: 0, wing: 0.15 }, 340]], // postura agressiva
+                [[{ wing: 0.32, hop: 6 }, 200], [{ wing: 0.1, hop: 0 }, 260]]],                                          // pequeno bater de asas
   };
   const Z_MIN = 0.72; // menor zoom permitido (o cenário cobre essa área)
   const STANCE_STATE = { block: 'BLOCKING', parry: 'PARRYING', dodge: 'DODGING' };
@@ -109,7 +118,8 @@
           statuses: { ...u.statuses }, phase: i * 1.7, trail: [], stance: null,
           state: u.hp > 0 ? 'IDLE' : 'DEFEATED', tilt: 0, kneel: 0, busy: null,
           formation: u.def.formation != null ? u.def.formation : u.slot, wound: 0, ambT: 1500 + i * 700,
-          post: u.post, postMax: u.postMax, dispPost: u.post, broken: u.broken, stable: u.stable, prep: null, gestT: 2500 + i * 900 };
+          post: u.post, postMax: u.postMax, dispPost: u.post, broken: u.broken, stable: u.stable, prep: null, gestT: 2500 + i * 900,
+          wing: 0.15, weapon: 0, swapFx: 0 };
       });
       this.tweens = []; this.waits = []; this.particles = []; this.texts = []; this.fx = [];
       this.banner = null; this.caption = null; this.spot = null;
@@ -670,6 +680,7 @@
         v.stance = null;
         if (v.dead) continue;
         v.ready = 0; v.barrier = 0; v.prep = null;
+        if (v.art === 'valkyrie' && v.weapon) this._vkArm(v, 0); // volta para a lança entre rodadas
         const foe = this._nearestFoe(v);
         let tx = v.x, hopBack = false;
         const ranged = (G.UNITS[v.id] && G.UNITS[v.id].formation || 0) >= 2 || /mage|archer|conjurer/.test(v.art);
@@ -821,11 +832,43 @@
       return dir;
     }
 
+    // Valquíria: troca curta de arma (lança ↔ machadinhas) com um brilho celestial; nunca some sem efeito
+    async _vkArm(v, weapon) {
+      if (!v || v.art !== 'valkyrie' || v.weapon === weapon) return;
+      await this.tween(v, { arm: -0.4, lean: -0.05 }, 70, 'out');
+      v.weapon = weapon; v.swapFx = 1;
+      SFX(weapon ? 'axeDraw' : 'celestial', { vol: 0.5 });
+      this.sparks(v.x + v.face * 12, v.y - 86, '#bff4ff', 6, 0.18, -0.0004);
+      this.tween(v, { swapFx: 0 }, 260, 'out');
+      await this.tween(v, { arm: 0 }, 60, 'out');
+    }
+    // Investida das Asas: abre as asas, energia na lança, voo baixo acompanhado pela câmera, impacto e pouso
+    async _wingDash(A, L, dir, standX, standY) {
+      SFX('wingOpen', { vol: 0.8 });
+      this.focusOn([A, L], 0.06);
+      await this.tween(A, { wing: 1.15, crouch: 0.2, lean: -0.18, arm: 0.95 }, 150, 'out');
+      for (let i = 0; i < 3; i++) { this.sparks(A.x + dir * (40 + i * 22), A.y - 86 - i * 4, '#bff4ff', 4, 0.2, -0.0002); await this.wait(36); }
+      SFX('wingDash', { vol: 0.9 });
+      A.dashing = true;
+      this.tween(A, { crouch: 0, lean: 0.48, arm: 1.32, wing: 0.95 }, 90, 'out');
+      const sx = clamp(standX + dir * 10, ARENA.minX, ARENA.maxX);
+      await Promise.all([this.moveTo(A, sx, standY, 210, 'in'), this.tween(A, { hop: 30 }, 100, 'out').then(() => this.tween(A, { hop: 6 }, 110, 'in'))]);
+      A.dashing = false;
+      this.addFx({ kind: 'thrust', dur: 300, x0: A.x - dir * 30, y0: A.y - 90, x1: L.x + dir * 10, y1: L.y - 74, color: '#ffe9b0', w: 10 });
+      this.addFx({ kind: 'shock', dur: 300, x: L.x - dir * 6, y: L.y - 74, r: 60, color: '#bff4ff' });
+      SFX('thrust', { vol: 1, pitch: 0.85 });
+      // pouso: asas absorvem, poeira, volta à guarda
+      this.wait(110).then(() => { this.dust(A, 4); return this.tween(A, { hop: 0, wing: 0.45, crouch: 0.12, lean: 0.1 }, 140, 'out'); })
+        .then(() => this.tween(A, { wing: 0.15, crouch: 0, lean: 0 }, 260, 'inOut'));
+      return dir;
+    }
+
     // Um golpe individual (cosmético: varia por "motion"; não muda nada da lógica).
     async _strikeMotion(A, L, motion, others = [], prepped = false) {
       const dir = L.x >= A.x ? 1 : -1;
       this.faceTo(A, L);
       this.setState(A, 'ATTACKING');
+      if (A.art === 'valkyrie') await this._vkArm(A, /^axe/.test(motion) ? 1 : 0);
       if (motion === 'proj') {
         if (!prepped) { SFX('magicCharge', { vol: 0.4 }); await this.tween(A, { cast: 1, arm: -0.6 }, 110); }
         this.tween(A, { arm: 0.3, lean: 0.08 }, 90);
@@ -849,6 +892,7 @@
         this.tween(o, { x: o.x - dir * 55, lean: -0.1 }, 160, 'out');
         standY = clamp(L.y + (L.y > (ARENA.minY + ARENA.maxY) / 2 ? -34 : 34), ARENA.minY, ARENA.maxY);
       }
+      if (motion === 'wingdash') return this._wingDash(A, L, dir, standX, standY);
       if (Math.abs(A.x - standX) > 18 || Math.abs(A.y - standY) > 10) {
         A.dashing = true;
         await this.moveTo(A, standX, standY, (motion === 'lunge' ? 100 : 130) * MOVE[A.art].dash, 'in');
@@ -856,6 +900,46 @@
       }
       const tipX = A.x + dir * reach, hy = L.y - 72;
       switch (motion) {
+        case 'vthrust': {
+          // Estocada Celestial: ajusta os pés, recolhe, projeta com precisão (rastro luminoso fino)
+          await this.tween(A, { x: A.x - dir * 6, crouch: 0.08, arm: 0.95, lean: -0.12, wing: 0.3 }, 90, 'out');
+          this.tween(A, { arm: 1.32, lean: 0.34, crouch: 0, x: A.x + dir * 22, wing: 0.42 }, 55, 'in');
+          await this.wait(38);
+          this.addFx({ kind: 'thrust', dur: 240, x0: A.x + dir * 36, y0: A.y - 84, x1: L.x - dir * 4, y1: hy, color: '#bff4ff', w: 5 });
+          SFX('thrust', { vol: 0.85, pitch: 1.15 });
+          this.wait(120).then(() => this.tween(A, { wing: 0.15, lean: 0.06 }, 220, 'out'));
+          return dir;
+        }
+        case 'axe1': {
+          // corte diagonal descendente com a machadinha da frente
+          await this.tween(A, { arm: -1.3, guard: 0.6, lean: -0.08, wing: 0.25 }, 70, 'out');
+          this.tween(A, { arm: 1.25, lean: 0.24, x: A.x + dir * 10 }, 55, 'in');
+          await this.wait(40);
+          this.addFx({ kind: 'slash', dur: 220, x: L.x - dir * 40, y: hy - 4, dir, rot: -0.55, r: 62, color: '#dff8ff' });
+          SFX('axeHit', { pitch: 1.05 });
+          return dir;
+        }
+        case 'axe2': {
+          // golpe cruzado com a machadinha de trás (o corpo gira para o outro lado)
+          await this.tween(A, { guard: -0.6, arm: 0.6, lean: 0.1 }, 55, 'out');
+          this.tween(A, { guard: 1.6, arm: -0.4, lean: 0.3, x: A.x + dir * 8 }, 55, 'in');
+          await this.wait(40);
+          this.addFx({ kind: 'slash', dur: 220, x: L.x - dir * 36, y: hy + 6, dir, flip: true, rot: 0.5, r: 58, color: '#e8f2ff' });
+          SFX('axeHit', { pitch: 0.9 });
+          return dir;
+        }
+        case 'axe3': {
+          // giro parcial com as asas e golpe duplo final (mais forte)
+          SFX('wingOpen', { vol: 0.5, pitch: 1.2 });
+          await this.tween(A, { lean: -0.25, wing: 0.7, hop: 10, arm: -1.4, guard: -0.8, crouch: 0.06 }, 110, 'out');
+          this.tween(A, { lean: 0.42, arm: 1.4, guard: 1.5, hop: 0, x: A.x + dir * 20, crouch: 0 }, 70, 'in');
+          await this.wait(52);
+          this.addFx({ kind: 'slash', dur: 280, x: L.x - dir * 40, y: hy - 6, dir, heavy: true, rot: -0.7, r: 70, color: '#ffffff' });
+          this.addFx({ kind: 'slash', dur: 280, x: L.x - dir * 40, y: hy + 4, dir, heavy: true, flip: true, rot: 0.7, r: 70, color: '#bff4ff' });
+          SFX('axeHit', { vol: 1, pitch: 0.75 }); SFX('slash', { vol: 0.6 });
+          this.wait(160).then(() => this.tween(A, { wing: 0.15, lean: 0.05 }, 260, 'out'));
+          return dir;
+        }
         case 'thrust': case 'lunge': {
           // estocada: recolhe, projeta o corpo e a ponta da lança (rastro linear)
           // nivela a lança (arm ≈ 1.3 = horizontal), recolhe e projeta
@@ -1022,7 +1106,12 @@
       // a faixa do nome cresce para fora do confronto; a posição é recalculada a cada quadro (_placeHud)
       const badges = [pa, pb];
       // AdaptiveClashHUD: UMA barra compartilhada (esquerda = aliado, direita = inimigo)
-      const hud = { hud: true, L: pa.team === 'ally' ? pa : pb, R: pa.team === 'ally' ? pb : pa, w: 0, x: (A.x + B.x) / 2, y: null, ten: 0 };
+      // orientação pela posição REAL na tela no início do Clash (fixa até o fim deste Clash);
+      // quase na mesma coluna: mantém a última orientação válida (desempate estável)
+      const sxA = this.toScreen(A.x, A.y).x, sxB = this.toScreen(B.x, B.y).x;
+      const aLeft = Math.abs(sxA - sxB) < 8 ? (this._hudAllyLeft != null ? (this._hudAllyLeft === (pa.team === 'ally')) : pa.team === 'ally') : sxA < sxB;
+      this._hudAllyLeft = (aLeft ? pa : pb).team === 'ally';
+      const hud = { hud: true, L: aLeft ? pa : pb, R: aLeft ? pb : pa, w: 0, x: (A.x + B.x) / 2, y: null, ten: 0 };
       pa.ref = A; pb.ref = B;
       if (!this.skipping) this.plates.push(hud);
       const ranged = [skA, skB].some(sk => sk.tags.includes('magic') || sk.tags.includes('ranged'));
@@ -1110,6 +1199,12 @@
           this.tween(A, { lean: 0.26 }, 70); this.tween(B, { lean: 0.26 }, 70);
           this.sparks(contact.x, contact.y, '#ffe28a', 4, 0.25);
         }
+        // Valquíria: as asas mostram a troca de vantagem (abrem para impulsionar / absorvem o recuo)
+        for (const [v, side] of [[A, 'a'], [B, 'b']]) if (v.art === 'valkyrie') {
+          const up = lead === side ? 0.6 : lead ? 0.85 : 0.4;
+          this.tween(v, { wing: up }, 70, 'out').then(() => this.tween(v, { wing: 0.25 }, 200, 'inOut'));
+          if (lead === side && lead !== lastLead) SFX('wingOpen', { vol: 0.35, pitch: 1.3 });
+        }
         lastLead = lead || lastLead;
         await this.wait(last ? 110 : 55);
       }
@@ -1140,6 +1235,7 @@
         knight: i % 2 ? [{ arm: -1.3 }, { arm: 1.0, lean: 0.2 }] : [{ guard: 1.2, crouch: 0.1 }, { guard: 1.3, lean: 0.12 }], // escudo / espada
         brute: [{ guard: 1, crouch: 0.12 }, { arm: 0.9, lean: 0.2 }],
         lancer: i % 2 ? [{ arm: 0.4 }, { arm: 1.6, lean: 0.22 }] : [{ arm: 1.8 }, { arm: 0.6, lean: 0.18 }],  // estocada / varredura com a haste
+        valkyrie: i % 2 ? [{ arm: 0.3, wing: 0.5 }, { arm: 1.7, lean: 0.24, wing: 0.25 }] : [{ arm: 1.9, wing: 0.45 }, { arm: 0.5, lean: 0.2, wing: 0.2 }], // lança desvia; a asa equilibra
         brawler: [{ arm: -0.4, crouch: 0.12, lean: -0.12 }, { arm: 0.6, lean: 0.12, crouch: 0.05 }],       // antebraço + desvio
       }[MV.art] || [{ guard: 1 }, { guard: 1.2 }];
       this.tween(MV, Object.assign({}, G[0]), Math.max(60, dur - 90), 'out');
@@ -1178,7 +1274,7 @@
     // ClashHUDPositioner: centro entre os combatentes, acima das barras, sempre dentro da tela;
     // largura acompanha a distância NA TELA (zoom incluso) com limites e interpolação suave.
     _placeHud(h) {
-      const A = h.L.ref, B = h.R.ref, k = this.pxPerWorld || 1;
+      const A = h.L.ref, B = h.R.ref, k = this.pxPerWorld || 1; // L/R = lados da HUD (posição no início do Clash)
       const W = this.canvas.clientWidth, H = this.canvas.clientHeight;
       const tl = this.toWorld(0, 0), br = this.toWorld(W, H);
       const dxs = Math.abs(A.x - B.x) * k;
@@ -1223,22 +1319,24 @@
       // forças: azul da esquerda até o contato, vermelho do contato até a direita (brilho mais forte no lado que domina)
       const domL = clamp(0.55 + h.ten * 0.45, 0.35, 1), domR = clamp(0.55 - h.ten * 0.45, 0.35, 1);
       const pulse = 0.08 * Math.sin(this.time * 0.012);
-      let g = ctx.createLinearGradient(lx, 0, cx, 0); g.addColorStop(0, '#1b5f8f'); g.addColorStop(0.75, '#3fb4f0'); g.addColorStop(1, '#bfeeff');
+      const FILL = { ally: ['#1b5f8f', '#3fb4f0', '#bfeeff', '#e8f8ff'], enemy: ['#8f2414', '#ff5a3a', '#ffd0b8', '#fff0e8'] };
+      const fL = FILL[L.team] || FILL.ally, fR = FILL[R.team] || FILL.enemy;
+      let g = ctx.createLinearGradient(lx, 0, cx, 0); g.addColorStop(0, fL[0]); g.addColorStop(0.75, fL[1]); g.addColorStop(1, fL[2]);
       ctx.save(); chamf(lx, cx, -bh / 2, bh / 2, 7); ctx.clip(); ctx.globalAlpha = al * (domL + pulse); ctx.fillStyle = g; ctx.fillRect(lx, -bh / 2, cx - lx, bh);
       // estrias que correm em direção ao contato (sensação de empurrão)
-      ctx.globalAlpha = al * 0.25; ctx.fillStyle = '#e8f8ff';
+      ctx.globalAlpha = al * 0.25; ctx.fillStyle = fL[3];
       for (let x = lx + ((this.time * 0.06) % 18); x < cx - 4; x += 18) { ctx.beginPath(); ctx.moveTo(x, -bh / 2); ctx.lineTo(x + 6, -bh / 2); ctx.lineTo(x + 10, 0); ctx.lineTo(x + 6, bh / 2); ctx.lineTo(x, bh / 2); ctx.lineTo(x + 4, 0); ctx.fill(); }
       ctx.restore();
-      g = ctx.createLinearGradient(cx, 0, rx, 0); g.addColorStop(0, '#ffd0b8'); g.addColorStop(0.25, '#ff5a3a'); g.addColorStop(1, '#8f2414');
+      g = ctx.createLinearGradient(cx, 0, rx, 0); g.addColorStop(0, fR[2]); g.addColorStop(0.25, fR[1]); g.addColorStop(1, fR[0]);
       ctx.save(); chamf(cx, rx, -bh / 2, bh / 2, 7); ctx.clip(); ctx.globalAlpha = al * (domR - pulse); ctx.fillStyle = g; ctx.fillRect(cx, -bh / 2, rx - cx, bh);
-      ctx.globalAlpha = al * 0.25; ctx.fillStyle = '#fff0e8';
+      ctx.globalAlpha = al * 0.25; ctx.fillStyle = fR[3];
       for (let x = rx - ((this.time * 0.06) % 18); x > cx + 4; x -= 18) { ctx.beginPath(); ctx.moveTo(x, -bh / 2); ctx.lineTo(x - 6, -bh / 2); ctx.lineTo(x - 10, 0); ctx.lineTo(x - 6, bh / 2); ctx.lineTo(x, bh / 2); ctx.lineTo(x - 4, 0); ctx.fill(); }
       ctx.restore();
       ctx.globalAlpha = al;
       // marca do meio (referência fixa do equilíbrio)
       ctx.fillStyle = 'rgba(255,240,210,0.55)'; ctx.fillRect(-1, -bh / 2 - 7, 2, 5); ctx.fillRect(-1, bh / 2 + 2, 2, 5);
       // ClashCenterMarker: ponto de contato com faíscas, brilho de tensão e "chute" na troca de domínio
-      const glowC = tie ? '#f0e6d0' : h.ten > 0.04 ? '#bfeeff' : h.ten < -0.04 ? '#ffc0a0' : '#fff1c8';
+      const glowC = tie ? '#f0e6d0' : h.ten > 0.04 ? fL[2] : h.ten < -0.04 ? fR[2] : '#fff1c8';
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       const rg = ctx.createRadialGradient(cx, 0, 0, cx, 0, 26 + h.kick * 18 + Math.abs(h.vel) * 60);
       rg.addColorStop(0, 'rgba(255,245,220,0.9)'); rg.addColorStop(1, 'rgba(255,200,140,0)');
@@ -1249,15 +1347,15 @@
       ctx.fillRect(-ms, -ms, ms * 2, ms * 2); ctx.shadowBlur = 0; ctx.strokeRect(-ms, -ms, ms * 2, ms * 2);
       ctx.fillStyle = '#0a0610'; ctx.fillRect(-2.5, -2.5, 5, 5); ctx.restore();
       // seta de pressão (para onde o contato está sendo empurrado)
-      if (Math.abs(h.ten) > 0.08 && !tie) { const d = Math.sign(h.ten); ctx.fillStyle = d > 0 ? '#bfeeff' : '#ffc0a0'; ctx.globalAlpha = al * clamp(Math.abs(h.ten), 0.3, 0.9);
+      if (Math.abs(h.ten) > 0.08 && !tie) { const d = Math.sign(h.ten); ctx.fillStyle = d > 0 ? fL[2] : fR[2]; ctx.globalAlpha = al * clamp(Math.abs(h.ten), 0.3, 0.9);
         for (const o of [16, 24]) { ctx.beginPath(); ctx.moveTo(cx + d * (o + 6), 0); ctx.lineTo(cx + d * o, -5); ctx.lineTo(cx + d * o, 5); ctx.fill(); } ctx.globalAlpha = al; }
       // explosão no centro ao fim do Clash
-      if (h.boom > 0.02) { ctx.save(); ctx.globalAlpha = al * h.boom; ctx.strokeStyle = tie ? '#e8dccb' : L.win === 1 ? '#9fe8ff' : '#ffb070'; ctx.lineWidth = 3 * h.boom;
+      if (h.boom > 0.02) { ctx.save(); ctx.globalAlpha = al * h.boom; ctx.strokeStyle = tie ? '#e8dccb' : (L.win === 1 ? fL : fR)[2]; ctx.lineWidth = 3 * h.boom;
         ctx.beginPath(); ctx.arc(cx, 0, 14 + (1 - h.boom) * 46, 0, 7); ctx.stroke();
         for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + 0.3, r0 = 12 + (1 - h.boom) * 20, r1 = r0 + 12 * h.boom; ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r0, Math.sin(a) * r0); ctx.lineTo(cx + Math.cos(a) * r1, Math.sin(a) * r1); ctx.stroke(); }
         ctx.restore(); }
       // extremidades
-      for (const [p, side, d, edge] of [[L, 'ally', -1, h.edgeL], [R, 'enemy', 1, h.edgeR]]) {
+      for (const [p, side, d, edge] of [[L, L.team, -1, h.edgeL], [R, R.team, 1, h.edgeR]]) {
         const C = tie ? { main: '#c8c0b8', glow: '#e8dccb', dark: '#2a2628' } : COL[side];
         const dim = p.win === -1 ? 0.5 : p.lead === -1 ? 0.8 : 1;
         const sh = p.shake > 0.05 ? Math.sin(this.time * 0.09) * 3 * p.shake : 0;
@@ -1311,6 +1409,8 @@
       this.focusOn([...(T ? [A, B, T] : [A, B]), ...pA, ...pB]);
       await this.sync(A, B, ...pA, ...pB);
       this.faceTo(A, B); this.faceTo(B, A);
+      const usesAxes = sk => /^axe/.test(((sk.hits || [])[0] || {}).motion || '');
+      await Promise.all([this._vkArm(A, usesAxes(skA) ? 1 : 0), this._vkArm(B, usesAxes(skB) ? 1 : 0)]); // Valquíria empunha a arma da habilidade
 
       // 3. ponto de choque calculado dinamicamente
       let P;
@@ -1510,6 +1610,7 @@
           this.setState(D, 'DODGING');
           // esquiva para trás e para o lado (muda de profundidade)
           const side = D.y > (ARENA.minY + ARENA.maxY) / 2 ? -1 : 1;
+          if (D.art === 'valkyrie') { SFX('wingOpen', { vol: 0.6, pitch: 1.15 }); this.tween(D, { wing: 1 }, 80, 'out').then(() => this.tween(D, { wing: 0.2 }, 320, 'inOut')); } // impulso curto das asas
           if (c.outcome === 'dodged') {
             D.dashing = true;
             this.moveTo(D, D.x + away * 80, D.y + side * 42, 200, 'out').then(() => { D.dashing = false; });
@@ -2002,6 +2103,7 @@
         arm: v.arm + (down ? 0 : breath * 0.05) + w * 0.3 + (v.ready ? Math.sin(t * 0.0035 + v.phase) * 0.04 : 0),
         guard: Math.max(v.guard, threatGuard) * (1 - w * 0.25) + unsteady * 0.18, cast: v.cast * (1 - w * 0.2) + (v.ready ? 0.12 * Math.sin(t * 0.004) : 0) };
       pose.arm += unsteady * 0.12;
+      pose.wing = v.wing; pose.weapon = v.weapon; pose.swapFx = v.swapFx; pose.pq = pq; pose.down = down; pose.dashing = !!v.dashing;
       ART[v.art](ctx, pose);
       // apoio da mão no chão durante o desequilíbrio
       if (v.kneel > 0.4 && !v.dead) { ctx.fillStyle = '#d9c3a8'; ctx.beginPath(); ctx.arc(30, -6, 6, 0, 7); ctx.fill(); }
@@ -2235,6 +2337,87 @@
       ctx.beginPath(); ctx.moveTo(-2, -92 + b); ctx.lineTo(pull.x, pull.y); ctx.stroke();       // braço da corda
     },
   });
+
+
+  // Valquíria Alada — design original: armadura marfim com filetes de bronze, tabardo azul-celeste,
+  // cabelo prateado em rabo longo, diadema com pequenas penas, asas de "lâminas de pena" luminosas.
+  // p.wing: 0 = recolhidas · 1 = abertas · p.weapon: 0 = lança · 1 = duas machadinhas
+  ART.valkyrie = function (ctx, p) {
+    const b = p.idle * 1.6, t = p.t, w = p.wound || 0, pq = p.pq || 0;
+    const open = clamp(p.wing != null ? p.wing : 0.35, 0, 1.25); // retrato/prévia sem estado: asas meio abertas
+    // asas: a de trás mais escura; ferida → a de trás meio recolhida; postura baixa → batem para equilibrar
+    const flutter = Math.sin(t * 0.005) * 0.04 + pq * Math.sin(t * 0.017) * 0.18 + (p.dashing ? Math.sin(t * 0.04) * 0.1 : 0);
+    const wingFn = (sx, sy, o, back) => {
+      ctx.save(); ctx.translate(sx, sy);
+      const n = 6;
+      for (let i = 0; i < n; i++) {
+        const k = i / (n - 1);
+        // fechado: penas caídas para trás/baixo · aberto: leque para cima e para trás
+        const a = lerp(2.25 + k * 0.32, 3.5 + k * 1.3, o) - flutter * (1 - k * 0.5); // sempre por TRÁS (passa por π, nunca pela frente)
+        const len = (back ? 52 : 60) + (1 - Math.abs(k - 0.3)) * 26 * (0.6 + o * 0.5);
+        ctx.save(); ctx.rotate(a);
+        const gr = ctx.createLinearGradient(0, 0, len, 0);
+        gr.addColorStop(0, back ? '#8aa8b8' : '#e9f4f7'); gr.addColorStop(0.8, back ? '#6fc3dd' : '#bfefff'); gr.addColorStop(1, '#e8c66a');
+        ctx.fillStyle = gr; ctx.globalAlpha *= back ? 0.85 : 0.95;
+        ctx.beginPath(); ctx.moveTo(0, -3); ctx.quadraticCurveTo(len * 0.55, -10, len, 0); ctx.quadraticCurveTo(len * 0.55, 6, 0, 3); ctx.fill();
+        if (open > 0.3 && !back) { ctx.globalAlpha *= 0.5 * open; ctx.strokeStyle = '#dff8ff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(len - 4, 0); ctx.stroke(); }
+        ctx.restore();
+      }
+      ctx.restore();
+    };
+    ctx.save();
+    if (open > 0.5) { ctx.shadowColor = '#9fefff'; ctx.shadowBlur = 4 + open * 5; }
+    wingFn(-10, -96 + b, Math.max(0, open - w * 0.45), true);
+    ctx.restore();
+    // cabelo longo atrás (balança)
+    const sway = Math.sin(t * 0.004) * 4 + (p.dashing ? -10 : 0);
+    ctx.fillStyle = '#d9dfe6'; ctx.beginPath(); ctx.moveTo(-6, -126 + b); ctx.quadraticCurveTo(-26, -108 + b, -24 + sway, -76 + b); ctx.quadraticCurveTo(-14, -98 + b, -2, -112 + b); ctx.fill();
+    // pernas: grevas marfim com joelheira de bronze
+    ctx.fillStyle = '#d8d4cc'; poly(ctx, [-8, -50, 2, -50, -12, 0, -23, 0]); poly(ctx, [2, -50, 12, -50, 22, 0, 11, 0]);
+    ctx.fillStyle = '#b98a3e'; ctx.beginPath(); ctx.arc(-7, -26, 4, 0, 7); ctx.arc(14, -26, 4, 0, 7); ctx.fill();
+    // tabardo celeste que esvoaça
+    ctx.fillStyle = '#3f7fa8'; ctx.beginPath(); ctx.moveTo(-12, -58); ctx.lineTo(12, -58); ctx.lineTo(16 + Math.sin(t * 0.006) * 2, -26); ctx.lineTo(-2, -32); ctx.lineTo(-18 + Math.sin(t * 0.006 + 1) * 3, -24); ctx.closePath(); ctx.fill();
+    // couraça
+    ctx.fillStyle = '#ece6da'; rr(ctx, -13, -100 + b, 27, 46, 9);
+    ctx.fillStyle = '#b98a3e'; ctx.fillRect(-13, -62 + b * 0.5, 27, 4); poly(ctx, [-6, -98 + b, 8, -98 + b, 1, -80 + b]);
+    // cabeça + diadema com penas
+    ctx.fillStyle = '#efd2b8'; ctx.beginPath(); ctx.arc(3, -114 + b, 11, 0, 7); ctx.fill();
+    ctx.fillStyle = '#e4e8ee'; ctx.beginPath(); ctx.arc(1, -118 + b, 12, Math.PI * 0.95, Math.PI * 1.95); ctx.fill();
+    ctx.fillStyle = '#c99a44'; ctx.fillRect(-9, -122 + b, 22, 3);
+    ctx.fillStyle = '#f2f6f8'; poly(ctx, [-8, -121 + b, -20, -134 + b, -4, -124 + b]); poly(ctx, [-6, -122 + b, -14, -140 + b, -1, -125 + b]);
+    ctx.fillStyle = '#1d2a36'; ctx.fillRect(8, -116 + b, 3, 2);
+    // ombreira
+    ctx.fillStyle = '#c99a44'; ctx.beginPath(); ctx.ellipse(-2, -96 + b, 10, 6, -0.2, 0, 7); ctx.fill();
+    // ARMA
+    if (!(p.weapon >= 0.5)) {
+      // lança dourada com lâmina em folha e guarda em crescente (empunhada à frente)
+      ctx.save(); ctx.translate(8, -80 + b); ctx.rotate(-0.78 + (p.arm || 0) * 0.6 + w * 0.15);
+      ctx.strokeStyle = '#c99a44'; ctx.lineWidth = 4.5; ctx.beginPath(); ctx.moveTo(-36, 0); ctx.lineTo(108, 0); ctx.stroke();
+      ctx.strokeStyle = '#7fd8ee'; ctx.lineWidth = 1.2; ctx.globalAlpha *= 0.7; ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(100, 0); ctx.stroke(); ctx.globalAlpha /= 0.7;
+      ctx.fillStyle = '#d9b058'; ctx.beginPath(); ctx.moveTo(104, -9); ctx.quadraticCurveTo(112, 0, 104, 9); ctx.lineTo(108, 0); ctx.fill();
+      ctx.fillStyle = '#f4f8fb'; ctx.beginPath(); ctx.moveTo(108, -5); ctx.quadraticCurveTo(126, -7, 142, 0); ctx.quadraticCurveTo(126, 7, 108, 5); ctx.fill();
+      ctx.fillStyle = '#efd2b8'; ctx.beginPath(); ctx.arc(-6, 0, 4.5, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(24, 0, 4.5, 0, 7); ctx.fill();
+      ctx.restore();
+    } else {
+      // duas machadinhas: a de trás segue a guarda, a da frente segue p.arm
+      const axe = (x, y, rot) => {
+        ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+        ctx.strokeStyle = '#6b4a2e'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, 6); ctx.lineTo(0, -30); ctx.stroke();
+        ctx.fillStyle = '#e6eef3'; ctx.beginPath(); ctx.moveTo(1, -28); ctx.quadraticCurveTo(18, -34, 20, -18); ctx.quadraticCurveTo(14, -16, 1, -18); ctx.fill();
+        ctx.fillStyle = '#c99a44'; ctx.fillRect(-2, -30, 4, 4);
+        ctx.fillStyle = '#efd2b8'; ctx.beginPath(); ctx.arc(0, 2, 4.5, 0, 7); ctx.fill();
+        ctx.restore();
+      };
+      axe(-4, -82 + b, -0.5 - p.arm * 0.5 + p.guard * 0.6);
+      axe(14, -84 + b, 0.5 + p.arm * 0.9);
+    }
+    if ((p.swapFx || 0) > 0.05) { ctx.save(); ctx.globalAlpha *= p.swapFx; ctx.strokeStyle = '#bff4ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(10, -82 + b, 22 + (1 - p.swapFx) * 18, 0, 7); ctx.stroke(); ctx.restore(); }
+    // asa da frente por cima do ombro (não cobre rosto nem arma: nasce atrás do ombro e abre para trás)
+    ctx.save();
+    if (open > 0.5) { ctx.shadowColor = '#bff4ff'; ctx.shadowBlur = 4 + open * 6; }
+    ctx.globalAlpha *= 0.92; wingFn(-6, -94 + b, open, false);
+    ctx.restore();
+  };
 
   // Boneco de treino (só nas prévias das fichas)
   ART.dummy = function (ctx, p) {

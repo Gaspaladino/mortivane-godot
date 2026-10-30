@@ -75,6 +75,11 @@
       const N = (dur, o) => this._noise(t, dur, Object.assign({}, o, { peak: (o.peak || 0.4) * v, f0: (o.f0 || 1200) * p, f1: (o.f1 || o.f0 || 1200) * p }));
       const T = (dur, o, dt = 0) => this._tone(t + dt, dur, Object.assign({}, o, { peak: (o.peak || 0.3) * v, f0: (o.f0 || 440) * p, f1: (o.f1 || o.f0 || 440) * p }));
       switch (name) {
+        case 'wingOpen': N(0.28, { f0: 400, f1: 1800, q: 0.7, peak: 0.3, a: 0.06 }); N(0.18, { f0: 2600, f1: 5200, q: 3, peak: 0.08, a: 0.04 }); break; // bater de asas
+        case 'wingDash': N(0.32, { f0: 300, f1: 2400, q: 0.8, peak: 0.35, a: 0.05 }); T(0.3, { type: 'sine', f0: 520, f1: 1040, peak: 0.08 }, 0.02); break;     // impulso aéreo
+        case 'axeDraw': T(0.06, { type: 'square', f0: 1800, f1: 1400, peak: 0.07 }); T(0.08, { type: 'triangle', f0: 2400, f1: 2000, peak: 0.08 }, 0.05); break; // empunha machadinhas
+        case 'axeHit': N(0.09, { f0: 3200, f1: 1200, q: 1.2, peak: 0.36 }); T(0.08, { type: 'triangle', f0: 320, f1: 140, peak: 0.22 }); break;
+        case 'celestial': T(0.4, { type: 'sine', f0: 880, f1: 1320, peak: 0.07 }); T(0.4, { type: 'sine', f0: 1320, f1: 1760, peak: 0.05 }, 0.04); break; // brilho celestial
         case 'swish': N(0.16, { f0: 900, f1: 3200, q: 1.4, peak: 0.25, a: 0.03 }); break;              // movimento de lâmina
         case 'slash': N(0.12, { f0: 2600, f1: 900, q: 0.9, peak: 0.4 }); T(0.12, { type: 'triangle', f0: 180, f1: 90, peak: 0.25 }); break;
         case 'shield': T(0.2, { type: 'sine', f0: 110, f1: 55, peak: 0.55 }); N(0.08, { type: 'lowpass', f0: 900, peak: 0.35 }); break;

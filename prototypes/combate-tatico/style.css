@@ -105,7 +105,7 @@ body.resolving #panel { opacity:.6; }
 .team-head { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
 .team-head h1 { margin:0; color:var(--gold); letter-spacing:3px; font-size:clamp(18px,2.2vw,26px); }
 .team-grid { flex:1; min-height:0; display:grid; grid-template-columns: minmax(260px, 0.9fr) minmax(340px, 1.25fr) minmax(260px, 0.85fr); gap:12px; }
-.roster { display:grid; grid-template-columns:repeat(2,1fr); grid-template-rows:repeat(3,1fr); gap:8px; min-height:0; }
+.roster { display:grid; grid-template-columns:repeat(2,1fr); grid-template-rows:repeat(4,1fr); gap:8px; min-height:0; }
 .rcard { position:relative; min-height:0; display:flex; flex-direction:column; align-items:flex-start; gap:1px; padding:6px; border-radius:12px; text-align:left;
   background:#1d1522; border:1px solid var(--line); cursor:pointer; overflow:hidden; color:var(--text); }
 .rcard canvas { width:100%; flex:1; min-height:0; object-fit:cover; border-radius:8px; }

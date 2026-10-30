@@ -35,7 +35,7 @@ Cada habilidade de ataque tem **Força base**, **Batidas** (1 a 3) e **Impulso**
 - **Prévia no planejamento:** mostra força base, batidas, intervalo de impulso e a faixa final (ex.: "5 · 2 batidas (+0–2) → 5–9"). As chances de vitória, empate e derrota são **calculadas exatamente** sobre todas as combinações de impulsos. As categorias são Favorável, Equilibrado, Desfavorável, **Vitória certa** e **Derrota certa**. "Equilibrado" vale quando |P(vitória) − P(derrota)| ≤ `CONFIG.clash.evenBand` (padrão 0,12).
 - **Cartão de prévia compacto:** ícone, nome e faixa de força da habilidade aliada (azul) **VS** a inimiga (vermelho), e a categoria com ícone. Extras só como ícones: ⚡ (Quebra possível) e ▲/▼ (elemento). Ataques sem oposição mostram "sem confronto"; interceptações inválidas mostram "interceptação indisponível".
 - **Clash corpo a corpo × distância:** o lutador corpo a corpo fica parado e intercepta cada projétil por batida com um gesto da classe (Espadachim corte diagonal, Cavaleiro escudo/espada, Lanceiro haste, Lutador antebraço/esquiva). Quem lidera a batida decide: projétil desviado, defensor empurrado ou dissipação no empate. Batidas não causam dano nem Pressão. Se o corpo a corpo vence, avança e golpeia; se perde, o projétil acerta.
-- **HUD única de Clash (cabo-de-guerra):** uma barra compartilhada, **esquerda = aliado (azul), direita = inimigo (vermelho)**. As duas forças preenchem a barra até o **ponto de contato**: quem lidera avança e empurra o contato para o lado do adversário (empate = centro), com estrias correndo em direção ao contato, mola no movimento, tremor nos impactos, "chute" do marcador na troca de domínio, pulsação na ponta que lidera e uma pequena explosão no centro ao fim. Cada ponta mostra só o número da Força acumulada, o "+N" do impulso e os marcadores de batida. Largura acompanha a distância na tela (230–620 px), sempre dentro da tela, só durante o Clash.
+- **HUD única de Clash (cabo-de-guerra):** uma barra compartilhada cujos lados seguem a **posição real na tela** no início de cada Clash (aliado à direita do inimigo → azul à direita) e ficam fixos até o fim daquele Clash; empate de coluna mantém a última orientação. O empurrão sempre vai do lado que lidera para o outro. As duas forças preenchem a barra até o **ponto de contato**: quem lidera avança e empurra o contato para o lado do adversário (empate = centro), com estrias correndo em direção ao contato, mola no movimento, tremor nos impactos, "chute" do marcador na troca de domínio, pulsação na ponta que lidera e uma pequena explosão no centro ao fim. Cada ponta mostra só o número da Força acumulada, o "+N" do impulso e os marcadores de batida. Largura acompanha a distância na tela (230–620 px), sempre dentro da tela, só durante o Clash.
 
 ## Postura e Quebra de Guarda
 Cada personagem tem **Vida** (sempre **verde** nos aliados e **vermelha** nos inimigos; a cor identifica a equipe e nunca muda com a quantidade) e **Postura** (barra âmbar, mais fina, logo abaixo).
@@ -164,3 +164,15 @@ A interceptação só consome a ação do **interceptor**. O ataque inimigo é r
 
 - **Sem barra inferior:** só os botões **AUTO** e **Executar** ficam soltos no canto inferior direito durante o planejamento (fundo discreto, contorno, sombra, hover e clique). A ordem prevista e as dicas continuam disponíveis nos tooltips das correntes.
 - **Sem textos no Clash:** a legenda do topo ("CLASH · …", "INTERCEPTAÇÃO · …"), os banners de ataque combinado e os textos de vantagem elemental, efeitos aplicados e ações falhas foram removidos da execução; a luta é lida pela animação, pela barra, pelos números, pelos ícones e pelos efeitos.
+
+## Valquíria Alada (nova)
+
+Guerreira celestial original (armadura marfim e bronze, tabardo celeste, cabelo prateado, asas de penas luminosas). Elemento Azul · Vida 44 · Postura 60 · Velocidade 8 · alcança +1 para interceptar · esquiva 12%.
+
+- **Estocada Celestial** (lança · F6, 2 batidas +0–2 · D8 · P14): ajuste dos pés, recolhe e projeta com rastro luminoso.
+- **Dança das Lâminas** (machadinhas · F4, 3 batidas · D12 em 3 impactos · P24): troca de arma com brilho, corte diagonal, cruzado e giro com as asas + golpe duplo final.
+- **Investida das Asas** (lança · F5, 1 batida · D13 · P28 · desequilibra · recarga 2): asas abrem, energia na lança, voo baixo seguido pela câmera, impacto, onda e pouso.
+- **Passo Alado** (defesa): esquiva com impulso das asas.
+- Asas reagem ao Clash (abrem ao tomar a vantagem, absorvem o recuo), batem para equilibrar com Postura baixa e a de trás se recolhe com pouca Vida. Cinco gestos de espera próprios. Volta para a lança entre rodadas. Sons próprios: asas, investida, machadinhas, troca de arma.
+- Simulação: equipes com ela vencem ~58–59% (faixa do elenco: 54–84%).
+- **Ainda não implementados** (próxima etapa, conforme priorização): passiva *Ímpeto Celestial* e especial *Julgamento Celestial*.

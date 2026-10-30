@@ -2,7 +2,7 @@
 require('../js/data.js'); require('../js/ai.js'); require('../js/combat.js');
 const G = globalThis, N = +process.argv[2] || 500;
 const { SKILLS } = G;
-const PARTIES = [['knight', 'swordsman', 'mage'], ['knight', 'mage', 'archer'], ['swordsman', 'lancer', 'brawler'], ['knight', 'brawler', 'mage'], ['lancer', 'archer', 'brawler']];
+const PARTIES = [['knight', 'swordsman', 'mage'], ['valkyrie', 'knight', 'mage'], ['valkyrie', 'lancer', 'archer'], ['knight', 'mage', 'archer'], ['swordsman', 'lancer', 'brawler'], ['knight', 'brawler', 'mage'], ['lancer', 'archer', 'brawler']];
 
 // Jogador simples: tenta Clashes favoráveis, protege o mago se ele for alvo, senão ataca o mais fraco.
 function smartChoices(b) {

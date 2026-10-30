@@ -63,6 +63,16 @@
       desc: 'Pouco dano, mas o alvo perde 2 de força nos Clashes até o fim da próxima rodada. Age cedo.' },
     m_support: { name: 'Reforço Arcano', postureHeal: 15, icon: 'support', kind: 'support', tags: ['support'],
       desc: 'Um aliado ganha +2 de força na próxima habilidade ofensiva e recupera 15 de Postura. Age cedo.' },
+    // --- Valquíria Alada (mobilidade, lança + duas machadinhas)
+    v_thrust: { name: 'Estocada Celestial', pressure: 14, icon: 'spear', kind: 'attack', beats: 2, impulse: 2, force: 6, dmg: 8, tags: ['melee', 'fast'],
+      hits: [{ share: 1, motion: 'vthrust', react: 'final' }], desc: 'Estocada precisa e rápida com a lança, com rastro luminoso. Confiável no Clash.' },
+    v_axes: { name: 'Dança das Lâminas', pressure: 24, icon: 'flurry', kind: 'attack', beats: 3, impulse: 2, force: 4, dmg: 12, tags: ['melee'],
+      hits: [{ share: 0.3, motion: 'axe1', react: 'light' }, { share: 0.3, motion: 'axe2', react: 'light' }, { share: 0.4, motion: 'axe3', react: 'final' }],
+      desc: 'Troca a lança pelas machadinhas: corte diagonal, cruzado e giro final. O dano é dividido entre os impactos.' },
+    v_dive: { name: 'Investida das Asas', pressure: 28, icon: 'pierce', impact: 'stagger', kind: 'attack', beats: 1, impulse: 3, force: 5, dmg: 13, tags: ['melee'], cooldown: 2, windup: 1.2,
+      hits: [{ share: 1, motion: 'wingdash', react: 'final' }], desc: 'Abre as asas e voa baixo contra o alvo com a lança. Dano e Pressão altos, Força moderada.' },
+    v_evade: { name: 'Passo Alado', icon: 'dodge', kind: 'defense', reaction: 'dodge', tags: [],
+      desc: 'Prepara um impulso curto das asas para esquivar do próximo golpe.' },
     // --- Lanceiro (alcance e controle de distância)
     l_thrust: { name: 'Estocada', pressure: 12, icon: 'spear', kind: 'attack', beats: 1, impulse: 3, force: 8, dmg: 7, tags: ['melee', 'fast'],
       hits: [{ share: 1, motion: 'thrust', react: 'final' }], desc: 'Estocada rápida de longo alcance. Boa força de Clash.' },
@@ -157,6 +167,11 @@
       skills: ['m_bolt', 'm_blast', 'm_weaken', 'm_support', 'm_dodge'],
       trait: 'Frágil. Enfraquecimento e Suporte agem cedo e preparam os Clashes dos aliados.' },
 
+    valkyrie: { name: 'Valquíria', element: 'blue', good: 'Mobilidade: investidas com as asas e pressão com as machadinhas.', bestVs: 'Brutamontes (Azul > Vermelho)', limits: 'Menos resistente que o Cavaleiro; perde para Força alta.', offense: 'Lança (estocada, investida aérea) e duas machadinhas (3 impactos).', defense: 'Esquiva com impulso das asas.', specialty: 'Mobilidade aérea e versatilidade de armas', accent: '#9fd8e8', glyph: 'spear', role: 'Mobilidade', side: 'ally', art: 'valkyrie', posture: 60, formation: 0,
+      hp: 44, spd: 8, interceptReach: 1, dodgeSkill: 0.12,
+      skills: ['v_thrust', 'v_axes', 'v_dive', 'v_evade'],
+      style: 'Guerreira celestial ágil: alterna lança e machadinhas e usa as asas para avançar e se esquivar.',
+      trait: 'Rápida e versátil, mas frágil se perder o ritmo dos Clashes.' },
     lancer: { name: 'Lanceiro', element: 'green', good: 'Controla a distância e desgasta Postura com a Varredura.', bestVs: 'Alvos Azuis (Verde > Azul)', limits: 'Perde para magia roxa (Conjurador).', offense: 'Alcance longo; Varredura empurra, Investida desequilibra.', defense: 'Aparo com a haste.', specialty: 'Alcance e controle de distância', accent: '#6fbf7f', glyph: 'spear', role: 'Alcance', side: 'ally', art: 'lancer', posture: 75, formation: 1,
       hp: 50, spd: 7, interceptReach: 2, parrySkill: 0.05,
       skills: ['l_thrust', 'l_sweep', 'l_pierce', 'l_parry'],
@@ -196,9 +211,9 @@
   CONFIG.element = { advantage: 1.2, disadvantage: 0.8 }; // só no dano, por enquanto
 
   const PARTY = ['knight', 'swordsman', 'mage']; // equipe padrão
-  const ROSTER = ['knight', 'swordsman', 'mage', 'lancer', 'brawler', 'archer']; // jogáveis
+  const ROSTER = ['knight', 'swordsman', 'mage', 'lancer', 'brawler', 'archer', 'valkyrie']; // jogáveis
   const FOES = ['brute', 'duelist', 'conjurer'];
-  const AI_THREAT = { mage: 0.6, archer: 0.6, swordsman: 0.4, lancer: 0.3, brawler: 0.35, knight: 0.0 };
+  const AI_THREAT = { mage: 0.6, archer: 0.6, swordsman: 0.4, lancer: 0.3, brawler: 0.35, valkyrie: 0.35, knight: 0.0 };
 
   Object.assign(G, { ELEMENTS, ELEMENT_ORDER, CONFIG, REACTIONS, STATUS, SKILLS, COMBOS, AI_COMBO_CHANCE, UNITS, PARTY, ROSTER, FOES, AI_THREAT });
 })(typeof window !== 'undefined' ? window : globalThis);
