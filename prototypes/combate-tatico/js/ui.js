@@ -6,7 +6,7 @@
   'use strict';
   const { SKILLS } = G;
   const $ = sel => document.querySelector(sel);
-  const CAT = { favorable: ['Favorável', '#6fd890'], even: ['Equilibrado', '#ffd36a'], unfavorable: ['Desfavorável', '#ff7a6a'], certain: ['Vitória garantida', '#7fffb0'], doomed: ['Derrota garantida', '#ff5050'] };
+  const CAT = { favorable: ['Favorável', '#6fd890'], even: ['Equilibrado', '#ffd36a'], unfavorable: ['Desfavorável', '#ff7a6a'], certain: ['Vitória certa', '#7fffb0'], doomed: ['Derrota certa', '#ff5050'] };
 
   const UI = {
     CAT,

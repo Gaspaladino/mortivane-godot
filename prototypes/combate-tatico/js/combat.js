@@ -231,11 +231,15 @@
       return { win, tie, lose: Math.max(0, 1 - win - tie) };
     }
     range(side) { return [side.base, side.base + side.beats * side.imp]; }
+    // Classificação pelas probabilidades REAIS (força acumulativa):
+    // certa = 100% vitória · derrota certa = 100% derrota · senão compara vitória × derrota com margem configurável
     category(p, odds) {
       const c = CONFIG.clash;
-      if (odds && odds.win >= 0.9999) return 'certain';
-      if (odds && odds.lose >= 0.9999) return 'doomed';
-      return p >= c.favorable ? 'favorable' : p < c.unfavorable ? 'unfavorable' : 'even';
+      if (!odds) odds = { win: p, lose: 1 - p, tie: 0 };
+      if (odds.win >= 0.9999) return 'certain';
+      if (odds.lose >= 0.9999) return 'doomed';
+      const d = odds.win - odds.lose;
+      return Math.abs(d) <= c.evenBand ? 'even' : d > 0 ? 'favorable' : 'unfavorable';
     }
     // Simula só a parte determinística (modificadores na ordem certa) para a prévia.
     previewPlan(plan) {

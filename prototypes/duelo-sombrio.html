@@ -421,8 +421,9 @@ body.resolving #panel { opacity:.6; }
       // Habilidade com menos batidas mantém o valor acumulado nas batidas seguintes.
       rollMin: 0, rollMax: 3,     // (impulso padrão de habilidades sem 'impulse')
       closeMargin: 1,             // diferença <= 1 → Clash "equilibrado" (destaque maior)
-      favorable: 0.60,            // chance de vitória >= 60% → Favorável
-      unfavorable: 0.35,          // chance de vitória < 35% → Desfavorável
+      favorable: 0.60,            // (legado)
+      unfavorable: 0.35,          // (legado)
+      evenBand: 0.12,             // |P(vitória) − P(derrota)| <= 12 pontos → Equilibrado; acima, Favorável/Desfavorável
     },
     speed: { fast: 2, heavy: -2, support: 3, defense: 4 }, // prioridade por tag
     block: 0.5,                   // redução padrão do bloqueio (unidade pode sobrescrever)
@@ -847,11 +848,15 @@ body.resolving #panel { opacity:.6; }
       return { win, tie, lose: Math.max(0, 1 - win - tie) };
     }
     range(side) { return [side.base, side.base + side.beats * side.imp]; }
+    // Classificação pelas probabilidades REAIS (força acumulativa):
+    // certa = 100% vitória · derrota certa = 100% derrota · senão compara vitória × derrota com margem configurável
     category(p, odds) {
       const c = CONFIG.clash;
-      if (odds && odds.win >= 0.9999) return 'certain';
-      if (odds && odds.lose >= 0.9999) return 'doomed';
-      return p >= c.favorable ? 'favorable' : p < c.unfavorable ? 'unfavorable' : 'even';
+      if (!odds) odds = { win: p, lose: 1 - p, tie: 0 };
+      if (odds.win >= 0.9999) return 'certain';
+      if (odds.lose >= 0.9999) return 'doomed';
+      const d = odds.win - odds.lose;
+      return Math.abs(d) <= c.evenBand ? 'even' : d > 0 ? 'favorable' : 'unfavorable';
     }
     // Simula só a parte determinística (modificadores na ordem certa) para a prévia.
     previewPlan(plan) {
@@ -2209,13 +2214,19 @@ body.resolving #panel { opacity:.6; }
         imp: null, impA: 0, impY: 0, pips: sd.beats, used: 0, lead: 0, win: 0, a: 0, s: 0.4, pulse: 0, flash: 0, hold: false, shake: 0 });
       const pa = mk(ev.a, A, skA), pb = mk(ev.b, B, skB);
       const BL = left ? pa : pb, BR = left ? pb : pa;
-      // acima do confronto, fora dos rostos e das barras de vida, sempre dentro da tela
-      const tl = this.toWorld(0, 0), br = this.toWorld(this.canvas.clientWidth, this.canvas.clientHeight);
-      const cx = clamp(P.x, tl.x + 250, br.x - 250), cy = clamp(hy - 118, tl.y + 70, br.y - 160); // faixas dos nomes também cabem
-      BL.x = cx - 62; BR.x = cx + 62; BL.y = BR.y = cy; BL.dir = -1; BR.dir = 1; // faixa do nome cresce para fora
+      // ClashBadgePositioner: cada emblema fica ancorado no SEU personagem (acima das barras, fora do rosto);
+      // a faixa do nome cresce para fora do confronto; a posição é recalculada a cada quadro (_placeBadge)
+      pa.ref = A; pb.ref = B; pa.other = B; pb.other = A;
+      BL.dir = -1; BR.dir = 1;
+      this._placeBadge(pa); this._placeBadge(pb);
       const badges = [pa, pb];
       if (!this.skipping) this.plates.push(...badges);
       const ranged = [skA, skB].some(sk => sk.tags.includes('magic') || sk.tags.includes('ranged'));
+      // RangedClashController: melee × ranged = o melee intercepta/desvia os projéteis no lugar
+      const mixed = isRanged(skA) !== isRanged(skB);
+      const MV = mixed ? (isRanged(skA) ? B : A) : null, RV = mixed ? (MV === A ? B : A) : null;
+      const RS = mixed ? (RV === A ? skA : skB) : null;
+      const mSide = mixed ? (MV === A ? 'a' : 'b') : null;
       const matA = this._material(skA, A), matB = this._material(skB, B);
       const mats = [matA, matB];
       const mat = mats.includes('magic') ? 'magic' : mats.includes('body') ? 'body' : mats.includes('pierce') ? 'pierce' : mats.includes('shield') ? 'shield' : 'metal';
@@ -2232,7 +2243,9 @@ body.resolving #panel { opacity:.6; }
       for (let i = 0; i < n; i++) {
         const last = i === n - 1, bt = ev.beats[i], sa = ev.a.steps[i], sb = ev.b.steps[i];
         const pat = last && n > 1 ? PAT[2] : PAT[i % 2];
-        const contact = { x: P.x, y: hy + pat.dy };
+        const contact = mixed ? { x: MV.x + dirOf(MV) * 46, y: MV.y - 86 + pat.dy * 0.6 } : { x: P.x, y: hy + pat.dy };
+        if (mixed) { await this._deflectBeat(MV, RV, RS, contact, i, last, bt, mSide, dirOf); }
+        else {
         // 1. preparação (quem perdeu terreno na batida anterior arma um golpe maior para recuperar)
         const prep = [];
         for (const [v, st, isA] of [[A, sa, true], [B, sb, false]]) {
@@ -2254,12 +2267,13 @@ body.resolving #panel { opacity:.6; }
           for (const [v, st] of [[A, sa], [B, sb]]) if (st.imp != null) this.tween(v, Object.assign({}, pat.strike, { x: v.x + dirOf(v) * pat.step }), 60, 'in');
           await this.wait(55);
         }
+        }
         // 3. CONTATO: impacto + som + micro-pausa (mais forte na última batida)
         SFX(last && n > 1 ? 'beatFinal' : ({ magic: 'beatMagic', body: 'beatThud', pierce: 'beatPierce', shield: 'beatShield' }[mat] || (i % 2 ? 'beatClang' : 'beatTin')), { vol: last ? 1 : 0.8, pitch: 1 + i * 0.07 });
         this.hitStop(last ? 60 : 28);
         const leadSide = bt.lead === 'a' ? A : bt.lead === 'b' ? B : null;
         const ang = leadSide ? (dirOf(leadSide) > 0 ? 0 : Math.PI) : -Math.PI / 2;
-        this._impactBurst(contact.x, contact.y, ang, mat === 'magic' ? '#c8a0ff' : mat === 'body' ? '#ffe2c0' : '#fff2c0', last ? 1.2 : 0.8, mat);
+        if (!mixed) this._impactBurst(contact.x, contact.y, ang, mat === 'magic' ? '#c8a0ff' : mat === 'body' ? '#ffe2c0' : '#fff2c0', last ? 1.2 : 0.8, mat);
         this.hurtShake(last ? 5 : 2, leadSide ? dirOf(leadSide) : 0);
         // 4. revelação do impulso (pequeno, acima do emblema) e atualização rápida do número
         await this.wait(40);
@@ -2277,7 +2291,11 @@ body.resolving #panel { opacity:.6; }
         const lead = bt.lead, margin = Math.abs(bt.a - bt.b);
         pa.lead = lead === 'a' ? 1 : lead ? -1 : 0; pb.lead = lead === 'b' ? 1 : lead ? -1 : 0;
         if (lead && lastLead && lead !== lastLead) { SFX('leadSwap', { vol: 0.7 }); (lead === 'a' ? pa : pb).flash = 1; }
-        if (lead) {
+        if (mixed) {
+          // à distância: só quem está no lugar reage (o atirador não é empurrado do outro lado da arena)
+          if (lead && lead !== mSide) { const d = dirOf(RV); this.tween(MV, { x: clamp(MV.x + d * Math.min(26, 8 + margin * 5), ARENA.minX, ARENA.maxX), lean: -0.3, crouch: 0.1 }, 100, 'out'); (mSide === 'a' ? pa : pb).shake = 1; this.dust(MV, 3); }
+          else if (lead === mSide) { this.tween(MV, { lean: 0.2, x: MV.x + dirOf(MV) * 6 }, 90, 'out'); (mSide === 'a' ? pb : pa).shake = 1; }
+        } else if (lead) {
           const W = lead === 'a' ? A : B, Lz = lead === 'a' ? B : A, d = dirOf(W), push = Math.min(30, 8 + margin * 5);
           this.tween(W, { x: W.x + d * push * 0.6, lean: 0.36 }, 90, 'out');
           this.tween(Lz, { x: clamp(Lz.x + d * push, ARENA.minX, ARENA.maxX), lean: -0.22 - margin * 0.03, guard: Lz.art === 'knight' ? 0.5 : Lz.guard, crouch: 0.08 }, 100, 'out');
@@ -2302,6 +2320,45 @@ body.resolving #panel { opacity:.6; }
       return badges;
     }
 
+    // ProjectileDeflectionAnimator: o projétil vem, o melee intercepta com a SUA arma/corpo e o projétil
+    // é desviado (melee lidera), passa pela defesa (ranged lidera) ou se dissipa (empate na batida).
+    async _deflectBeat(MV, RV, RS, contact, i, last, bt, mSide, dirOf) {
+      const arrow = RS.tags.includes('ranged');
+      const color = arrow ? '#e8dcc0' : (RV.side === 'ally' ? '#8fd3ff' : '#c86bff');
+      const dur = clamp(150 + Math.abs(contact.x - RV.x) * 0.12, 160, 260);
+      // atirador dispara (variações: arco do projétil e intensidade na última batida)
+      if (arrow) { this.tween(RV, { cast: 1 }, 60).then(() => this.tween(RV, { cast: 0, lean: -0.1 }, 60)); SFX('bowRelease', { vol: 0.6 }); }
+      else { this.tween(RV, { cast: 1, arm: 0.3 }, 70); SFX('magicCast', { vol: 0.5 }); }
+      this.addFx({ kind: arrow ? 'arrow' : 'proj', dur, x0: RV.x + dirOf(RV) * 30, y0: RV.y - (arrow ? 96 : 112), x1: contact.x, y1: contact.y, color, arc: (i % 2 ? -1 : 1) * (arrow ? 6 : 18), heavy: last });
+      // o melee se prepara e intercepta exatamente na chegada
+      const G = { // pose de interceptação por classe: [preparo, golpe]
+        swordsman: [{ arm: -1.5, lean: -0.08 }, { arm: 1.1, lean: 0.22 }], duelist: [{ arm: -1.2 }, { arm: 1.0, lean: 0.2 }],
+        knight: i % 2 ? [{ arm: -1.3 }, { arm: 1.0, lean: 0.2 }] : [{ guard: 1.2, crouch: 0.1 }, { guard: 1.3, lean: 0.12 }], // escudo / espada
+        brute: [{ guard: 1, crouch: 0.12 }, { arm: 0.9, lean: 0.2 }],
+        lancer: i % 2 ? [{ arm: 0.4 }, { arm: 1.6, lean: 0.22 }] : [{ arm: 1.8 }, { arm: 0.6, lean: 0.18 }],  // estocada / varredura com a haste
+        brawler: [{ arm: -0.4, crouch: 0.12, lean: -0.12 }, { arm: 0.6, lean: 0.12, crouch: 0.05 }],       // antebraço + desvio
+      }[MV.art] || [{ guard: 1 }, { guard: 1.2 }];
+      this.tween(MV, Object.assign({}, G[0]), Math.max(60, dur - 90), 'out');
+      await this.wait(dur - 55);
+      this.tween(MV, Object.assign({}, G[1]), 55, 'in');
+      await this.wait(55);
+      const melLead = bt.lead === mSide, rngLead = bt.lead && !melLead;
+      if (melLead) {
+        // desviado: muda de trajetória (para cima ou para o chão) e se apaga — nada atravessa o defensor
+        const up = (i % 2 === 0), ang = (dirOf(RV) > 0 ? Math.PI : 0) + (up ? -0.9 : 0.75) * dirOf(MV);
+        this.addFx({ kind: 'deflect', dur: 260, x: contact.x, y: contact.y, ang, color, size: last ? 1.3 : 1 });
+        this._impactBurst(contact.x, contact.y, ang, '#fff2c0', last ? 1 : 0.7, MV.art === 'brawler' ? 'body' : 'metal');
+      } else if (rngLead) {
+        // passa pela defesa: impacto na guarda/corpo, recuo
+        this._impactBurst(MV.x, MV.y - 80, dirOf(RV) > 0 ? 0 : Math.PI, color, last ? 1.2 : 0.85, arrow ? 'pierce' : 'magic');
+        MV.flash = 0.5;
+      } else {
+        // empate na batida: dissipa na arma, com esforço
+        this.addFx({ kind: 'ring', dur: 240, x: contact.x, y: contact.y, color, r: 30 });
+        this._impactBurst(contact.x, contact.y, -Math.PI / 2, color, 0.6, 'magic');
+      }
+    }
+
     // CombatImpactFX: clarão direcional + estilhaços em cone + (pesado) onda de choque e poeira
     _impactBurst(x, y, ang, color, size = 1, kind = 'metal') {
       if (this.skipping) return;
@@ -2314,8 +2371,22 @@ body.resolving #panel { opacity:.6; }
       if (size >= 1.1) this.addFx({ kind: 'shock', dur: 260, x, y, r: 70 * size, color });
     }
 
+    _placeBadge(p) {
+      if (!p.ref) return;
+      const v = p.ref, o = p.other;
+      const close = o && Math.abs(o.x - v.x) < 170;            // perto: afasta levemente para lados opostos
+      const tl = this.toWorld(0, 0), br = this.toWorld(this.canvas.clientWidth, this.canvas.clientHeight);
+      const k = this.pxPerWorld || 1;
+      const wantX = v.x + (close ? p.dir * 46 : 0), wantY = v.y - 212 - (v.hop || 0);
+      // nunca sai da tela (inclui a faixa do nome); se o personagem sair do quadro, o emblema fica preso à borda
+      const padIn = 50 / k, padOut = 175 / k;
+      p.x = clamp(wantX, tl.x + (p.dir < 0 ? padOut : padIn), br.x - (p.dir > 0 ? padOut : padIn));
+      p.y = clamp(wantY, tl.y + 70 / k, br.y - 120 / k);
+      p.edge = Math.abs(p.x - wantX) > 30 / k ? Math.sign(wantX - p.x) : 0;
+    }
     _drawPlate(ctx, p) {
       if (p.a <= 0.01) return;
+      this._placeBadge(p);
       const ally = p.team === 'ally';
       const C = p.win === 2 ? { main: '#c8c0b8', glow: '#e8dccb', dark: '#2a2628' } : ally ? { main: '#4fc8ff', glow: '#9fe8ff', dark: '#0e2433' } : { main: '#ff6a3c', glow: '#ffb070', dark: '#331208' };
       const dim = p.win === -1 ? 0.5 : p.lead === -1 ? 0.78 : 1;
@@ -2356,6 +2427,7 @@ body.resolving #panel { opacity:.6; }
         ctx.fillRect(-3.5, -3.5, 7, 7); ctx.strokeRect(-3.5, -3.5, 7, 7); ctx.restore();
       }
       if (p.hold && !p.win) { ctx.font = '800 9px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#9fb0c0'; ctx.fillText('SEGURA', 0, R + 16); }
+      if (p.edge) { ctx.fillStyle = C.main; ctx.beginPath(); ctx.moveTo(p.edge * (R + 18), 0); ctx.lineTo(p.edge * (R + 8), -7); ctx.lineTo(p.edge * (R + 8), 7); ctx.fill(); } // aponta para o dono fora do quadro
       if (p.win === 2) { ctx.font = '800 10px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#e8dccb'; ctx.fillText('EMPATE', 0, R + 17); }
       // "+N": pequeno, surge acima do emblema e desce para dentro dele
       if (p.impA > 0.01 && p.imp) {
@@ -2389,7 +2461,7 @@ body.resolving #panel { opacity:.6; }
       // 3. ponto de choque calculado dinamicamente
       let P;
       if (T) { const dir = B.x >= T.x ? 1 : -1; P = { x: T.x + dir * 120, y: T.y + 4 }; }
-      else if (magA !== magB) { const M = magA ? A : B, O = magA ? B : A; P = { x: lerp(M.x, O.x, 0.55), y: (A.y + B.y) / 2 }; }
+      else if (magA !== magB) { const M = magA ? B : A, O = magA ? A : B, d = O.x >= M.x ? 1 : -1; P = { x: M.x + d * MOVE[M.art].reach, y: M.y }; } // melee × ranged: o melee intercepta no lugar
       else P = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
       P = this.clampPos(P.x, P.y);
 
@@ -2410,7 +2482,8 @@ body.resolving #panel { opacity:.6; }
       const go = [];
       for (const v of [A, B]) {
         const dir = v === A ? (P.x >= A.x ? 1 : -1) : (P.x >= B.x ? 1 : -1);
-        if (!melee(v)) {
+        if (!melee(v) && magA !== magB) { this.tween(v, { cast: 0.8, arm: -0.3 }, 160); go.push(this.wait(160)); } // misto: só arma; os disparos são as batidas
+        else if (!melee(v)) {
           this.tween(v, { arm: 0.3, lean: 0.08 }, 120);
           const arrow = (v === A ? skA : skB).tags.includes('ranged');
           if (arrow) { SFX('bowRelease'); this.tween(v, { cast: 0 }, 70); } else SFX('magicCast', { vol: 0.6 });
@@ -2949,6 +3022,12 @@ body.resolving #panel { opacity:.6; }
             ctx.beginPath(); ctx.moveTo(Math.cos(a - 0.09) * 6, Math.sin(a - 0.09) * 6); ctx.lineTo(Math.cos(a) * len, Math.sin(a) * len); ctx.lineTo(Math.cos(a + 0.09) * 6, Math.sin(a + 0.09) * 6); ctx.fill();
           }
           ctx.globalAlpha = e; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, 0, 10 * f.size * e + 3, 0, 7); ctx.fill();
+        } else if (f.kind === 'deflect') {
+          // projétil rebatido: segue para fora da linha de ataque, perdendo intensidade
+          const dist = 140 * f.size * ease.out(p), x = f.x + Math.cos(f.ang) * dist, y = f.y + Math.sin(f.ang) * dist;
+          ctx.globalAlpha = 1 - p; ctx.strokeStyle = f.color; ctx.lineWidth = 3 * (1 - p) + 1;
+          ctx.beginPath(); ctx.moveTo(f.x + Math.cos(f.ang) * dist * 0.4, f.y + Math.sin(f.ang) * dist * 0.4); ctx.lineTo(x, y); ctx.stroke();
+          ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x, y, 6 * (1 - p) + 1, 0, 7); ctx.fill();
         } else if (f.kind === 'shock') {
           // onda de choque fina (pequena "distorção" no ponto de contato)
           ctx.globalAlpha = (1 - p) * 0.6; ctx.strokeStyle = f.color; ctx.lineWidth = 3 * (1 - p) + 0.5;
@@ -3330,7 +3409,7 @@ body.resolving #panel { opacity:.6; }
   };
   const styleOf = sk => sk.combo ? 'combo' : sk.kind;
   const CAT_COLOR = { favorable: '#6fd890', even: '#ffd36a', unfavorable: '#ff7a6a', certain: '#7fffb0', doomed: '#ff5050' };
-  const CAT_NAME = { favorable: 'Favorável', even: 'Equilibrado', unfavorable: 'Desfavorável', certain: 'Vitória garantida', doomed: 'Derrota garantida' };
+  const CAT_NAME = { favorable: 'Favorável', even: 'Equilibrado', unfavorable: 'Desfavorável', certain: 'Vitória certa', doomed: 'Derrota certa' };
 
   class Planner {
     // cb: { battle(), choices(), plan(), preview(), commit(uid, skillId, targetId), cancel(uid), toggleIntercept(uid) }
@@ -3680,6 +3759,83 @@ body.resolving #panel { opacity:.6; }
     elemLine(att, def) {
       const r = this.battle.elementRel(att, def);
       return r > 0 ? { t: `▲ Vantagem elemental (+20% de dano)`, c: '#7fe0a0' } : r < 0 ? { t: `▼ Desvantagem elemental (−20% de dano)`, c: '#ff9a8a' } : null;
+    }
+
+    // ============================================================ ClashPreviewUI (prévia rápida)
+    // Só o essencial: meu golpe (azul) × golpe inimigo (vermelho) com a faixa de força final,
+    // e a previsão calculada pelas probabilidades reais. O detalhe completo fica na ficha / tooltip da habilidade.
+    quickPreview(uid, skillId, targetId, intercept) {
+      const key = ['q', uid, skillId, targetId, intercept, JSON.stringify(this.cb.choices())].join('|');
+      if (this._qp && this._qp.key === key) return this._qp.data;          // não recalcula a cada quadro
+      const b = this.battle, sk = SKILLS[skillId];
+      const choices = JSON.parse(JSON.stringify(this.cb.choices()));
+      if (sk.combo) { for (const m of sk.members) { if (choices[m] && choices[m].comboWith) delete choices[m]; } uid = sk.members[0]; sk.members.slice(1).forEach(m => { choices[m] = { comboWith: uid }; }); }
+      choices[uid] = { skillId, targetId, intercept: intercept == null ? true : intercept };
+      let plan = b.buildPlan(choices);
+      let me = plan.actions.find(a => a.actorId === uid);
+      if (intercept == null && me && !(me.interceptInfo && me.interceptInfo.valid)) { choices[uid].intercept = false; plan = b.buildPlan(choices); me = plan.actions.find(a => a.actorId === uid); }
+      const prev = b.previewPlan(plan);
+      const ev = me && prev.find(e => e.type === 'clash' && (e.a.id === me.id || e.b.id === me.id));
+      const T = b.unit(targetId), U = b.unit(uid);
+      const side = (sd, s) => { const [lo, hi] = b.range(sd); return { icon: s.icon, name: s.name, lo, hi }; };
+      let data;
+      if (ev) {
+        const meFirst = ev.a.id === me.id, other = meFirst ? ev.b : ev.a;
+        const odds = meFirst ? ev.odds : { win: ev.odds.lose, tie: ev.odds.tie, lose: ev.odds.win };
+        const foe = b.unit(other.actorId);
+        data = { type: ev.link.type === 'intercept' ? 'intercept' : 'clash', me: side(meFirst ? ev.sa : ev.sb, sk), foe: side(meFirst ? ev.sb : ev.sa, SKILLS[other.skillId]),
+          cat: b.category(odds.win, odds), odds,
+          brk: !foe.stable && !foe.broken && foe.post <= (sk.pressure || 0), elem: b.elementRel(U, foe) };
+      } else if (sk.kind === 'attack') {
+        const info = me && me.interceptInfo;
+        data = info && !info.valid && intercept !== false
+          ? { type: 'invalid', me: { icon: sk.icon, name: sk.name }, msg: 'Interceptação indisponível', sub: `vel. ${info.mySpeed}${info.reach ? '+' + info.reach : ''} < ${info.enemySpeed}` }
+          : { type: 'free', me: { icon: sk.icon, name: sk.name }, msg: 'Sem confronto', sub: `dano ${Math.round(sk.dmg * b.elementMult(U, T))}`, elem: b.elementRel(U, T) };
+      } else data = { type: 'free', me: { icon: sk.icon, name: sk.name }, msg: sk.kind === 'support' ? 'Suporte' : 'Proteção', sub: T.name };
+      this._qp = { key, data, t: this.p.time };
+      return data;
+    }
+    _drawCard(ctx, x, y, d) {
+      const k = this.p.pxPerWorld, u = 1 / k;
+      const CAT_ICON = { favorable: 'up', even: 'clash', unfavorable: 'warn', certain: 'check', doomed: 'skull' };
+      const intro = clamp((this.p.time - (this._qp ? this._qp.t : 0)) / 120, 0, 1);
+      const w = 236 * u, h = (d.type === 'clash' || d.type === 'intercept' ? 112 : 58) * u;
+      const tl = this.p.toWorld(8, 8), br = this.p.toWorld(this.p.canvas.clientWidth - 8, this.p.canvas.clientHeight - 8);
+      let bx = clamp(x - w / 2, tl.x, br.x - w), by = clamp(y - h - 16 * u, tl.y, br.y - h);
+      ctx.save(); ctx.globalAlpha = intro; ctx.translate(bx + w / 2, by + h / 2); ctx.scale(0.92 + 0.08 * intro, 0.92 + 0.08 * intro); ctx.translate(-w / 2, -h / 2);
+      ctx.fillStyle = 'rgba(12,8,16,0.94)'; ctx.strokeStyle = 'rgba(216,180,90,0.55)'; ctx.lineWidth = 1.2 * u;
+      ctx.beginPath(); ctx.roundRect(0, 0, w, h, 8 * u); ctx.fill(); ctx.stroke();
+      const row = (yy, s, team) => {
+        const col = team === 'ally' ? '#4fc8ff' : '#ff6a3c';
+        this._disk(ctx, 18 * u, yy, 11 * u, '#140c14', col, s.icon, false);
+        ctx.font = `700 ${12.5 * u}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'left'; ctx.fillStyle = '#efe6d8';
+        ctx.fillText(s.name, 36 * u, yy + 4 * u);
+        if (s.lo != null) { ctx.font = `900 ${16 * u}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'right'; ctx.fillStyle = col; ctx.fillText(s.lo === s.hi ? `${s.lo}` : `${s.lo}–${s.hi}`, w - 10 * u, yy + 5 * u); }
+      };
+      if (d.type === 'clash' || d.type === 'intercept') {
+        row(20 * u, d.me, 'ally');
+        ctx.font = `800 ${9.5 * u}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = '#9a8c99';
+        ctx.fillText(d.type === 'intercept' ? 'VS · INTERCEPTA' : 'VS', w / 2, 41 * u);
+        row(60 * u, d.foe, 'enemy');
+        // previsão: ícone + rótulo (não depende só da cor)
+        const col = CAT_COLOR[d.cat];
+        ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(6 * u, 78 * u, w - 12 * u, 28 * u);
+        drawIcon(ctx, CAT_ICON[d.cat], 22 * u, 92 * u, 9 * u, col);
+        ctx.font = `900 ${13 * u}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'left'; ctx.fillStyle = col;
+        ctx.fillText(CAT_NAME[d.cat].toUpperCase(), 38 * u, 97 * u);
+        // exceções discretas: possível Quebra e elemento
+        let ix = w - 14 * u;
+        ctx.font = `900 ${13 * u}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'center';
+        if (d.elem) { ctx.fillStyle = d.elem > 0 ? '#7fe0a0' : '#ff9a8a'; ctx.fillText(d.elem > 0 ? '▲' : '▼', ix, 97 * u); ix -= 18 * u; }
+        if (d.brk) { ctx.fillStyle = '#ffd36a'; ctx.fillText('⚡', ix, 97 * u); }
+      } else {
+        row(18 * u, d.me, 'ally');
+        ctx.font = `800 ${11 * u}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'left';
+        ctx.fillStyle = d.type === 'invalid' ? '#ff9a8a' : '#cbbfb0'; ctx.fillText(d.msg, 36 * u, 44 * u);
+        ctx.textAlign = 'right'; ctx.fillStyle = '#9a8c99'; ctx.fillText(d.sub || '', w - 10 * u, 44 * u);
+        if (d.elem) { ctx.textAlign = 'left'; ctx.fillStyle = d.elem > 0 ? '#7fe0a0' : '#ff9a8a'; ctx.fillText(d.elem > 0 ? '▲' : '▼', 18 * u, 44 * u); }
+      }
+      ctx.restore();
     }
 
     // ============================================================ ChainRenderer
@@ -4032,12 +4188,10 @@ body.resolving #panel { opacity:.6; }
           const uid = this._activeUid(), sid = this._activeSkill();
           if (uid && sid && this.hover.unit && this.validTargets(uid, sid).includes(this.hover.unit)) {
             const T = vis[this.hover.unit];
-            this._tooltip(ctx, T.x, T.y - 175, this.previewLines(uid, sid, this.hover.unit, null));
+            this._drawCard(ctx, T.x, T.y - 175, this.quickPreview(uid, sid, this.hover.unit, null));
           } else if (this.hover.badge && !this.drag) {
             const a = this.hover.badge.act, c = choices[a.actorId];
-            const lines = this.previewLines(a.actorId, a.skillId, a.targetId, c.intercept).slice();
-            if (this.hover.badge.toggle) lines.push({ t: 'Clique para ligar/desligar a interceptação', c: '#9fd0ff' });
-            this._tooltip(ctx, this.hover.badge.x, this.hover.badge.y - 22 / k2, lines);
+            this._drawCard(ctx, this.hover.badge.x, this.hover.badge.y - 10 / k2, this.quickPreview(a.actorId, a.skillId, a.targetId, c.intercept));
           } else if (this.hover.intent) {
             const it = b.intents.find(i => i.id === this.hover.intent.id);
             if (it) this._tooltip(ctx, this.hover.intent.x, this.hover.intent.y - 18 / k2, this.intentLines(it));
@@ -4134,6 +4288,10 @@ body.resolving #panel { opacity:.6; }
       case 'arrow': L([-0.85, 0.85, 0.55, -0.55]); L([0.25, -0.75, 0.85, -0.85, 0.75, -0.25], true, true); L([-0.85, 0.85, -0.85, 0.45]); L([-0.85, 0.85, -0.45, 0.85]); break;
       case 'arrow2': L([-0.85, 0.5, 0.45, -0.8]); L([-0.5, 0.85, 0.8, -0.45]); L([0.3, -0.95, 0.6, -0.95, 0.55, -0.65], true, true); L([0.65, -0.6, 0.95, -0.6, 0.9, -0.3], true, true); break;
       case 'arrowp': L([-0.9, 0.9, 0.55, -0.55]); L([0.2, -0.85, 0.95, -0.95, 0.85, -0.2], true, true); ctx.beginPath(); ctx.arc(0.65 * s, -0.65 * s, 0.25 * s, 0, 7); ctx.stroke(); break;
+      case 'up': L([0, 0.8, 0, -0.6]); L([-0.6, -0.05, 0, -0.75, 0.6, -0.05], false); break;
+      case 'warn': L([0, -0.85, 0.85, 0.7, -0.85, 0.7], true); ctx.fillStyle = '#140c14'; ctx.fillRect(-0.08 * s, -0.35 * s, 0.16 * s, 0.6 * s); ctx.fillStyle = color; break;
+      case 'check': L([-0.7, 0, -0.2, 0.55, 0.75, -0.6], false); break;
+      case 'skull': ctx.beginPath(); ctx.arc(0, -0.15 * s, 0.65 * s, 0, 7); ctx.fill(); ctx.fillRect(-0.35 * s, 0.3 * s, 0.7 * s, 0.45 * s); ctx.fillStyle = '#140c14'; ctx.beginPath(); ctx.arc(-0.25 * s, -0.15 * s, 0.15 * s, 0, 7); ctx.arc(0.25 * s, -0.15 * s, 0.15 * s, 0, 7); ctx.fill(); ctx.fillStyle = color; break;
       case 'combo': L([-0.8, 0.7, 0.35, -0.45]); L([0.8, 0.7, -0.35, -0.45]); ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 - Math.PI / 2, r = (i % 2 ? 0.14 : 0.36) * s; ctx.lineTo(Math.cos(a) * r, -0.62 * s + Math.sin(a) * r); } ctx.closePath(); ctx.fill(); break;
       default: ctx.beginPath(); ctx.arc(0, 0, 0.5 * s, 0, 7); ctx.fill();
     }
@@ -4250,7 +4408,7 @@ body.resolving #panel { opacity:.6; }
   'use strict';
   const { SKILLS } = G;
   const $ = sel => document.querySelector(sel);
-  const CAT = { favorable: ['Favorável', '#6fd890'], even: ['Equilibrado', '#ffd36a'], unfavorable: ['Desfavorável', '#ff7a6a'], certain: ['Vitória garantida', '#7fffb0'], doomed: ['Derrota garantida', '#ff5050'] };
+  const CAT = { favorable: ['Favorável', '#6fd890'], even: ['Equilibrado', '#ffd36a'], unfavorable: ['Desfavorável', '#ff7a6a'], certain: ['Vitória certa', '#7fffb0'], doomed: ['Derrota certa', '#ff5050'] };
 
   const UI = {
     CAT,

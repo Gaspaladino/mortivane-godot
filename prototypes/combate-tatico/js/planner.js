@@ -20,7 +20,7 @@
   };
   const styleOf = sk => sk.combo ? 'combo' : sk.kind;
   const CAT_COLOR = { favorable: '#6fd890', even: '#ffd36a', unfavorable: '#ff7a6a', certain: '#7fffb0', doomed: '#ff5050' };
-  const CAT_NAME = { favorable: 'Favorável', even: 'Equilibrado', unfavorable: 'Desfavorável', certain: 'Vitória garantida', doomed: 'Derrota garantida' };
+  const CAT_NAME = { favorable: 'Favorável', even: 'Equilibrado', unfavorable: 'Desfavorável', certain: 'Vitória certa', doomed: 'Derrota certa' };
 
   class Planner {
     // cb: { battle(), choices(), plan(), preview(), commit(uid, skillId, targetId), cancel(uid), toggleIntercept(uid) }
@@ -370,6 +370,83 @@
     elemLine(att, def) {
       const r = this.battle.elementRel(att, def);
       return r > 0 ? { t: `▲ Vantagem elemental (+20% de dano)`, c: '#7fe0a0' } : r < 0 ? { t: `▼ Desvantagem elemental (−20% de dano)`, c: '#ff9a8a' } : null;
+    }
+
+    // ============================================================ ClashPreviewUI (prévia rápida)
+    // Só o essencial: meu golpe (azul) × golpe inimigo (vermelho) com a faixa de força final,
+    // e a previsão calculada pelas probabilidades reais. O detalhe completo fica na ficha / tooltip da habilidade.
+    quickPreview(uid, skillId, targetId, intercept) {
+      const key = ['q', uid, skillId, targetId, intercept, JSON.stringify(this.cb.choices())].join('|');
+      if (this._qp && this._qp.key === key) return this._qp.data;          // não recalcula a cada quadro
+      const b = this.battle, sk = SKILLS[skillId];
+      const choices = JSON.parse(JSON.stringify(this.cb.choices()));
+      if (sk.combo) { for (const m of sk.members) { if (choices[m] && choices[m].comboWith) delete choices[m]; } uid = sk.members[0]; sk.members.slice(1).forEach(m => { choices[m] = { comboWith: uid }; }); }
+      choices[uid] = { skillId, targetId, intercept: intercept == null ? true : intercept };
+      let plan = b.buildPlan(choices);
+      let me = plan.actions.find(a => a.actorId === uid);
+      if (intercept == null && me && !(me.interceptInfo && me.interceptInfo.valid)) { choices[uid].intercept = false; plan = b.buildPlan(choices); me = plan.actions.find(a => a.actorId === uid); }
+      const prev = b.previewPlan(plan);
+      const ev = me && prev.find(e => e.type === 'clash' && (e.a.id === me.id || e.b.id === me.id));
+      const T = b.unit(targetId), U = b.unit(uid);
+      const side = (sd, s) => { const [lo, hi] = b.range(sd); return { icon: s.icon, name: s.name, lo, hi }; };
+      let data;
+      if (ev) {
+        const meFirst = ev.a.id === me.id, other = meFirst ? ev.b : ev.a;
+        const odds = meFirst ? ev.odds : { win: ev.odds.lose, tie: ev.odds.tie, lose: ev.odds.win };
+        const foe = b.unit(other.actorId);
+        data = { type: ev.link.type === 'intercept' ? 'intercept' : 'clash', me: side(meFirst ? ev.sa : ev.sb, sk), foe: side(meFirst ? ev.sb : ev.sa, SKILLS[other.skillId]),
+          cat: b.category(odds.win, odds), odds,
+          brk: !foe.stable && !foe.broken && foe.post <= (sk.pressure || 0), elem: b.elementRel(U, foe) };
+      } else if (sk.kind === 'attack') {
+        const info = me && me.interceptInfo;
+        data = info && !info.valid && intercept !== false
+          ? { type: 'invalid', me: { icon: sk.icon, name: sk.name }, msg: 'Interceptação indisponível', sub: `vel. ${info.mySpeed}${info.reach ? '+' + info.reach : ''} < ${info.enemySpeed}` }
+          : { type: 'free', me: { icon: sk.icon, name: sk.name }, msg: 'Sem confronto', sub: `dano ${Math.round(sk.dmg * b.elementMult(U, T))}`, elem: b.elementRel(U, T) };
+      } else data = { type: 'free', me: { icon: sk.icon, name: sk.name }, msg: sk.kind === 'support' ? 'Suporte' : 'Proteção', sub: T.name };
+      this._qp = { key, data, t: this.p.time };
+      return data;
+    }
+    _drawCard(ctx, x, y, d) {
+      const k = this.p.pxPerWorld, u = 1 / k;
+      const CAT_ICON = { favorable: 'up', even: 'clash', unfavorable: 'warn', certain: 'check', doomed: 'skull' };
+      const intro = clamp((this.p.time - (this._qp ? this._qp.t : 0)) / 120, 0, 1);
+      const w = 236 * u, h = (d.type === 'clash' || d.type === 'intercept' ? 112 : 58) * u;
+      const tl = this.p.toWorld(8, 8), br = this.p.toWorld(this.p.canvas.clientWidth - 8, this.p.canvas.clientHeight - 8);
+      let bx = clamp(x - w / 2, tl.x, br.x - w), by = clamp(y - h - 16 * u, tl.y, br.y - h);
+      ctx.save(); ctx.globalAlpha = intro; ctx.translate(bx + w / 2, by + h / 2); ctx.scale(0.92 + 0.08 * intro, 0.92 + 0.08 * intro); ctx.translate(-w / 2, -h / 2);
+      ctx.fillStyle = 'rgba(12,8,16,0.94)'; ctx.strokeStyle = 'rgba(216,180,90,0.55)'; ctx.lineWidth = 1.2 * u;
+      ctx.beginPath(); ctx.roundRect(0, 0, w, h, 8 * u); ctx.fill(); ctx.stroke();
+      const row = (yy, s, team) => {
+        const col = team === 'ally' ? '#4fc8ff' : '#ff6a3c';
+        this._disk(ctx, 18 * u, yy, 11 * u, '#140c14', col, s.icon, false);
+        ctx.font = `700 ${12.5 * u}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'left'; ctx.fillStyle = '#efe6d8';
+        ctx.fillText(s.name, 36 * u, yy + 4 * u);
+        if (s.lo != null) { ctx.font = `900 ${16 * u}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'right'; ctx.fillStyle = col; ctx.fillText(s.lo === s.hi ? `${s.lo}` : `${s.lo}–${s.hi}`, w - 10 * u, yy + 5 * u); }
+      };
+      if (d.type === 'clash' || d.type === 'intercept') {
+        row(20 * u, d.me, 'ally');
+        ctx.font = `800 ${9.5 * u}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = '#9a8c99';
+        ctx.fillText(d.type === 'intercept' ? 'VS · INTERCEPTA' : 'VS', w / 2, 41 * u);
+        row(60 * u, d.foe, 'enemy');
+        // previsão: ícone + rótulo (não depende só da cor)
+        const col = CAT_COLOR[d.cat];
+        ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(6 * u, 78 * u, w - 12 * u, 28 * u);
+        drawIcon(ctx, CAT_ICON[d.cat], 22 * u, 92 * u, 9 * u, col);
+        ctx.font = `900 ${13 * u}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'left'; ctx.fillStyle = col;
+        ctx.fillText(CAT_NAME[d.cat].toUpperCase(), 38 * u, 97 * u);
+        // exceções discretas: possível Quebra e elemento
+        let ix = w - 14 * u;
+        ctx.font = `900 ${13 * u}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'center';
+        if (d.elem) { ctx.fillStyle = d.elem > 0 ? '#7fe0a0' : '#ff9a8a'; ctx.fillText(d.elem > 0 ? '▲' : '▼', ix, 97 * u); ix -= 18 * u; }
+        if (d.brk) { ctx.fillStyle = '#ffd36a'; ctx.fillText('⚡', ix, 97 * u); }
+      } else {
+        row(18 * u, d.me, 'ally');
+        ctx.font = `800 ${11 * u}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'left';
+        ctx.fillStyle = d.type === 'invalid' ? '#ff9a8a' : '#cbbfb0'; ctx.fillText(d.msg, 36 * u, 44 * u);
+        ctx.textAlign = 'right'; ctx.fillStyle = '#9a8c99'; ctx.fillText(d.sub || '', w - 10 * u, 44 * u);
+        if (d.elem) { ctx.textAlign = 'left'; ctx.fillStyle = d.elem > 0 ? '#7fe0a0' : '#ff9a8a'; ctx.fillText(d.elem > 0 ? '▲' : '▼', 18 * u, 44 * u); }
+      }
+      ctx.restore();
     }
 
     // ============================================================ ChainRenderer
@@ -722,12 +799,10 @@
           const uid = this._activeUid(), sid = this._activeSkill();
           if (uid && sid && this.hover.unit && this.validTargets(uid, sid).includes(this.hover.unit)) {
             const T = vis[this.hover.unit];
-            this._tooltip(ctx, T.x, T.y - 175, this.previewLines(uid, sid, this.hover.unit, null));
+            this._drawCard(ctx, T.x, T.y - 175, this.quickPreview(uid, sid, this.hover.unit, null));
           } else if (this.hover.badge && !this.drag) {
             const a = this.hover.badge.act, c = choices[a.actorId];
-            const lines = this.previewLines(a.actorId, a.skillId, a.targetId, c.intercept).slice();
-            if (this.hover.badge.toggle) lines.push({ t: 'Clique para ligar/desligar a interceptação', c: '#9fd0ff' });
-            this._tooltip(ctx, this.hover.badge.x, this.hover.badge.y - 22 / k2, lines);
+            this._drawCard(ctx, this.hover.badge.x, this.hover.badge.y - 10 / k2, this.quickPreview(a.actorId, a.skillId, a.targetId, c.intercept));
           } else if (this.hover.intent) {
             const it = b.intents.find(i => i.id === this.hover.intent.id);
             if (it) this._tooltip(ctx, this.hover.intent.x, this.hover.intent.y - 18 / k2, this.intentLines(it));
@@ -824,6 +899,10 @@
       case 'arrow': L([-0.85, 0.85, 0.55, -0.55]); L([0.25, -0.75, 0.85, -0.85, 0.75, -0.25], true, true); L([-0.85, 0.85, -0.85, 0.45]); L([-0.85, 0.85, -0.45, 0.85]); break;
       case 'arrow2': L([-0.85, 0.5, 0.45, -0.8]); L([-0.5, 0.85, 0.8, -0.45]); L([0.3, -0.95, 0.6, -0.95, 0.55, -0.65], true, true); L([0.65, -0.6, 0.95, -0.6, 0.9, -0.3], true, true); break;
       case 'arrowp': L([-0.9, 0.9, 0.55, -0.55]); L([0.2, -0.85, 0.95, -0.95, 0.85, -0.2], true, true); ctx.beginPath(); ctx.arc(0.65 * s, -0.65 * s, 0.25 * s, 0, 7); ctx.stroke(); break;
+      case 'up': L([0, 0.8, 0, -0.6]); L([-0.6, -0.05, 0, -0.75, 0.6, -0.05], false); break;
+      case 'warn': L([0, -0.85, 0.85, 0.7, -0.85, 0.7], true); ctx.fillStyle = '#140c14'; ctx.fillRect(-0.08 * s, -0.35 * s, 0.16 * s, 0.6 * s); ctx.fillStyle = color; break;
+      case 'check': L([-0.7, 0, -0.2, 0.55, 0.75, -0.6], false); break;
+      case 'skull': ctx.beginPath(); ctx.arc(0, -0.15 * s, 0.65 * s, 0, 7); ctx.fill(); ctx.fillRect(-0.35 * s, 0.3 * s, 0.7 * s, 0.45 * s); ctx.fillStyle = '#140c14'; ctx.beginPath(); ctx.arc(-0.25 * s, -0.15 * s, 0.15 * s, 0, 7); ctx.arc(0.25 * s, -0.15 * s, 0.15 * s, 0, 7); ctx.fill(); ctx.fillStyle = color; break;
       case 'combo': L([-0.8, 0.7, 0.35, -0.45]); L([0.8, 0.7, -0.35, -0.45]); ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 - Math.PI / 2, r = (i % 2 ? 0.14 : 0.36) * s; ctx.lineTo(Math.cos(a) * r, -0.62 * s + Math.sin(a) * r); } ctx.closePath(); ctx.fill(); break;
       default: ctx.beginPath(); ctx.arc(0, 0, 0.5 * s, 0, 7); ctx.fill();
     }

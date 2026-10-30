@@ -1014,13 +1014,19 @@
         imp: null, impA: 0, impY: 0, pips: sd.beats, used: 0, lead: 0, win: 0, a: 0, s: 0.4, pulse: 0, flash: 0, hold: false, shake: 0 });
       const pa = mk(ev.a, A, skA), pb = mk(ev.b, B, skB);
       const BL = left ? pa : pb, BR = left ? pb : pa;
-      // acima do confronto, fora dos rostos e das barras de vida, sempre dentro da tela
-      const tl = this.toWorld(0, 0), br = this.toWorld(this.canvas.clientWidth, this.canvas.clientHeight);
-      const cx = clamp(P.x, tl.x + 250, br.x - 250), cy = clamp(hy - 118, tl.y + 70, br.y - 160); // faixas dos nomes também cabem
-      BL.x = cx - 62; BR.x = cx + 62; BL.y = BR.y = cy; BL.dir = -1; BR.dir = 1; // faixa do nome cresce para fora
+      // ClashBadgePositioner: cada emblema fica ancorado no SEU personagem (acima das barras, fora do rosto);
+      // a faixa do nome cresce para fora do confronto; a posição é recalculada a cada quadro (_placeBadge)
+      pa.ref = A; pb.ref = B; pa.other = B; pb.other = A;
+      BL.dir = -1; BR.dir = 1;
+      this._placeBadge(pa); this._placeBadge(pb);
       const badges = [pa, pb];
       if (!this.skipping) this.plates.push(...badges);
       const ranged = [skA, skB].some(sk => sk.tags.includes('magic') || sk.tags.includes('ranged'));
+      // RangedClashController: melee × ranged = o melee intercepta/desvia os projéteis no lugar
+      const mixed = isRanged(skA) !== isRanged(skB);
+      const MV = mixed ? (isRanged(skA) ? B : A) : null, RV = mixed ? (MV === A ? B : A) : null;
+      const RS = mixed ? (RV === A ? skA : skB) : null;
+      const mSide = mixed ? (MV === A ? 'a' : 'b') : null;
       const matA = this._material(skA, A), matB = this._material(skB, B);
       const mats = [matA, matB];
       const mat = mats.includes('magic') ? 'magic' : mats.includes('body') ? 'body' : mats.includes('pierce') ? 'pierce' : mats.includes('shield') ? 'shield' : 'metal';
@@ -1037,7 +1043,9 @@
       for (let i = 0; i < n; i++) {
         const last = i === n - 1, bt = ev.beats[i], sa = ev.a.steps[i], sb = ev.b.steps[i];
         const pat = last && n > 1 ? PAT[2] : PAT[i % 2];
-        const contact = { x: P.x, y: hy + pat.dy };
+        const contact = mixed ? { x: MV.x + dirOf(MV) * 46, y: MV.y - 86 + pat.dy * 0.6 } : { x: P.x, y: hy + pat.dy };
+        if (mixed) { await this._deflectBeat(MV, RV, RS, contact, i, last, bt, mSide, dirOf); }
+        else {
         // 1. preparação (quem perdeu terreno na batida anterior arma um golpe maior para recuperar)
         const prep = [];
         for (const [v, st, isA] of [[A, sa, true], [B, sb, false]]) {
@@ -1059,12 +1067,13 @@
           for (const [v, st] of [[A, sa], [B, sb]]) if (st.imp != null) this.tween(v, Object.assign({}, pat.strike, { x: v.x + dirOf(v) * pat.step }), 60, 'in');
           await this.wait(55);
         }
+        }
         // 3. CONTATO: impacto + som + micro-pausa (mais forte na última batida)
         SFX(last && n > 1 ? 'beatFinal' : ({ magic: 'beatMagic', body: 'beatThud', pierce: 'beatPierce', shield: 'beatShield' }[mat] || (i % 2 ? 'beatClang' : 'beatTin')), { vol: last ? 1 : 0.8, pitch: 1 + i * 0.07 });
         this.hitStop(last ? 60 : 28);
         const leadSide = bt.lead === 'a' ? A : bt.lead === 'b' ? B : null;
         const ang = leadSide ? (dirOf(leadSide) > 0 ? 0 : Math.PI) : -Math.PI / 2;
-        this._impactBurst(contact.x, contact.y, ang, mat === 'magic' ? '#c8a0ff' : mat === 'body' ? '#ffe2c0' : '#fff2c0', last ? 1.2 : 0.8, mat);
+        if (!mixed) this._impactBurst(contact.x, contact.y, ang, mat === 'magic' ? '#c8a0ff' : mat === 'body' ? '#ffe2c0' : '#fff2c0', last ? 1.2 : 0.8, mat);
         this.hurtShake(last ? 5 : 2, leadSide ? dirOf(leadSide) : 0);
         // 4. revelação do impulso (pequeno, acima do emblema) e atualização rápida do número
         await this.wait(40);
@@ -1082,7 +1091,11 @@
         const lead = bt.lead, margin = Math.abs(bt.a - bt.b);
         pa.lead = lead === 'a' ? 1 : lead ? -1 : 0; pb.lead = lead === 'b' ? 1 : lead ? -1 : 0;
         if (lead && lastLead && lead !== lastLead) { SFX('leadSwap', { vol: 0.7 }); (lead === 'a' ? pa : pb).flash = 1; }
-        if (lead) {
+        if (mixed) {
+          // à distância: só quem está no lugar reage (o atirador não é empurrado do outro lado da arena)
+          if (lead && lead !== mSide) { const d = dirOf(RV); this.tween(MV, { x: clamp(MV.x + d * Math.min(26, 8 + margin * 5), ARENA.minX, ARENA.maxX), lean: -0.3, crouch: 0.1 }, 100, 'out'); (mSide === 'a' ? pa : pb).shake = 1; this.dust(MV, 3); }
+          else if (lead === mSide) { this.tween(MV, { lean: 0.2, x: MV.x + dirOf(MV) * 6 }, 90, 'out'); (mSide === 'a' ? pb : pa).shake = 1; }
+        } else if (lead) {
           const W = lead === 'a' ? A : B, Lz = lead === 'a' ? B : A, d = dirOf(W), push = Math.min(30, 8 + margin * 5);
           this.tween(W, { x: W.x + d * push * 0.6, lean: 0.36 }, 90, 'out');
           this.tween(Lz, { x: clamp(Lz.x + d * push, ARENA.minX, ARENA.maxX), lean: -0.22 - margin * 0.03, guard: Lz.art === 'knight' ? 0.5 : Lz.guard, crouch: 0.08 }, 100, 'out');
@@ -1107,6 +1120,45 @@
       return badges;
     }
 
+    // ProjectileDeflectionAnimator: o projétil vem, o melee intercepta com a SUA arma/corpo e o projétil
+    // é desviado (melee lidera), passa pela defesa (ranged lidera) ou se dissipa (empate na batida).
+    async _deflectBeat(MV, RV, RS, contact, i, last, bt, mSide, dirOf) {
+      const arrow = RS.tags.includes('ranged');
+      const color = arrow ? '#e8dcc0' : (RV.side === 'ally' ? '#8fd3ff' : '#c86bff');
+      const dur = clamp(150 + Math.abs(contact.x - RV.x) * 0.12, 160, 260);
+      // atirador dispara (variações: arco do projétil e intensidade na última batida)
+      if (arrow) { this.tween(RV, { cast: 1 }, 60).then(() => this.tween(RV, { cast: 0, lean: -0.1 }, 60)); SFX('bowRelease', { vol: 0.6 }); }
+      else { this.tween(RV, { cast: 1, arm: 0.3 }, 70); SFX('magicCast', { vol: 0.5 }); }
+      this.addFx({ kind: arrow ? 'arrow' : 'proj', dur, x0: RV.x + dirOf(RV) * 30, y0: RV.y - (arrow ? 96 : 112), x1: contact.x, y1: contact.y, color, arc: (i % 2 ? -1 : 1) * (arrow ? 6 : 18), heavy: last });
+      // o melee se prepara e intercepta exatamente na chegada
+      const G = { // pose de interceptação por classe: [preparo, golpe]
+        swordsman: [{ arm: -1.5, lean: -0.08 }, { arm: 1.1, lean: 0.22 }], duelist: [{ arm: -1.2 }, { arm: 1.0, lean: 0.2 }],
+        knight: i % 2 ? [{ arm: -1.3 }, { arm: 1.0, lean: 0.2 }] : [{ guard: 1.2, crouch: 0.1 }, { guard: 1.3, lean: 0.12 }], // escudo / espada
+        brute: [{ guard: 1, crouch: 0.12 }, { arm: 0.9, lean: 0.2 }],
+        lancer: i % 2 ? [{ arm: 0.4 }, { arm: 1.6, lean: 0.22 }] : [{ arm: 1.8 }, { arm: 0.6, lean: 0.18 }],  // estocada / varredura com a haste
+        brawler: [{ arm: -0.4, crouch: 0.12, lean: -0.12 }, { arm: 0.6, lean: 0.12, crouch: 0.05 }],       // antebraço + desvio
+      }[MV.art] || [{ guard: 1 }, { guard: 1.2 }];
+      this.tween(MV, Object.assign({}, G[0]), Math.max(60, dur - 90), 'out');
+      await this.wait(dur - 55);
+      this.tween(MV, Object.assign({}, G[1]), 55, 'in');
+      await this.wait(55);
+      const melLead = bt.lead === mSide, rngLead = bt.lead && !melLead;
+      if (melLead) {
+        // desviado: muda de trajetória (para cima ou para o chão) e se apaga — nada atravessa o defensor
+        const up = (i % 2 === 0), ang = (dirOf(RV) > 0 ? Math.PI : 0) + (up ? -0.9 : 0.75) * dirOf(MV);
+        this.addFx({ kind: 'deflect', dur: 260, x: contact.x, y: contact.y, ang, color, size: last ? 1.3 : 1 });
+        this._impactBurst(contact.x, contact.y, ang, '#fff2c0', last ? 1 : 0.7, MV.art === 'brawler' ? 'body' : 'metal');
+      } else if (rngLead) {
+        // passa pela defesa: impacto na guarda/corpo, recuo
+        this._impactBurst(MV.x, MV.y - 80, dirOf(RV) > 0 ? 0 : Math.PI, color, last ? 1.2 : 0.85, arrow ? 'pierce' : 'magic');
+        MV.flash = 0.5;
+      } else {
+        // empate na batida: dissipa na arma, com esforço
+        this.addFx({ kind: 'ring', dur: 240, x: contact.x, y: contact.y, color, r: 30 });
+        this._impactBurst(contact.x, contact.y, -Math.PI / 2, color, 0.6, 'magic');
+      }
+    }
+
     // CombatImpactFX: clarão direcional + estilhaços em cone + (pesado) onda de choque e poeira
     _impactBurst(x, y, ang, color, size = 1, kind = 'metal') {
       if (this.skipping) return;
@@ -1119,8 +1171,22 @@
       if (size >= 1.1) this.addFx({ kind: 'shock', dur: 260, x, y, r: 70 * size, color });
     }
 
+    _placeBadge(p) {
+      if (!p.ref) return;
+      const v = p.ref, o = p.other;
+      const close = o && Math.abs(o.x - v.x) < 170;            // perto: afasta levemente para lados opostos
+      const tl = this.toWorld(0, 0), br = this.toWorld(this.canvas.clientWidth, this.canvas.clientHeight);
+      const k = this.pxPerWorld || 1;
+      const wantX = v.x + (close ? p.dir * 46 : 0), wantY = v.y - 212 - (v.hop || 0);
+      // nunca sai da tela (inclui a faixa do nome); se o personagem sair do quadro, o emblema fica preso à borda
+      const padIn = 50 / k, padOut = 175 / k;
+      p.x = clamp(wantX, tl.x + (p.dir < 0 ? padOut : padIn), br.x - (p.dir > 0 ? padOut : padIn));
+      p.y = clamp(wantY, tl.y + 70 / k, br.y - 120 / k);
+      p.edge = Math.abs(p.x - wantX) > 30 / k ? Math.sign(wantX - p.x) : 0;
+    }
     _drawPlate(ctx, p) {
       if (p.a <= 0.01) return;
+      this._placeBadge(p);
       const ally = p.team === 'ally';
       const C = p.win === 2 ? { main: '#c8c0b8', glow: '#e8dccb', dark: '#2a2628' } : ally ? { main: '#4fc8ff', glow: '#9fe8ff', dark: '#0e2433' } : { main: '#ff6a3c', glow: '#ffb070', dark: '#331208' };
       const dim = p.win === -1 ? 0.5 : p.lead === -1 ? 0.78 : 1;
@@ -1161,6 +1227,7 @@
         ctx.fillRect(-3.5, -3.5, 7, 7); ctx.strokeRect(-3.5, -3.5, 7, 7); ctx.restore();
       }
       if (p.hold && !p.win) { ctx.font = '800 9px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#9fb0c0'; ctx.fillText('SEGURA', 0, R + 16); }
+      if (p.edge) { ctx.fillStyle = C.main; ctx.beginPath(); ctx.moveTo(p.edge * (R + 18), 0); ctx.lineTo(p.edge * (R + 8), -7); ctx.lineTo(p.edge * (R + 8), 7); ctx.fill(); } // aponta para o dono fora do quadro
       if (p.win === 2) { ctx.font = '800 10px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#e8dccb'; ctx.fillText('EMPATE', 0, R + 17); }
       // "+N": pequeno, surge acima do emblema e desce para dentro dele
       if (p.impA > 0.01 && p.imp) {
@@ -1194,7 +1261,7 @@
       // 3. ponto de choque calculado dinamicamente
       let P;
       if (T) { const dir = B.x >= T.x ? 1 : -1; P = { x: T.x + dir * 120, y: T.y + 4 }; }
-      else if (magA !== magB) { const M = magA ? A : B, O = magA ? B : A; P = { x: lerp(M.x, O.x, 0.55), y: (A.y + B.y) / 2 }; }
+      else if (magA !== magB) { const M = magA ? B : A, O = magA ? A : B, d = O.x >= M.x ? 1 : -1; P = { x: M.x + d * MOVE[M.art].reach, y: M.y }; } // melee × ranged: o melee intercepta no lugar
       else P = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
       P = this.clampPos(P.x, P.y);
 
@@ -1215,7 +1282,8 @@
       const go = [];
       for (const v of [A, B]) {
         const dir = v === A ? (P.x >= A.x ? 1 : -1) : (P.x >= B.x ? 1 : -1);
-        if (!melee(v)) {
+        if (!melee(v) && magA !== magB) { this.tween(v, { cast: 0.8, arm: -0.3 }, 160); go.push(this.wait(160)); } // misto: só arma; os disparos são as batidas
+        else if (!melee(v)) {
           this.tween(v, { arm: 0.3, lean: 0.08 }, 120);
           const arrow = (v === A ? skA : skB).tags.includes('ranged');
           if (arrow) { SFX('bowRelease'); this.tween(v, { cast: 0 }, 70); } else SFX('magicCast', { vol: 0.6 });
@@ -1754,6 +1822,12 @@
             ctx.beginPath(); ctx.moveTo(Math.cos(a - 0.09) * 6, Math.sin(a - 0.09) * 6); ctx.lineTo(Math.cos(a) * len, Math.sin(a) * len); ctx.lineTo(Math.cos(a + 0.09) * 6, Math.sin(a + 0.09) * 6); ctx.fill();
           }
           ctx.globalAlpha = e; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, 0, 10 * f.size * e + 3, 0, 7); ctx.fill();
+        } else if (f.kind === 'deflect') {
+          // projétil rebatido: segue para fora da linha de ataque, perdendo intensidade
+          const dist = 140 * f.size * ease.out(p), x = f.x + Math.cos(f.ang) * dist, y = f.y + Math.sin(f.ang) * dist;
+          ctx.globalAlpha = 1 - p; ctx.strokeStyle = f.color; ctx.lineWidth = 3 * (1 - p) + 1;
+          ctx.beginPath(); ctx.moveTo(f.x + Math.cos(f.ang) * dist * 0.4, f.y + Math.sin(f.ang) * dist * 0.4); ctx.lineTo(x, y); ctx.stroke();
+          ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x, y, 6 * (1 - p) + 1, 0, 7); ctx.fill();
         } else if (f.kind === 'shock') {
           // onda de choque fina (pequena "distorção" no ponto de contato)
           ctx.globalAlpha = (1 - p) * 0.6; ctx.strokeStyle = f.color; ctx.lineWidth = 3 * (1 - p) + 0.5;

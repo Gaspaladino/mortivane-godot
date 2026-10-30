@@ -11,8 +11,9 @@
       // Habilidade com menos batidas mantém o valor acumulado nas batidas seguintes.
       rollMin: 0, rollMax: 3,     // (impulso padrão de habilidades sem 'impulse')
       closeMargin: 1,             // diferença <= 1 → Clash "equilibrado" (destaque maior)
-      favorable: 0.60,            // chance de vitória >= 60% → Favorável
-      unfavorable: 0.35,          // chance de vitória < 35% → Desfavorável
+      favorable: 0.60,            // (legado)
+      unfavorable: 0.35,          // (legado)
+      evenBand: 0.12,             // |P(vitória) − P(derrota)| <= 12 pontos → Equilibrado; acima, Favorável/Desfavorável
     },
     speed: { fast: 2, heavy: -2, support: 3, defense: 4 }, // prioridade por tag
     block: 0.5,                   // redução padrão do bloqueio (unidade pode sobrescrever)
