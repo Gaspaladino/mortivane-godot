@@ -4,7 +4,7 @@ Protótipo jogável e independente do projeto Godot. Basta abrir `index.html` no
 
 ## Interface de batalha
 - **HUD limpo:** só um pequeno grupo de botões no canto: rodada (R1), 1×/2×, pular, equipe, ⚙, ajuda e reiniciar. Título, fase e textos ficam em ⚙, junto com áudio, reduzir animações, mostrar o ciclo de elementos, tela cheia e informações de depuração.
-- **Seletor em arco (carrossel):** ao clicar num aliado, um trecho de uma roda maior entra girando e deslizando à frente dele, com as habilidades sobre o arco (ícone e nome; o item em foco fica no centro, maior). A roda do mouse ou as setas giram o arco, Enter escolhe o item em foco, e dá para clicar em qualquer item visível. Clique, arrasto e correntes funcionam como antes. Há um som de corrente ao abrir e uma trava ao confirmar.
+- **Seletor em arco (carrossel):** ao clicar num aliado, um trecho de uma roda maior entra girando e deslizando à frente dele, com as habilidades sobre o arco (ícone e nome; o item em foco fica no centro, maior). A roda do mouse ou as setas giram o arco, Enter escolhe o item em foco, e dá para clicar em qualquer item visível. Cada item é uma **placa** com ícone e nome juntos (até 2 linhas, o texto nunca sai da moldura); o hover realça a borda e o ícone, a escolhida fica dourada e a recarga aparece num pequeno número sobre o ícone. Clique, arrasto e correntes funcionam como antes. Há um som de corrente ao abrir e uma trava ao confirmar.
 - **Tooltip das correntes inimigas:** passar o mouse sobre a corrente curva mostra o inimigo, a habilidade (marcando se é COMBO), o tipo, a faixa de Força por batidas, Dano, Pressão, o elemento e a vantagem sobre o alvo. A corrente, a origem e o alvo ficam em destaque.
 - **AUTO** (ou a tecla A): preenche ações reais com correntes, considerando vida, elemento, chance de Quebra, chance no Clash, defesa do alvo, defesa própria quando está em risco e a combinação quando vale a pena. Nada é executado: você revisa, altera e só então executa.
 - **Tela cheia:** navegadores não permitem simular o F11, então o jogo pede tela cheia pela Fullscreen API no primeiro clique, uma única vez. Se o navegador negar, o jogo segue normalmente; também há um botão em ⚙.
@@ -35,10 +35,10 @@ Cada habilidade de ataque tem **Força base**, **Batidas** (1 a 3) e **Impulso**
 - **Prévia no planejamento:** mostra força base, batidas, intervalo de impulso e a faixa final (ex.: "5 · 2 batidas (+0–2) → 5–9"). As chances de vitória, empate e derrota são **calculadas exatamente** sobre todas as combinações de impulsos. As categorias são Favorável, Equilibrado, Desfavorável, **Vitória certa** e **Derrota certa**. "Equilibrado" vale quando |P(vitória) − P(derrota)| ≤ `CONFIG.clash.evenBand` (padrão 0,12).
 - **Cartão de prévia compacto:** ícone, nome e faixa de força da habilidade aliada (azul) **VS** a inimiga (vermelho), e a categoria com ícone. Extras só como ícones: ⚡ (Quebra possível) e ▲/▼ (elemento). Ataques sem oposição mostram "sem confronto"; interceptações inválidas mostram "interceptação indisponível".
 - **Clash corpo a corpo × distância:** o lutador corpo a corpo fica parado e intercepta cada projétil por batida com um gesto da classe (Espadachim corte diagonal, Cavaleiro escudo/espada, Lanceiro haste, Lutador antebraço/esquiva). Quem lidera a batida decide: projétil desviado, defensor empurrado ou dissipação no empate. Batidas não causam dano nem Pressão. Se o corpo a corpo vence, avança e golpeia; se perde, o projétil acerta.
-- **Medalhões presos ao dono:** cada medalhão de força acompanha o próprio personagem; se ele sai da tela, o medalhão fica na borda com uma seta.
+- **HUD única de Clash:** uma barra compartilhada substitui os medalhões separados. **Esquerda = aliado, direita = inimigo**, sempre, mesmo que troquem de lado na arena. Cada ponta tem emblema com a Força acumulada, "+N" do impulso, marcadores de batida e o nome da habilidade em rótulo pequeno. No centro, uma conexão metálica com um **marcador de tensão** que desliza para o lado que lidera (centro no empate). A largura acompanha a distância na tela (230–620 px, suavizada), fica centrada acima do confronto e nunca sai da tela; se um participante sai do quadro, a ponta ganha uma seta. Só existe enquanto o Clash é apresentado.
 
 ## Postura e Quebra de Guarda
-Cada personagem tem **Vida** (barra vermelha/verde) e **Postura** (barra âmbar, mais fina, logo abaixo).
+Cada personagem tem **Vida** (sempre **verde** nos aliados e **vermelha** nos inimigos; a cor identifica a equipe e nunca muda com a quantidade) e **Postura** (barra âmbar, mais fina, logo abaixo).
 - **Desgaste:** só quem **perde um Clash** perde Postura, igual à **Pressão** da habilidade vencedora. A Pressão é aplicada **uma vez por habilidade**, mesmo com vários golpes; a barra cai em etapas junto com os impactos. Empates e ataques sem Clash não desgastam. Na interceptação, quem perde Postura é quem interceptou.
 - **Sem regeneração:** a Postura persiste entre rodadas.
 - **Quebra:** em 0 o personagem perde a guarda (animação própria por classe, ruptura e som) e **perde a próxima ação**. Se ainda não agiu na rodada, a ação planejada é cancelada; se já agiu, perde a ação da rodada seguinte (não dá para planejar nada para ele, e a IA não o usa).
@@ -73,7 +73,7 @@ A tela cabe inteira, sem rolagem: a grade dos 6 personagens fica à esquerda, a 
 ## Apresentação e game feel
 - **Câmera em ataques à distância:** o enquadramento usa o tamanho real visível da tela. Se atacante e alvo cabem juntos, aparecem juntos (o zoom se ajusta). Se não cabem, a câmera mostra o disparo, acompanha o projétil e chega ao alvo antes do impacto. O dano só aparece no contato. Um teste automático em telas de 900×700 e 1400×860 confirmou que todos os impactos aconteceram na tela.
 - **Arena:** 4 camadas maiores que a área de combate (céu, montanhas e ruínas, colunas e braseiros, chão rachado) com parallax discreto. As faixas pretas de cinema foram removidas e a câmera tem limites que nunca revelam a borda.
-- **Movimento ambiente:** durante o planejamento, cada personagem dá pequenos passos de vez em quando, com propósito: volta à sua faixa da formação, recua se um inimigo está perto demais ou só ajusta a postura. Não acontece com o personagem selecionado, durante um arrasto, numa queda ou numa ação.
+- **Movimento ambiente:** durante o planejamento, cada personagem dá pequenos passos de vez em quando, com propósito: recua se um inimigo está perto demais, ajusta a profundidade ou só a postura. A preferência de formação é fraca e nunca puxa de volta à posição inicial (melee pode ficar avançado). Não acontece com o personagem selecionado, durante um arrasto, numa queda ou numa ação.
 - **Condição física:** muda suavemente com a vida. Acima de 50% é normal; entre 25% e 50% a respiração fica mais forte e o tronco curva; abaixo de 25% o corpo curva mais, balança e a arma pesa. O Cavaleiro passa a se apoiar no escudo. É só visual.
 - **Preparação inimiga:** posturas lentas e diferentes por classe (o Brutamontes ergue a clava devagar, o Duelista se posiciona, o Conjurador concentra energia), sem tremores.
 - **Efeitos:**
@@ -106,7 +106,7 @@ A tela cabe inteira, sem rolagem: a grade dos 6 personagens fica à esquerda, a 
   - Cancelar libera os dois membros, e trocar a ação de um membro desfaz a combinação.
 
 ## Execução contínua
-- **Posições persistentes:** ninguém volta à formação depois de agir. Golpes empurram, interceptadores ficam no caminho e esquivas mudam a profundidade. Entre rodadas, cada lado só recua o necessário para voltar à sua metade, com espaçamento mínimo e dentro da arena.
+- **Posições persistentes:** ninguém volta à formação depois de agir. Golpes empurram, interceptadores ficam no caminho e esquivas mudam a profundidade. Entre rodadas, **cada um fica onde terminou**: só um pequeno ajuste (até ~60 px) — passo ou saltinho para longe de um inimigo colado (ranged busca um pouco mais de espaço), virar para a ameaça e assumir a guarda. A posição inicial nunca é destino.
 - **Reações físicas** (`impact`, calculado na lógica e por enquanto só visual):
   - **leve:** inclina o tronco.
   - **médio:** desliza para trás levantando poeira.
@@ -151,3 +151,11 @@ Enfraquecimento tira 2 de força do alvo e Suporte dá +2 de força para a próx
 | `js/ui.js` | Barra compacta: dica, ordem prevista e botão para executar. |
 | `js/main.js` | Máquina de estados: `INTENTS → PLAN → RESOLVE → (INTENTS \| END)`. |
 | `tools/sim.js` | Simulação sem interface para balanceamento: `node tools/sim.js 1000`. |
+
+## Estados sem poluição visual
+
+Durante a execução, os estados aparecem como **ícones pequenos** ao lado da barra (um por personagem por vez, somem em ~1 s) e pela animação do corpo: bloqueio (escudo), esquiva (rastro), aparo (lâminas cruzadas + flash metálico), Quebra de Postura (escudo rachado + barra zerada + som), ação perdida (×), derrubada (seta para baixo), derrota (caveira, sem texto permanente). Banners grandes de "DERROTADO", "APARADO", "PROTEÇÃO", "INTERCEPTAÇÃO" e textos como "ESQUIVA"/"BLOQUEIO" foram removidos; detalhes completos ficam nos tooltips e fichas.
+
+## Interceptação e ações do protegido
+
+A interceptação só consome a ação do **interceptor**. O ataque inimigo é redirecionado (no planejamento a corrente inimiga passa a apontar para o interceptor e o alvo original ganha um escudo), e a ação planejada do protegido continua na fila. Ele só deixa de agir se cair, sofrer Quebra de Postura ou se a própria ação dele virar outro Clash (ex.: ele mira um inimigo que também o ataca — Clash direto, que ele pode perder).

@@ -91,7 +91,7 @@
       const cw = this.p.canvas.clientWidth, ch = this.p.canvas.clientHeight;
       let f = v.face || 1;
       const sx = this.p.toScreen(v.x, 0).x;
-      if (f > 0 && sx + 260 > cw) f = -1; else if (f < 0 && sx - 260 < 0) f = 1;
+      if (f > 0 && sx + 300 > cw) f = -1; else if (f < 0 && sx - 300 < 0) f = 1;
       const ids = this._menuIds(u);
       const step = 30, R = 150;
       if (this.sel.focus == null) this.sel.focus = Math.min(1, ids.length - 1);
@@ -116,11 +116,54 @@
         const a = angDeg * Math.PI / 180, focusAmt = clamp(1 - Math.abs(angDeg) / step, 0, 1);
         const ownerId = sk.combo ? sk.members[0] : u.id;
         this.items.push({ skillId: id, idx: i, kind: styleOf(sk), main: sk.kind === 'attack' && !sk.combo, focus: focusAmt, ang: a,
-          x: C.x + f * Math.cos(a) * R / k, y: C.y + Math.sin(a) * R / k, r: (20 + 7 * focusAmt) / k,
+          x: C.x + f * Math.cos(a) * R / k, y: C.y + Math.sin(a) * R / k, r: (17 + 5 * focusAmt) / k, f, pw: (112 + 18 * focusAmt) / k, ph: (40 + 6 * focusAmt) / k,
           disabled: !b.skillReady(b.unit(ownerId), id) || (this.needsTarget(id) && !this.validTargets(u.id, id).length),
           cd: b.unit(ownerId).cooldowns[id], open: this.arc.open, fade: clamp(1 - (Math.abs(angDeg) - 50) / 30, 0.15, 1) });
       });
       if (this.cb.choices()[u.id]) this.items.push({ cancel: true, skillId: null, kind: 'cancel', x: C.x - f * 18 / k, y: C.y - 70 / k, r: 13 / k, open: this.arc.open, fade: 1 });
+    }
+    // AbilityArcItemUI: placa única com ícone + nome (até 2 linhas, sempre DENTRO da moldura)
+    _skillPlate(ctx, it, r, hov, chosen, st, sk, k) {
+      const f = it.f, sc = hov ? 1.06 : 1, pw = it.pw * sc, ph = it.ph * sc;
+      const x0 = it.x - f * r * 0.9, x1 = it.x + f * pw, L = Math.min(x0, x1), W = Math.abs(x1 - x0), T = it.y - ph / 2, rad = 9 / k;
+      ctx.save();
+      const bg = ctx.createLinearGradient(x0, 0, x1, 0);
+      bg.addColorStop(0, chosen ? 'rgba(52,38,24,0.96)' : 'rgba(26,16,28,0.94)'); bg.addColorStop(1, chosen ? 'rgba(34,24,16,0.9)' : 'rgba(14,9,16,0.88)');
+      ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(L, T, W, ph, rad); ctx.fill();
+      ctx.lineWidth = (hov || chosen ? 2 : 1.2) / k; ctx.strokeStyle = chosen ? '#ffe9b0' : hov ? st.color : 'rgba(216,180,90,0.45)';
+      if (hov || chosen) { ctx.shadowColor = chosen ? '#ffd36a' : st.color; ctx.shadowBlur = 10; }
+      ctx.stroke(); ctx.shadowBlur = 0;
+      // filete da categoria na borda externa
+      ctx.fillStyle = st.color; ctx.globalAlpha *= 0.85; ctx.fillRect(f > 0 ? L + W - 3 / k : L, T + 6 / k, 3 / k, ph - 12 / k); ctx.globalAlpha /= 0.85;
+      // ícone (aumenta um pouco no hover)
+      this._disk(ctx, it.x, it.y, r * (hov ? 1.1 : 1), chosen ? '#2b2118' : '#140c14', chosen ? '#ffe9b0' : st.color, sk.icon, it.kind !== 'attack', it.kind);
+      if (it.disabled && it.cd) { ctx.fillStyle = '#2a1414'; ctx.beginPath(); ctx.arc(it.x + r * 0.75, it.y - r * 0.75, 7 / k, 0, 7); ctx.fill(); ctx.font = `900 ${9 / k}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = '#ff9a8a'; ctx.fillText(String(it.cd), it.x + r * 0.75, it.y - r * 0.75 + 3 / k); }
+      // nome: quebra controlada em até 2 linhas dentro da área de texto
+      const tx = it.x + f * (r + 8 / k), avail = (pw - r - 16 / k) * 0.98;
+      const name = sk.name + (it.kind === 'combo' ? ' ⚔' : '');
+      let size = (it.focus > 0.5 ? 13 : 12) / k, lines;
+      for (let tries = 0; tries < 4; tries++) {
+        ctx.font = `800 ${size}px "Trebuchet MS", sans-serif`;
+        lines = this._wrap2(ctx, name, avail);
+        if (lines.every(l => ctx.measureText(l).width <= avail)) break;
+        size *= 0.92;
+      }
+      ctx.textAlign = f > 0 ? 'left' : 'right'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = it.disabled ? '#9a8e88' : chosen || it.focus > 0.5 ? '#fff1d0' : '#d8ccbc';
+      const lh = size * 1.12;
+      lines.forEach((l, i) => ctx.fillText(l, tx, it.y + (i - (lines.length - 1) / 2) * lh));
+      ctx.restore();
+    }
+    _wrap2(ctx, text, maxW) {
+      if (ctx.measureText(text).width <= maxW) return [text];
+      const w = text.split(' ');
+      let best = null;
+      for (let i = 1; i < w.length; i++) {
+        const a = w.slice(0, i).join(' '), b = w.slice(i).join(' ');
+        const m = Math.max(ctx.measureText(a).width, ctx.measureText(b).width);
+        if (!best || m < best.m) best = { m, l: [a, b] };
+      }
+      return best ? best.l : [text];
     }
     _rotateMenu(d) {
       if (!this.sel) return;
@@ -201,7 +244,11 @@
     _move(sx, sy) { const w = this.p.toWorld(sx, sy); this.mouse = { x: w.x, y: w.y, sx, sy }; }
     _itemAt() {
       this._layoutMenu();
-      return this.items.find(it => Math.hypot(this.mouse.x - it.x, this.mouse.y - it.y) <= it.r * 1.25) || null;
+      return this.items.find(it => {
+        if (it.cancel || !it.pw) return Math.hypot(this.mouse.x - it.x, this.mouse.y - it.y) <= it.r * 1.25;
+        const x0 = it.x - it.f * it.r * 1.1, x1 = it.x + it.f * it.pw; // placa: do ícone até o fim do nome
+        return this.mouse.x >= Math.min(x0, x1) && this.mouse.x <= Math.max(x0, x1) && Math.abs(this.mouse.y - it.y) <= it.ph / 2;
+      }) || null;
     }
     _badgeAt() { return this.badges.find(b => Math.hypot(this.mouse.x - b.x, this.mouse.y - b.y) <= b.r * 1.3) || null; }
     _hitAt() {
@@ -554,7 +601,9 @@
         if (!A || A.dead || sk.kind !== 'attack') continue;
         const l = plan && plan.links[it.id];
         if (l && l.type === 'direct') continue; // vira o Clash da corrente aliada
-        conns.push({ key: it.id, from: it.actorId, to: it.targetId, enemy: true, it, seed: A.phase, members: membersOf(it) });
+        // interceptado: a corrente inimiga passa a apontar para o interceptor; o alvo original ganha um escudo
+        const red = l && l.type === 'intercept' ? l.redirectTo : null;
+        conns.push({ key: it.id, from: it.actorId, to: red || it.targetId, guarded: red ? it.targetId : null, enemy: true, it, seed: A.phase, members: membersOf(it) });
       }
       const acts = plan ? plan.actions.filter(a => a.side === 'ally' && SKILLS[a.skillId].kind !== 'defense') : [];
       for (const a of acts) {
@@ -587,6 +636,7 @@
           const tt = ((this.p.time * 0.00028 + c.seed * 0.1) % 1) * 0.8 + 0.1, ch = this._at(cv, tt);
           ctx.globalAlpha *= 0.8; this._arrowHead(ctx, ch.x, ch.y, ch.a, 8, col, true);
           ctx.restore();
+          if (c.guarded && vis[c.guarded]) { const Gv = vis[c.guarded]; ctx.save(); ctx.globalAlpha = this.fade * 0.95; this._disk(ctx, Gv.x - 40, Gv.y - 175, 11 / this.p.pxPerWorld, '#0e1a26', '#9fd0ff', 'protect', true); ctx.restore(); }
           // inimigo (ou sua corrente) sob o cursor: destaca origem e alvo
           if (hi) { const A = vis[c.from]; ctx.save(); ctx.translate(A.x, A.y + 4); ctx.scale(1, 0.32); ctx.strokeStyle = 'rgba(255,150,120,0.9)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, 60, 0, 7); ctx.stroke(); ctx.restore(); }
           if (this.hover.unit === c.from || hi) {
@@ -712,8 +762,9 @@
             const q = this._at(a._cv, 0.5);
             const toggle = !!(info && info.valid && (!link || link.type === 'intercept'));
             this._disk(ctx, q.x, q.y, 14 / k, '#140c14', col, link ? (link.type === 'intercept' ? 'protect' : 'clash') : 'clash', !!link);
+            if (link && link.type === 'intercept' && info) label = `protege ${b.unit(info.protects).name} · ${label}`;
             if (label) this._tag(ctx, q.x + 18 / k, q.y + 4 / k, label, col, 12 / k);
-            else if (info) this._tag(ctx, q.x + 18 / k, q.y + 4 / k, info.valid ? 'interceptar?' : 'lento demais', '#c9b', 11 / k);
+            else if (info && !(info.valid && plan.links[info.enemyActionId])) this._tag(ctx, q.x + 18 / k, q.y + 4 / k, info.valid ? 'interceptar?' : 'lento demais', '#c9b', 11 / k);
             this.badges.push({ x: q.x, y: q.y, r: 14 / k, uid: a.actorId, toggle, act: a });
           }
         }
@@ -764,19 +815,12 @@
         const sel = this.sel, active = this._activeSkill(), planned = this._plannedSkill(sel.uid);
         for (const it of this.items.slice().sort((a, b) => (a.focus || 0) - (b.focus || 0))) {
           const hov = this.hover.item && (this.hover.item === it || (it.skillId && this.hover.item.skillId === it.skillId));
-          const r = it.r * (hov ? 1.12 : 1);
+          const r = it.r;
           ctx.globalAlpha = this.fade * it.open * it.fade * (it.disabled ? 0.45 : 1);
           if (it.cancel) { this._disk(ctx, it.x, it.y, r, '#2a1414', '#ff8a7a', 'cancel', false); continue; }
           const st = KIND_STYLE[it.kind], sk = SKILLS[it.skillId];
           const chosen = active === it.skillId || (!active && planned === it.skillId);
-          this._disk(ctx, it.x, it.y, r, chosen ? '#2b2118' : '#140c14', chosen ? '#ffe9b0' : st.color, sk.icon, it.kind !== 'attack', it.kind);
-          // nome curto do lado de fora da roda (maior no item em foco)
-          const lx = this.arc.C.x + this.arc.f * Math.cos(it.ang) * (this.arc.R + 40 / k), ly = this.arc.C.y + Math.sin(it.ang) * (this.arc.R + 40 / k);
-          ctx.save(); ctx.font = `${it.focus > 0.5 ? 800 : 600} ${(it.focus > 0.5 ? 14 : 11.5) / k}px "Trebuchet MS", sans-serif`;
-          ctx.textAlign = this.arc.f > 0 ? 'left' : 'right'; ctx.lineWidth = 3.5 / k; ctx.strokeStyle = 'rgba(8,4,10,0.9)';
-          const label = sk.name + (it.kind === 'combo' ? ' (combo)' : '') + (it.disabled ? (it.cd ? ` · recarga ${it.cd}` : ' · sem alvo') : '');
-          ctx.strokeText(label, lx - this.arc.f * 10 / k, ly + 4 / k); ctx.fillStyle = it.focus > 0.5 ? '#fff1d0' : '#cbbfb0'; ctx.fillText(label, lx - this.arc.f * 10 / k, ly + 4 / k);
-          ctx.restore();
+          this._skillPlate(ctx, it, r, hov, chosen, st, sk, k);
         }
         ctx.globalAlpha = this.fade;
       }

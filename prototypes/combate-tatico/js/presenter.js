@@ -296,6 +296,13 @@
       this.texts.push({ x, y, text, color, size, life, max: life, vy: -0.09 });
     }
     addFx(f) { if (!this.skipping) this.fx.push(Object.assign({ t: 0 }, f)); }
+    // CombatStatusUI: estado comunicado por um ÍCONE pequeno ao lado da barra (nunca texto grande);
+    // um aviso por personagem por vez (o novo substitui o anterior)
+    statusIcon(v, icon, color, dur = 950) {
+      if (this.skipping || !v) return;
+      this.fx = this.fx.filter(f => !(f.kind === 'sicon' && f.ref === v));
+      this.addFx({ kind: 'sicon', ref: v, icon, color, dur });
+    }
     showBanner(text, color, dur = 900, sub = '') { if (!this.skipping) this.banner = { text, color, t: 0, dur, sub }; }
     // tremor pequeno e direcional (na direção do golpe); golpes leves quase não tremem
     hurtShake(amount, dir = 0) {
@@ -400,7 +407,11 @@
         // profundidade preferida: frente mais à frente da tela, retaguarda mais ao fundo (só preferência)
         const prefY = [612, 590, 562][v.formation] + (v.phase % 1 - 0.5) * 20;
         let dy = clamp((prefY - v.y) * 0.35, -16, 16) + (Math.random() - 0.5) * 14;
-        let dx = clamp((pref - v.x) * 0.3, -26, 26) + (Math.random() - 0.5) * 18;
+        // CombatAmbientMovement: preferência de formação FRACA (não puxa de volta à posição inicial);
+        // melee pode ficar avançado; ranged só busca espaço discretamente
+        const behindPref = sideDir * (v.x - pref) < 0;
+        const pull = v.formation === 0 ? (behindPref ? 0.06 : 0) : 0.06;
+        let dx = clamp((pref - v.x) * pull, -10, 10) + (Math.random() - 0.5) * 14;
         if (foe && Math.abs(foe.x - v.x) < 170) dx = -sideDir * 26;               // inimigo perto: recua
         if (Math.abs(dx) < 6 && Math.abs(dy) < 5) { this.tween(v, { lean: (Math.random() - 0.5) * 0.06 }, 600, 'inOut'); continue; } // só ajusta postura
         // respeita o espaço dos outros
@@ -543,7 +554,7 @@
       this.sparks(v.x, v.y - 80, '#ffd36a', 22, 0.6);
       this.hurtShake(8, dir);
       this.hitStop(90);
-      this.wait(160).then(() => this.float(v.x, v.y - 245, 'QUEBRA DE POSTURA', '#ffd36a', 24, 1500)); // depois do número de dano, acima dele
+      this.wait(160).then(() => this.statusIcon(v, 'break', '#ffd36a', 1400)); // depois do número de dano, acima dele
       this.focusOn([v], 0.15);
       // depois da reação física, fica na pose de guarda aberta até cumprir a penalidade
       this.routine(v, async () => {
@@ -558,8 +569,7 @@
         await this.sync(v);
         this.focusOn([v], 0.1);
         this.caption = `${v.name} está desequilibrado e perde a ação`;
-        this.float(v.x, v.y - 185, 'AÇÃO PERDIDA', '#ff9a8a', 22, 1300);
-        if (ev.skillId) this.float(v.x, v.y - 160, G.SKILLS[ev.skillId].name, '#c9b', 14, 1100);
+        this.statusIcon(v, 'lost', '#ff9a8a', 1300);
         await this.wait(380);
         // recuperação: ajusta os pés, ergue a guarda, Postura volta ao máximo
         this.setState(v, 'REPOSITIONING');
@@ -568,7 +578,7 @@
         v.post = v.postMax; v.broken = false; v.stable = true;
         SFX('recover');
         this.addFx({ kind: 'ring', dur: 420, x: v.x, y: v.y - 70, color: '#ffd36a', r: 55 });
-        this.float(v.x, v.y - 175, 'POSTURA RESTAURADA', '#ffd36a', 16, 1100);
+        this.statusIcon(v, 'restore', '#ffd36a', 1100);
         this.setState(v, 'IDLE');
         await this.wait(220);
       }
@@ -649,44 +659,41 @@
       this.skipping = false;
     }
 
-    // Fim da rodada: ninguém volta à formação original. Cada um caminha só o
-    // necessário para voltar ao seu lado da linha de frente, mantendo a ordem
-    // relativa e a profundidade (leitura espacial preservada entre rodadas).
+    // PersistentPositionController — fim da rodada: cada um FICA onde terminou a última ação.
+    // Só pequenos ajustes naturais (no máx. ~60 px): recuar de um inimigo colado, abrir espaço,
+    // virar para a ameaça, recompor a guarda. A formação inicial (v.home) nunca é destino.
     endRound(snap) {
       this._applySnapshot(snap, true);
-      const targets = {};
-      for (const side of ['ally', 'enemy']) {
-        const dir = side === 'ally' ? -1 : 1; // para onde fica a "retaguarda"
-        const alive = Object.values(this.vis).filter(v => v.side === side && !v.dead)
-          .sort((a, b) => dir < 0 ? b.x - a.x : a.x - b.x); // da frente para trás
-        let prev = null;
-        for (const v of alive) {
-          let x = side === 'ally' ? Math.min(v.x, FRONT.ally) : Math.max(v.x, FRONT.enemy);
-          const gap = prev ? (MOVE[prev.art].width + MOVE[v.art].width) / 2 + 8 : 0;
-          if (prev && Math.abs(x - targets[prev.id]) < gap) x = targets[prev.id] + dir * gap;
-          x = clamp(x, ARENA.minX, ARENA.maxX);
-          targets[v.id] = x; prev = v;
-        }
-        // se a fila bateu na borda, empurra o grupo de volta para dentro
-        const xs = alive.map(v => targets[v.id]);
-        if (xs.length) {
-          const over = side === 'ally' ? ARENA.minX - (Math.min(...xs) - 0) : (Math.max(...xs)) - ARENA.maxX;
-          if (over > 0) alive.forEach(v => { targets[v.id] -= dir * over; });
-        }
-      }
+      const STEP = 60;
       for (const id in this.vis) {
         const v = this.vis[id];
         v.stance = null;
         if (v.dead) continue;
         v.ready = 0; v.barrier = 0; v.prep = null;
-        const tx = targets[id];
-        this.faceTo(v, { x: v.side === 'ally' ? v.x + 100 : v.x - 100 });
-        if (v.broken) { this.tween(v, { x: tx }, clamp(Math.abs(tx - v.x) * 2.6, 200, 700), 'inOut'); continue; } // segue desequilibrado
+        const foe = this._nearestFoe(v);
+        let tx = v.x, hopBack = false;
+        const ranged = (G.UNITS[v.id] && G.UNITS[v.id].formation || 0) >= 2 || /mage|archer|conjurer/.test(v.art);
+        if (foe) {
+          const d = Math.abs(foe.x - v.x), away = foe.x >= v.x ? -1 : 1;
+          const want = ranged ? 190 : 120; // distância de conforto (ranged busca um pouco mais de espaço)
+          if (d < want) { tx = v.x + away * Math.min(STEP, want - d); hopBack = d < 90 && !v.broken; }
+        }
+        // nunca atravessa para trás da própria retaguarda além do necessário
+        tx = clamp(tx, ARENA.minX, ARENA.maxX);
+        if (foe) this.faceTo(v, foe);
+        if (v.broken) { this.tween(v, { x: tx }, clamp(Math.abs(tx - v.x) * 3, 200, 600), 'inOut'); continue; } // segue desequilibrado
         this.setState(v, 'REPOSITIONING');
-        this.tween(v, { x: tx, arm: 0, guard: 0, cast: 0, lean: 0, crouch: 0, tilt: 0, kneel: 0 }, clamp(Math.abs(tx - v.x) * 2.2, 200, 650), 'inOut')
-          .then(() => { if (v.state === 'REPOSITIONING') this.setState(v, 'IDLE'); });
+        const settleBody = { arm: 0, guard: 0, cast: 0, lean: 0, crouch: 0, tilt: 0, kneel: 0 };
+        const go = hopBack
+          ? this.tween(v, { crouch: 0.16, lean: -0.1 }, 90, 'out').then(() => Promise.all([this.tween(v, { x: tx }, 260, 'out'), this.tween(v, { hop: 24 }, 130, 'out').then(() => this.tween(v, { hop: 0 }, 130, 'in'))])).then(() => this.tween(v, settleBody, 160, 'out')) // pequeno salto de afastamento
+          : this.tween(v, Object.assign({ x: tx }, settleBody), clamp(Math.abs(tx - v.x) * 3.2, 220, 520), 'inOut');
+        Promise.resolve(go).then(() => {
+          if (v.state !== 'REPOSITIONING') return;
+          this.setState(v, 'IDLE');
+          this.tween(v, { guard: v.art === 'knight' ? 0.4 : 0.15, lean: 0.06 }, 200, 'out'); // assume postura de confronto
+        });
       }
-      this.wait(680).then(() => this.settle());
+      this.wait(700).then(() => this.settle());
     }
 
     _applySnapshot(snap, final) {
@@ -720,19 +727,18 @@
           // fica entre o aliado e a ameaça mais próxima
           const foe = this._nearestFoe(T) || v;
           const dir = foe.x >= T.x ? 1 : -1;
-          this.float(T.x, T.y - 175, 'PROTEGIDO', '#9fd0ff', 18);
+          this.statusIcon(T, 'protect', '#9fd0ff');
           v.dashing = true;
           this.faceTo(v, foe);
           moves.push(this.moveTo(v, T.x + dir * 82, T.y + 8, 300 * MOVE[v.art].dash, 'out').then(() => { v.dashing = false; }));
           vs.push(T);
         }
-        this.float(v.x, v.y - 180, st.protectId ? 'PROTEÇÃO' : NAME[st.reaction], '#9fd0ff', 18);
-        if (st.postHeal) { this.float(v.x, v.y - 205, `+${st.postHeal} POSTURA`, '#ffd36a', 16, 1200); this.addFx({ kind: 'ring', dur: 380, x: v.x, y: v.y - 70, color: '#ffd36a', r: 50 }); SFX('recover', { vol: 0.6 }); }
+        this.statusIcon(v, st.protectId ? 'protect' : st.reaction, '#9fd0ff');
+        if (st.postHeal) { this.float(v.x + 62, v.y - 140, `+${st.postHeal}`, '#ffd36a', 14, 1000); this.addFx({ kind: 'ring', dur: 380, x: v.x, y: v.y - 70, color: '#ffd36a', r: 50 }); SFX('recover', { vol: 0.6 }); }
         moves.push(this.tween(v, this._stancePose(v), 220, 'out'));
         if (st.reaction === 'dodge') this.sparks(v.x, v.y - 60, '#cfe9ff', 8, 0.2, -0.0003);
       }
       this.focusOn(vs, -0.3);
-      if (ev.list.some(st => st.protectId)) this.showBanner('PROTEÇÃO', '#7fc4ff', 800, 'o Cavaleiro guarda um aliado');
       await Promise.all(moves);
       await this.wait(300);
       this.caption = null;
@@ -749,7 +755,7 @@
       this.addFx({ kind: 'ring', dur: 400, x: T.x, y: T.y - 70, color: '#7fe0a0', r: 60 });
       this.sparks(T.x, T.y - 70, '#7fe0a0', 14, 0.25, -0.0004);
       this.float(T.x, T.y - 165, `+${G.CONFIG.support.amount} FORÇA`, '#7fe0a0', 22);
-      if (ev.postHeal) { this.float(T.x, T.y - 192, `+${ev.postHeal} POSTURA`, '#ffd36a', 16, 1200); SFX('recover', { vol: 0.6 }); }
+      if (ev.postHeal) { this.float(T.x + 62, T.y - 140, `+${ev.postHeal}`, '#ffd36a', 14, 1000); SFX('recover', { vol: 0.6 }); }
       this.followThrough(A);
       await this.wait(220);
       this.caption = null;
@@ -904,7 +910,7 @@
       const x = L.x - dir * 18, y = L.y - 74;
       this.flashAt(x, y, '#ffcf6a', 120);
       this.sparks(x, y, '#ffcf6a', 26, 0.8);
-      this.float(L.x, L.y - 168, 'CRÍTICO!', '#ffb347', 26, 1300);
+      this.float(L.x, L.y - 168, 'CRÍTICO', '#ffb347', 20, 1000);
       if (motion === 'proj') this.addFx({ kind: 'ring', dur: 480, x, y, color: '#ffcf6a', r: 95 });
       else if (motion === 'punch' || motion === 'punch2' || motion === 'upper') this.addFx({ kind: 'star', dur: 380, x, y, color: '#ffcf6a' });
       else if (motion === 'arrow' || motion === 'arrowp' || motion === 'thrust' || motion === 'lunge') this.addFx({ kind: 'thrust', dur: 260, x0: x - dir * 120, y0: y, x1: x + dir * 40, y1: y, color: '#ffcf6a', w: 10 });
@@ -966,7 +972,7 @@
           if (last) {
             this.float(L.x + 62, L.y - 140, `−${pz.before - pz.after}`, '#d9b85c', 15, 1100); // perto da barra de Postura
             if (!pz.broke) SFX('pressure', { vol: 0.6 });
-            if (pz.held) this.float(L.x, L.y - 242, 'ESTABILIDADE SEGUROU', '#9fe0c8', 14, 1200);
+            if (pz.held) this.statusIcon(L, 'stable', '#9fe0c8');
           }
         }
         lv = lvHere;
@@ -1013,14 +1019,13 @@
       const mk = (sd, v, sk) => ({ team: v.side, name: name(sd, v, sk), skill: sk.name, combo: !!sk.combo, val: sd.start, disp: sd.start,
         imp: null, impA: 0, impY: 0, pips: sd.beats, used: 0, lead: 0, win: 0, a: 0, s: 0.4, pulse: 0, flash: 0, hold: false, shake: 0 });
       const pa = mk(ev.a, A, skA), pb = mk(ev.b, B, skB);
-      const BL = left ? pa : pb, BR = left ? pb : pa;
       // ClashBadgePositioner: cada emblema fica ancorado no SEU personagem (acima das barras, fora do rosto);
-      // a faixa do nome cresce para fora do confronto; a posição é recalculada a cada quadro (_placeBadge)
-      pa.ref = A; pb.ref = B; pa.other = B; pb.other = A;
-      BL.dir = -1; BR.dir = 1;
-      this._placeBadge(pa); this._placeBadge(pb);
+      // a faixa do nome cresce para fora do confronto; a posição é recalculada a cada quadro (_placeHud)
       const badges = [pa, pb];
-      if (!this.skipping) this.plates.push(...badges);
+      // AdaptiveClashHUD: UMA barra compartilhada (esquerda = aliado, direita = inimigo)
+      const hud = { hud: true, L: pa.team === 'ally' ? pa : pb, R: pa.team === 'ally' ? pb : pa, w: 0, x: (A.x + B.x) / 2, y: null, ten: 0 };
+      pa.ref = A; pb.ref = B;
+      if (!this.skipping) this.plates.push(hud);
       const ranged = [skA, skB].some(sk => sk.tags.includes('magic') || sk.tags.includes('ranged'));
       // RangedClashController: melee × ranged = o melee intercepta/desvia os projéteis no lugar
       const mixed = isRanged(skA) !== isRanged(skB);
@@ -1171,73 +1176,106 @@
       if (size >= 1.1) this.addFx({ kind: 'shock', dur: 260, x, y, r: 70 * size, color });
     }
 
-    _placeBadge(p) {
-      if (!p.ref) return;
-      const v = p.ref, o = p.other;
-      const close = o && Math.abs(o.x - v.x) < 170;            // perto: afasta levemente para lados opostos
-      const tl = this.toWorld(0, 0), br = this.toWorld(this.canvas.clientWidth, this.canvas.clientHeight);
-      const k = this.pxPerWorld || 1;
-      const wantX = v.x + (close ? p.dir * 46 : 0), wantY = v.y - 212 - (v.hop || 0);
-      // nunca sai da tela (inclui a faixa do nome); se o personagem sair do quadro, o emblema fica preso à borda
-      const padIn = 50 / k, padOut = 175 / k;
-      p.x = clamp(wantX, tl.x + (p.dir < 0 ? padOut : padIn), br.x - (p.dir > 0 ? padOut : padIn));
-      p.y = clamp(wantY, tl.y + 70 / k, br.y - 120 / k);
-      p.edge = Math.abs(p.x - wantX) > 30 / k ? Math.sign(wantX - p.x) : 0;
+    // ClashHUDPositioner: centro entre os combatentes, acima das barras, sempre dentro da tela;
+    // largura acompanha a distância NA TELA (zoom incluso) com limites e interpolação suave.
+    _placeHud(h) {
+      const A = h.L.ref, B = h.R.ref, k = this.pxPerWorld || 1;
+      const W = this.canvas.clientWidth, H = this.canvas.clientHeight;
+      const tl = this.toWorld(0, 0), br = this.toWorld(W, H);
+      const dxs = Math.abs(A.x - B.x) * k;
+      const want = clamp(dxs * 0.78, 230, Math.min(620, W - 60));
+      h.w = h.w ? h.w + (want - h.w) * 0.12 : want;
+      const half = h.w / 2 / k;
+      const top = Math.min(A.y - (A.hop || 0), B.y - (B.hop || 0)) - 228;
+      let x = (A.x + B.x) / 2, y = top;
+      if ((y - tl.y) * k < 104) y = tl.y + 104 / k; // espaço superior ocupado (HUD do topo): desce um pouco
+      x = clamp(x, tl.x + half + 40 / k, br.x - half - 40 / k);
+      y = Math.min(y, br.y - 150 / k);
+      h.x = h.y == null ? x : h.x + (x - h.x) * 0.2; h.y = h.y == null ? y : h.y + (y - h.y) * 0.2;
+      // vínculo com quem saiu do quadro
+      h.edgeL = A.x < tl.x + 10 / k ? -1 : A.x > br.x - 10 / k ? 1 : 0;
+      h.edgeR = B.x < tl.x + 10 / k ? -1 : B.x > br.x - 10 / k ? 1 : 0;
     }
-    _drawPlate(ctx, p) {
-      if (p.a <= 0.01) return;
-      this._placeBadge(p);
-      const ally = p.team === 'ally';
-      const C = p.win === 2 ? { main: '#c8c0b8', glow: '#e8dccb', dark: '#2a2628' } : ally ? { main: '#4fc8ff', glow: '#9fe8ff', dark: '#0e2433' } : { main: '#ff6a3c', glow: '#ffb070', dark: '#331208' };
-      const dim = p.win === -1 ? 0.5 : p.lead === -1 ? 0.78 : 1;
-      const sh = p.shake > 0.05 ? Math.sin(this.time * 0.09) * 4 * p.shake : 0;
-      ctx.save(); ctx.globalAlpha = p.a * dim;
-      ctx.translate(p.x + sh, p.y); const sc = p.s * (1 + p.pulse * 0.16); ctx.scale(sc, sc);
-      // faixa com o nome da habilidade (cresce para fora do confronto)
-      const d = p.dir || 1, rw = 138, rh = 21;
-      ctx.save(); ctx.transform(1, 0, d * -0.28, 1, 0, 0);
-      const rg = ctx.createLinearGradient(d * 20, 0, d * (20 + rw), 0);
-      rg.addColorStop(0, C.dark); rg.addColorStop(1, 'rgba(10,6,14,0.15)');
-      ctx.fillStyle = rg; ctx.fillRect(d > 0 ? 20 : -20 - rw, 6, rw, rh);
-      ctx.fillStyle = C.main; ctx.fillRect(d > 0 ? 20 : -20 - rw, 6, rw, 2);
-      ctx.restore();
-      ctx.font = '800 12px "Trebuchet MS", sans-serif'; ctx.textAlign = d > 0 ? 'left' : 'right';
-      ctx.fillStyle = '#fff1d0'; ctx.fillText(p.skill + (p.combo ? ' ⚔' : ''), d * 34, 21);
-      ctx.font = '700 9px "Trebuchet MS", sans-serif'; ctx.fillStyle = C.glow; ctx.fillText(p.name.toUpperCase(), d * 36, 38);
-      // emblema: anel octogonal metálico + disco com o número
-      const R = 30;
-      ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + Math.PI / 8; ctx.lineTo(Math.cos(a) * (R + 6), Math.sin(a) * (R + 6)); } ctx.closePath();
-      const mg = ctx.createLinearGradient(0, -R, 0, R); mg.addColorStop(0, '#5a5560'); mg.addColorStop(0.5, '#2a2530'); mg.addColorStop(1, '#4a4450');
-      ctx.fillStyle = mg; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.main;
-      if (p.lead === 1 || p.win === 1 || p.flash > 0.05) { ctx.shadowColor = p.win === 1 ? '#ffd36a' : C.glow; ctx.shadowBlur = 12 + p.flash * 18; }
-      ctx.stroke(); ctx.shadowBlur = 0;
-      const dg = ctx.createRadialGradient(0, -6, 4, 0, 0, R); dg.addColorStop(0, C.main); dg.addColorStop(0.55, C.dark); dg.addColorStop(1, '#08060a');
-      ctx.fillStyle = dg; ctx.beginPath(); ctx.arc(0, 0, R - 2, 0, 7); ctx.fill();
-      ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.beginPath(); ctx.arc(0, 0, R - 6, 0, 7); ctx.stroke();
-      // número grande
-      ctx.textAlign = 'center'; ctx.font = '900 32px "Trebuchet MS", sans-serif';
-      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(5,3,8,0.9)'; ctx.strokeText(String(Math.round(p.disp)), 0, 11);
-      ctx.fillStyle = p.win === 1 ? '#ffe9a0' : '#ffffff'; ctx.shadowColor = C.glow; ctx.shadowBlur = 8 + p.pulse * 14;
-      ctx.fillText(String(Math.round(p.disp)), 0, 11); ctx.shadowBlur = 0;
-      // marcadores de batida (discretos; consumidos conforme as batidas acontecem)
-      for (let i = 0; i < p.pips; i++) {
-        const px = (i - (p.pips - 1) / 2) * 11, py = -R - 13, used = i < p.used;
-        ctx.save(); ctx.translate(px, py); ctx.rotate(Math.PI / 4);
-        ctx.fillStyle = used ? 'rgba(120,110,120,0.5)' : C.main; ctx.strokeStyle = 'rgba(5,3,8,0.9)'; ctx.lineWidth = 1.5;
-        ctx.fillRect(-3.5, -3.5, 7, 7); ctx.strokeRect(-3.5, -3.5, 7, 7); ctx.restore();
+    _drawClashHud(ctx, h) {
+      const L = h.L, R = h.R, al = Math.min(L.a, R.a);
+      if (al <= 0.01) return;
+      this._placeHud(h);
+      const k = this.pxPerWorld || 1, w = h.w, half = w / 2 - 34;
+      const COL = { ally: { main: '#4fc8ff', glow: '#9fe8ff', dark: '#0e2433' }, enemy: { main: '#ff6a3c', glow: '#ffb070', dark: '#331208' } };
+      const tie = L.win === 2;
+      // marcador de tensão: aliado vencendo → esquerda; inimigo → direita
+      const tgt = tie ? 0 : clamp((R.disp - L.disp) / 6, -1, 1);
+      h.ten += (tgt - h.ten) * 0.18;
+      ctx.save(); ctx.globalAlpha = al;
+      ctx.translate(h.x, h.y); ctx.scale(1 / k, 1 / k); const sc = 0.92 + 0.08 * Math.min(L.s, 1); ctx.scale(sc, sc);
+      // conexão central: duas linhas finas + rebites
+      const lx = -half + 30, rx = half - 30;
+      const g = ctx.createLinearGradient(lx, 0, rx, 0);
+      g.addColorStop(0, COL.ally.main); g.addColorStop(0.5, tie ? '#e8dccb' : '#d8c8a8'); g.addColorStop(1, COL.enemy.main);
+      ctx.fillStyle = 'rgba(8,5,12,0.72)'; ctx.fillRect(lx, -7, rx - lx, 14);
+      ctx.strokeStyle = g; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(lx, -5); ctx.lineTo(rx, -5); ctx.moveTo(lx, 5); ctx.lineTo(rx, 5); ctx.stroke();
+      ctx.fillStyle = 'rgba(200,190,170,0.5)';
+      for (let x = lx + 18; x < rx - 10; x += 26) ctx.fillRect(x - 1, -1, 2, 2);
+      // domínio: o lado que lidera "enche" o seu trecho com um brilho discreto
+      const mx = -h.ten * (half - 60);
+      if (Math.abs(h.ten) > 0.04) {
+        const c = h.ten < 0 ? COL.ally : COL.enemy;
+        const gg = ctx.createLinearGradient(h.ten < 0 ? lx : rx, 0, mx, 0); gg.addColorStop(0, c.main); gg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = al * 0.55; ctx.fillStyle = gg; ctx.fillRect(Math.min(h.ten < 0 ? lx : rx, mx), -3, Math.abs(mx - (h.ten < 0 ? lx : rx)), 6); ctx.globalAlpha = al;
       }
-      if (p.hold && !p.win) { ctx.font = '800 9px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#9fb0c0'; ctx.fillText('SEGURA', 0, R + 16); }
-      if (p.edge) { ctx.fillStyle = C.main; ctx.beginPath(); ctx.moveTo(p.edge * (R + 18), 0); ctx.lineTo(p.edge * (R + 8), -7); ctx.lineTo(p.edge * (R + 8), 7); ctx.fill(); } // aponta para o dono fora do quadro
-      if (p.win === 2) { ctx.font = '800 10px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#e8dccb'; ctx.fillText('EMPATE', 0, R + 17); }
-      // "+N": pequeno, surge acima do emblema e desce para dentro dele
-      if (p.impA > 0.01 && p.imp) {
-        ctx.globalAlpha = p.a * p.impA; ctx.font = '900 17px "Trebuchet MS", sans-serif';
-        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(5,3,8,0.9)';
-        const iy = -R - 30 + p.impY * 12;
-        ctx.strokeText(p.imp, 0, iy); ctx.fillStyle = '#9fffb0'; ctx.fillText(p.imp, 0, iy);
+      // marcador de tensão (losango)
+      const shk = (L.shake + R.shake) > 0.05 ? Math.sin(this.time * 0.1) * 2 : 0;
+      ctx.save(); ctx.translate(mx + shk, 0); ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = tie ? '#e8dccb' : h.ten < -0.04 ? COL.ally.glow : h.ten > 0.04 ? COL.enemy.glow : '#f0e2c0';
+      ctx.strokeStyle = '#0a0610'; ctx.lineWidth = 2; ctx.fillRect(-6, -6, 12, 12); ctx.strokeRect(-6, -6, 12, 12); ctx.restore();
+      if (tie) { ctx.font = '800 10px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#e8dccb'; ctx.fillText('EMPATE', 0, -14); }
+      // extremidades
+      for (const [p, side, d, edge] of [[L, 'ally', -1, h.edgeL], [R, 'enemy', 1, h.edgeR]]) {
+        const C = tie ? { main: '#c8c0b8', glow: '#e8dccb', dark: '#2a2628' } : COL[side];
+        const dim = p.win === -1 ? 0.5 : p.lead === -1 ? 0.8 : 1;
+        const sh = p.shake > 0.05 ? Math.sin(this.time * 0.09) * 3 * p.shake : 0;
+        ctx.save(); ctx.globalAlpha = al * dim; ctx.translate(d * half + sh, 0);
+        const s2 = (p.win === 1 ? 1.12 : p.win === -1 ? 0.9 : 1) * (1 + p.pulse * 0.14); ctx.scale(s2, s2);
+        const Rr = 25;
+        ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + Math.PI / 8; ctx.lineTo(Math.cos(a) * (Rr + 5), Math.sin(a) * (Rr + 5)); } ctx.closePath();
+        const mg = ctx.createLinearGradient(0, -Rr, 0, Rr); mg.addColorStop(0, '#5a5560'); mg.addColorStop(0.5, '#2a2530'); mg.addColorStop(1, '#4a4450');
+        ctx.fillStyle = mg; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.main;
+        if (p.lead === 1 || p.win === 1 || p.flash > 0.05) { ctx.shadowColor = p.win === 1 ? '#ffd36a' : C.glow; ctx.shadowBlur = 10 + p.flash * 16; }
+        ctx.stroke(); ctx.shadowBlur = 0;
+        const dg = ctx.createRadialGradient(0, -5, 3, 0, 0, Rr); dg.addColorStop(0, C.main); dg.addColorStop(0.55, C.dark); dg.addColorStop(1, '#08060a');
+        ctx.fillStyle = dg; ctx.beginPath(); ctx.arc(0, 0, Rr - 2, 0, 7); ctx.fill();
+        ctx.textAlign = 'center'; ctx.font = '900 27px "Trebuchet MS", sans-serif';
+        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(5,3,8,0.9)'; ctx.strokeText(String(Math.round(p.disp)), 0, 10);
+        ctx.fillStyle = p.win === 1 ? '#ffe9a0' : '#fff'; ctx.shadowColor = C.glow; ctx.shadowBlur = 6 + p.pulse * 12;
+        ctx.fillText(String(Math.round(p.disp)), 0, 10); ctx.shadowBlur = 0;
+        // símbolo da equipe (inicial do personagem) na ponta externa
+        ctx.fillStyle = C.dark; ctx.strokeStyle = C.main; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(d * 40, -14, 10, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.font = '900 11px "Trebuchet MS", sans-serif'; ctx.fillStyle = C.glow; ctx.fillText(p.name[0], d * 40, -10);
+        // marcadores de batida
+        for (let i = 0; i < p.pips; i++) {
+          const px = (i - (p.pips - 1) / 2) * 10, used = i < p.used;
+          ctx.save(); ctx.translate(px, Rr + 11); ctx.rotate(Math.PI / 4);
+          ctx.fillStyle = used ? 'rgba(120,110,120,0.5)' : C.main; ctx.fillRect(-3, -3, 6, 6); ctx.restore();
+        }
+        // rótulo pequeno com a habilidade (fora da barra, para o lado externo)
+        ctx.font = '800 10px "Trebuchet MS", sans-serif'; ctx.textAlign = d < 0 ? 'right' : 'left';
+        ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(5,3,8,0.85)';
+        const lbl = p.skill + (p.combo ? ' ⚔' : '');
+        ctx.strokeText(lbl, d * 34, 30); ctx.fillStyle = '#f2e6cc'; ctx.fillText(lbl, d * 34, 30);
+        // owner fora do quadro: seta na ponta
+        if (edge) { ctx.fillStyle = C.main; ctx.beginPath(); ctx.moveTo(edge * 52, 4); ctx.lineTo(edge * 44, -2); ctx.lineTo(edge * 44, 10); ctx.fill(); }
+        // "+N" do impulso
+        if (p.impA > 0.01 && p.imp) {
+          ctx.globalAlpha = al * p.impA; ctx.textAlign = 'center'; ctx.font = '900 15px "Trebuchet MS", sans-serif';
+          const iy = -Rr - 12 + p.impY * 10;
+          ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(5,3,8,0.9)'; ctx.strokeText(p.imp, 0, iy); ctx.fillStyle = '#9fffb0'; ctx.fillText(p.imp, 0, iy);
+        }
+        ctx.restore();
+        p.flash = Math.max(0, p.flash - 0.05); p.pulse = Math.max(0, p.pulse - 0.08); p.shake = Math.max(0, p.shake - 0.06);
       }
       ctx.restore();
-      p.flash = Math.max(0, p.flash - 0.05); p.pulse = Math.max(0, p.pulse - 0.08); p.shake = Math.max(0, p.shake - 0.06);
     }
 
     // ------------------------------------------------------------ CLASH
@@ -1274,7 +1312,7 @@
       if (T) {
         if (!magB) { this.setState(B, 'APPROACHING'); B.dashing = true; this.tween(B, { x: lerp(B.x, P.x, 0.45) }, 260, 'in'); }
         await this.wait(190);
-        this.showBanner('INTERCEPTAÇÃO!', '#7fc4ff', 560, `${A.name} entra na frente de ${T.name}`);
+        this.statusIcon(T, 'protect', '#9fd0ff', 1200); this.caption = `INTERCEPTAÇÃO  ·  ${A.name} protege ${T.name}  ·  ${skA.name} × ${skB.name}`;
         this.slowMo(0.5, 420);
       } else await this.wait(230);
 
@@ -1311,7 +1349,6 @@
 
       if (!ev.winner) {
         // empate: as forças se anulam e os dois são repelidos
-        this.float(P.x, P.y - 240, 'EMPATE', '#e8dccb', 30);
         SFX('block');
         fadePlates(320);
         this.sparks(P.x, hy, '#ffe28a', 14, 0.5);
@@ -1348,7 +1385,7 @@
         if (h.killed || lv === 'extreme') await this._decisive(L, h.killed);
         await this.wait(lv === 'light' ? 220 : 320);
       }
-      this.plates = this.plates.filter(p => !plates.includes(p));
+      this.plates = this.plates.filter(p => !(p.L && plates.includes(p.L)));
       this.caption = null;
     }
 
@@ -1389,7 +1426,7 @@
       // intervenção: o protetor entra fisicamente no caminho
       if (P) {
         await this.sync(P);
-        this.showBanner('PROTEÇÃO!', '#7fc4ff', 900, `${P.name} recebe o golpe no lugar de ${T.name}`);
+        this.statusIcon(T, 'protect', '#9fd0ff', 1100);
         this.slowMo(0.45, 480);
         this.focusOn([A, P, T]);
         const dir = A.x >= T.x ? 1 : -1;
@@ -1477,7 +1514,7 @@
       switch (c.outcome) {
         case 'dodged':
           SFX('dodge');
-          this.float(D.x, D.y - 140, 'ESQUIVA', '#cfe9ff', 26);
+          this.statusIcon(D, 'dodge', '#cfe9ff');
           this.sparks(D.x, D.y - 40, 'rgba(220,230,255,0.6)', 8, 0.25, 0);
           await this.wait(220);
           return;
@@ -1489,7 +1526,7 @@
           this.addFx({ kind: 'star', dur: 420, x: hx, y: hy, color: '#fff2a8' });
           this.sparks(hx, hy, '#ffe28a', 26, 0.7);
           this.hurtShake(6);
-          this.showBanner('APARADO!', '#ffe28a', 900, 'contra-ataque');
+          this.statusIcon(D, 'parry', '#ffe28a');
           this.slowMo(0.4, 450);
           this.focusOn([A, D], 0.18);
           this.setState(A, 'STAGGERING');
@@ -1508,7 +1545,6 @@
           this.sparks(A.x, A.y - 70, '#ff8a6a', 14, 0.5);
           const cd = c.counter;
           this.float(A.x, A.y - 130, String(cd.damage), A.side === 'ally' ? '#ff6a5a' : '#ffe08a', cd.killed ? 46 : 32);
-          this.float(A.x, A.y - 165, 'CONTRA-ATAQUE', '#ffe28a', 18);
           A.hp = cd.hpAfter;
           this.react(A, 'medium', -dir, cd.killed);
           this.followThrough(D);
@@ -1519,15 +1555,15 @@
         }
         case 'blocked': {
           this.addFx({ kind: 'ring', dur: 260, x: hx + D.face * 12, y: hy, color: '#cfe3ff', r: 36 });
-          this.float(D.x, D.y - 165, 'BLOQUEIO', '#9fd0ff', 18);
+          this.statusIcon(D, 'block', '#9fd0ff');
           await this._sequence(attackers, D, c.skill, c, c.impact || 'light', { firstDone: fired, prepped: true, blocked: true });
           if (c.killed) await this._decisive(D, true);
           await this.wait(180);
           return;
         }
         default: { // hit, dodgeFail, parryFail, guardBroken — todos os golpes da sequência acertam
-          if (c.outcome === 'parryFail') this.float(D.x, D.y - 165, 'APARO FALHOU', '#ff8a6a', 18);
-          else if (c.outcome === 'dodgeFail') this.float(D.x, D.y - 165, 'ESQUIVA FALHOU', '#ff8a6a', 18);
+          if (c.outcome === 'parryFail') this.statusIcon(D, 'fail', '#ff8a6a');
+          else if (c.outcome === 'dodgeFail') this.statusIcon(D, 'fail', '#ff8a6a');
           if (magic) this.addFx({ kind: 'ring', dur: 360, x: hx, y: hy, color: A.side === 'ally' ? '#8fd3ff' : '#c86bff', r: 50 });
           const lv = await this._sequence(attackers, D, c.skill, c, c.impact || 'light', { firstDone: fired, prepped: true });
           if (c.killed || lv === 'extreme') await this._decisive(D, c.killed);
@@ -1544,7 +1580,7 @@
       if (killed) this.screenFlash = 0.3;
       this.focusOn([D], 0.2);
       this.addFx({ kind: 'ring', dur: 600, x: D.x, y: D.y - 70, color: '#ffffff', r: 110 });
-      this.showBanner(killed ? 'DERROTADO!' : 'DERRUBADA!', killed ? '#ff6a5a' : '#ffb36a', 950);
+      this.statusIcon(D, killed ? 'skull' : 'down', killed ? '#ff6a5a' : '#ffb36a', 1300);
       await this.wait(220);
     }
 
@@ -1646,7 +1682,7 @@
       for (const v of list) this._drawHud(ctx, v);
       if (this.ui) this.ui.drawOver(ctx);
       this._drawNums(ctx);
-      for (const pl of this.plates) this._drawPlate(ctx, pl);
+      for (const pl of this.plates) this._drawClashHud(ctx, pl);
       for (const p of this.particles) {
         ctx.globalAlpha = clamp(p.life / 300, 0, 1);
         ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
@@ -1728,7 +1764,7 @@
       const w = 74, ratio = clamp(v.dispHp / v.maxHp, 0, 1), real = clamp(v.hp / v.maxHp, 0, 1);
       ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x - w / 2 - 2, y - 2, w + 4, 11);
       ctx.fillStyle = '#ffe9b0'; ctx.fillRect(x - w / 2, y, w * ratio, 7);
-      ctx.fillStyle = v.side === 'ally' ? (real < 0.3 ? '#ff6a4a' : '#5fd08a') : '#d8484a';
+      ctx.fillStyle = v.side === 'ally' ? '#5fd08a' : '#d8484a'; // cor = equipe (nunca muda com a Vida)
       ctx.fillRect(x - w / 2, y, w * Math.min(ratio, real), 7);
       // elemento: gema colorida à esquerda das barras (sempre visível)
       const el = G.ELEMENTS && G.UNITS[v.id] && G.ELEMENTS[G.UNITS[v.id].element];
@@ -1773,6 +1809,22 @@
       }
     }
 
+    _statusGlyph(ctx, ic, c) {
+      ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      const shield = () => { ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(6, -5); ctx.lineTo(5, 2); ctx.lineTo(0, 7); ctx.lineTo(-5, 2); ctx.lineTo(-6, -5); ctx.closePath(); };
+      ctx.beginPath();
+      switch (ic) {
+        case 'block': case 'protect': shield(); ctx.stroke(); if (ic === 'protect') { ctx.beginPath(); ctx.moveTo(0, -3); ctx.lineTo(0, 3); ctx.moveTo(-3, 0); ctx.lineTo(3, 0); ctx.stroke(); } break;
+        case 'break': shield(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-1, -8); ctx.lineTo(2, -2); ctx.lineTo(-2, 1); ctx.lineTo(1, 8); ctx.strokeStyle = '#fff'; ctx.stroke(); break;
+        case 'dodge': for (const y of [-4, 0, 4]) { ctx.moveTo(-7 + Math.abs(y), y); ctx.lineTo(5, y); } ctx.stroke(); ctx.beginPath(); ctx.moveTo(3, -3); ctx.lineTo(7, 0); ctx.lineTo(3, 3); ctx.stroke(); break;
+        case 'parry': ctx.moveTo(-6, -6); ctx.lineTo(6, 6); ctx.moveTo(6, -6); ctx.lineTo(-6, 6); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 2.2, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); break;
+        case 'fail': case 'lost': ctx.moveTo(-5, -5); ctx.lineTo(5, 5); ctx.moveTo(5, -5); ctx.lineTo(-5, 5); ctx.stroke(); break;
+        case 'restore': case 'stable': ctx.arc(0, 0, 5.5, -2.4, 2.2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(4, -6); ctx.lineTo(4.5, -1.5); ctx.lineTo(0, -2.5); ctx.stroke(); break;
+        case 'down': ctx.moveTo(0, -7); ctx.lineTo(0, 5); ctx.moveTo(-5, 0); ctx.lineTo(0, 6); ctx.lineTo(5, 0); ctx.stroke(); break;
+        case 'skull': ctx.arc(0, -1.5, 6, 0, 7); ctx.fill(); ctx.fillRect(-3.5, 3, 7, 4); ctx.fillStyle = '#0a0610'; ctx.beginPath(); ctx.arc(-2.3, -1.5, 1.7, 0, 7); ctx.arc(2.3, -1.5, 1.7, 0, 7); ctx.fill(); break;
+        default: ctx.arc(0, 0, 4, 0, 7); ctx.fill();
+      }
+    }
     _drawFx(ctx) {
       for (const f of this.fx) {
         const p = f.t / f.dur;
@@ -1845,6 +1897,15 @@
           const gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
           gr.addColorStop(0, f.color); gr.addColorStop(1, 'rgba(0,0,0,0)');
           ctx.fillStyle = gr; ctx.fillRect(f.x - f.r, f.y - f.r, f.r * 2, f.r * 2);
+        } else if (f.kind === 'sicon') {
+          // ícone de estado: pequeno disco ao lado da barra de Vida, sobe e some rápido
+          const v = f.ref, k = this.pxPerWorld || 1;
+          ctx.translate(v.x + 70, v.y - 168 - (v.hop || 0) - p * 10); ctx.scale(1 / k, 1 / k);
+          const pop = p < 0.15 ? 0.6 + p / 0.15 * 0.5 : p < 0.25 ? 1.1 - (p - 0.15) : 1;
+          ctx.scale(pop, pop); ctx.globalAlpha = p > 0.7 ? (1 - p) / 0.3 : 1;
+          ctx.fillStyle = 'rgba(10,6,14,0.85)'; ctx.strokeStyle = f.color; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(0, 0, 13, 0, 7); ctx.fill(); ctx.stroke();
+          this._statusGlyph(ctx, f.icon, f.color);
         } else if (f.kind === 'ring') {
           ctx.globalAlpha = 1 - p; ctx.strokeStyle = f.color; ctx.lineWidth = 6 * (1 - p) + 1;
           ctx.beginPath(); ctx.ellipse(f.x, f.y, f.r * (0.3 + p), f.r * (0.3 + p) * 1.1, 0, 0, 7); ctx.stroke();
