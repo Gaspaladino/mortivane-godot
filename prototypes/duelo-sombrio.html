@@ -383,6 +383,10 @@ body.resolving #panel { opacity:.6; }
         case 'beatThud': T(0.12, { type: 'sine', f0: 170, f1: 70, peak: 0.45 }); N(0.04, { type: 'lowpass', f0: 1600, peak: 0.25 }); break;
         case 'beatMagic': T(0.18, { type: 'sine', f0: 700, f1: 1100, peak: 0.12 }); N(0.12, { f0: 1800, f1: 900, q: 5, peak: 0.14 }); break;
         case 'tick': T(0.05, { type: 'square', f0: 2400, peak: 0.04 }); break;
+        case 'reveal': T(0.07, { type: 'triangle', f0: 1320, f1: 1760, peak: 0.07 }); break;                        // revelação do impulso
+        case 'beatShield': T(0.2, { type: 'sine', f0: 140, f1: 80, peak: 0.4 }); [1, 2.3].forEach(m => T(0.18, { type: 'triangle', f0: 520 * m, peak: 0.06 })); N(0.05, { type: 'bandpass', f0: 1800, q: 2, peak: 0.25 }); break; // escudo × arma
+        case 'beatPierce': N(0.06, { type: 'highpass', f0: 3800, peak: 0.3 }); T(0.12, { type: 'triangle', f0: 900, f1: 1300, peak: 0.08 }); break;
+        case 'beatFinal': [1, 2.6, 4.2].forEach((m, i) => T(0.3, { type: 'triangle', f0: 560 * m, peak: 0.13 / (i + 1) })); N(0.08, { type: 'bandpass', f0: 2200, q: 1.5, peak: 0.4 }); T(0.25, { type: 'sine', f0: 110, f1: 55, peak: 0.45 }); break; // CLASH!
         case 'leadSwap': T(0.12, { type: 'triangle', f0: 520, f1: 880, peak: 0.1 }); break;
         case 'clashFinal': T(0.4, { type: 'sine', f0: 90, f1: 42, peak: 0.6 }); N(0.12, { type: 'lowpass', f0: 1200, f1: 300, peak: 0.4 }); [1, 2.7].forEach(m => T(0.35, { type: 'triangle', f0: 420 * m, peak: 0.06 })); break;
         // raios do Clash (não usados mais)
@@ -1382,6 +1386,7 @@ body.resolving #panel { opacity:.6; }
         v.flash = Math.max(0, v.flash - dt * 0.005);
         v.dispHp = lerp(v.dispHp, v.hp, 1 - Math.exp(-dt * 0.008));
         v.dispPost = lerp(v.dispPost, v.post, 1 - Math.exp(-dt * 0.006));
+        v.postFlash = Math.max(0, (v.postFlash || 0) - dt * 0.003);
         if (v.trail.length && (this.time - v.trail[0].t > 160)) v.trail.shift();
         if (v.dashing) v.trail.push({ x: v.x, y: v.y, t: this.time });
       }
@@ -2135,7 +2140,9 @@ body.resolving #panel { opacity:.6; }
         const lvHere = st.react === 'final' ? finalLv : st.react;
         const strong = last && (lvHere === 'heavy' || lvHere === 'extreme' || hit.killed);
         this._hitSound(st.motion, opts.blocked, last, strong);
-        this.sparks(L.x - dir * 18, L.y - 72, opts.blocked ? '#cfe3ff' : (st.motion === 'proj' ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ff7a5a'), last ? 16 : 8, 0.5);
+        { const kind = opts.blocked ? 'metal' : st.motion === 'proj' ? 'magic' : /punch|upper/.test(st.motion) ? 'body' : /thrust|lunge|arrow/.test(st.motion) ? 'pierce' : 'metal';
+          this._impactBurst(L.x - dir * 18, L.y - 72, dir > 0 ? 0 : Math.PI, opts.blocked ? '#cfe3ff' : kind === 'magic' ? (A.side === 'ally' ? '#9ad8ff' : '#d38bff') : '#ffd2a0', last ? (strong ? 1.25 : 0.95) : 0.7, kind);
+          if (last && strong) this.dust(L, 8); }
         if (last && hit.elem) this.float(L.x + 50, L.y - 112, hit.elem > 0 ? '▲ VANTAGEM' : '▼ DESVANTAGEM', hit.elem > 0 ? '#7fe0a0' : '#ff9a8a', 12, 1000);
         if (st.motion === 'proj' || strong) this.flashAt(L.x - dir * 18, L.y - 72, st.motion === 'proj' ? (A.side === 'ally' ? '#8fd3ff' : '#c86bff') : '#ffe2b0', strong ? 90 : 60);
         const big = last && (hit.killed || steps.length === 1);
@@ -2149,6 +2156,7 @@ body.resolving #panel { opacity:.6; }
         if (pz) {
           pNow = last ? pz.after : Math.max(pz.after, pNow - pDrops[i]);
           L.post = pNow;
+          if (last && pz.before - pz.after >= 25) { L.postFlash = 1; this.tween(L, { guard: 0, arm: 0.6 }, 90, 'out'); } // guarda cede
           if (pz.broke && !pBrokeShown && pNow <= 0) { pBrokeShown = true; this.wait(crit ? 140 : 0).then(() => this._postureBreak(L, dir)); }
           if (last) {
             this.float(L.x + 62, L.y - 140, `−${pz.before - pz.after}`, '#d9b85c', 15, 1100); // perto da barra de Postura
@@ -2182,107 +2190,182 @@ body.resolving #panel { opacity:.6; }
       return lv;
     }
 
-    // ============================================================ CLASH EM BATIDAS
+    // ============================================================ CLASH EM BATIDAS — EMBLEMAS + COREOGRAFIA
     // Só REPRODUZ o registro da lógica (ev.a.steps / ev.b.steps / ev.beats): nada é sorteado aqui.
-    // Placas de força acompanham o confronto; cada batida é um choque físico com som e número.
+    // ClashBadgeRenderer: emblema com número grande, marcadores de batida, "+N" e faixa com o nome da habilidade.
+    // ClashBeatAnimator: cada batida tem um padrão diferente (alto / baixo / investida), com pressão visual.
+    _material(sk, v) {
+      const m = (sk.hits || [])[0] ? sk.hits[0].motion : '';
+      if (sk.tags.includes('magic')) return 'magic';
+      if (/punch|upper/.test(m)) return 'body';
+      if (/thrust|lunge|arrow/.test(m) || sk.tags.includes('ranged')) return 'pierce';
+      if (v.art === 'knight' || v.art === 'brute') return 'shield';
+      return 'metal';
+    }
     async _clashBeats(ev, A, B, P, hy, skA, skB) {
       const left = A.x <= B.x;
-      const mk = (sd, v) => ({ side: v.side, name: v.name, val: sd.start, disp: sd.start, imp: null, impA: 0, impY: 0, lead: 0, win: 0, a: 0, s: 0.6, hold: false, flash: 0 });
-      const pa = mk(ev.a, A), pb = mk(ev.b, B);
-      const PL = left ? pa : pb, PR = left ? pb : pa;
-      // posição: perto do centro do confronto, sempre dentro da tela
+      const name = (sd, v, sk) => sk.combo ? [v, ...(sd.partners || []).map(id => this.vis[id])].map(x => x.name).join(' + ') : v.name;
+      const mk = (sd, v, sk) => ({ team: v.side, name: name(sd, v, sk), skill: sk.name, combo: !!sk.combo, val: sd.start, disp: sd.start,
+        imp: null, impA: 0, impY: 0, pips: sd.beats, used: 0, lead: 0, win: 0, a: 0, s: 0.4, pulse: 0, flash: 0, hold: false, shake: 0 });
+      const pa = mk(ev.a, A, skA), pb = mk(ev.b, B, skB);
+      const BL = left ? pa : pb, BR = left ? pb : pa;
+      // acima do confronto, fora dos rostos e das barras de vida, sempre dentro da tela
       const tl = this.toWorld(0, 0), br = this.toWorld(this.canvas.clientWidth, this.canvas.clientHeight);
-      const cx = clamp(P.x, tl.x + 130, br.x - 130), cy = clamp(hy - 78, tl.y + 70, br.y - 120);
-      PL.x = cx - 74; PR.x = cx + 74; PL.y = PR.y = cy;
-      const plates = [pa, pb];
-      if (!this.skipping) this.plates.push(...plates);
-      const unarmed = [skA, skB].some(sk => (sk.hits || []).some(h => /punch|upper/.test(h.motion)));
-      const magic = [skA, skB].some(sk => sk.tags.includes('magic') || sk.tags.includes('ranged'));
-      const beatSfx = i => magic ? 'beatMagic' : unarmed ? 'beatThud' : (i % 2 ? 'beatClang' : 'beatTin');
-      SFX('clashTense', { vol: 0.7 });
-      await Promise.all(plates.map(p => this.tween(p, { a: 1, s: 1 }, 120, 'back')));   // ~0,15 s de preparação
+      const cx = clamp(P.x, tl.x + 250, br.x - 250), cy = clamp(hy - 118, tl.y + 70, br.y - 160); // faixas dos nomes também cabem
+      BL.x = cx - 62; BR.x = cx + 62; BL.y = BR.y = cy; BL.dir = -1; BR.dir = 1; // faixa do nome cresce para fora
+      const badges = [pa, pb];
+      if (!this.skipping) this.plates.push(...badges);
+      const ranged = [skA, skB].some(sk => sk.tags.includes('magic') || sk.tags.includes('ranged'));
+      const matA = this._material(skA, A), matB = this._material(skB, B);
+      const mats = [matA, matB];
+      const mat = mats.includes('magic') ? 'magic' : mats.includes('body') ? 'body' : mats.includes('pierce') ? 'pierce' : mats.includes('shield') ? 'shield' : 'metal';
+      SFX('clashTense', { vol: 0.6 });
+      await Promise.all(badges.map(b => this.tween(b, { a: 1, s: 1 }, 130, 'back')));
       const dirOf = v => (v === A ? (B.x >= A.x ? 1 : -1) : (A.x >= B.x ? 1 : -1));
+      const PAT = [
+        { dy: -26, wind: { arm: -1.5, lean: -0.2 }, strike: { arm: 1.15, lean: 0.3 }, step: 14 },               // alto
+        { dy: 16, wind: { arm: 0.5, lean: -0.1, crouch: 0.14 }, strike: { arm: -0.9, lean: 0.24, crouch: 0.06 }, step: 10 }, // baixo / mudança de direção
+        { dy: -6, wind: { arm: -1.7, lean: -0.28, crouch: 0.08 }, strike: { arm: 1.35, lean: 0.42 }, step: 26 },  // investida (mais agressiva)
+      ];
       let lastLead = null;
-      for (let i = 0; i < ev.beats.length; i++) {
-        const last = i === ev.beats.length - 1, bt = ev.beats[i];
-        const sa = ev.a.steps[i], sb = ev.b.steps[i];
-        // 1. puxa / sustenta (quem esgotou as batidas segura a guarda — não fica parado à toa)
-        const moves = [];
-        for (const [v, st] of [[A, sa], [B, sb]]) {
-          const d = dirOf(v);
-          if (st.imp == null) { moves.push(this.tween(v, { crouch: 0.12, guard: 0.8, lean: 0.12 }, 80, 'out')); }
-          else moves.push(this.tween(v, { lean: -0.16, arm: i % 2 ? 0.2 : -1.2, x: v.x - d * 8 }, 75, 'out'));
+      const n = ev.beats.length;
+      for (let i = 0; i < n; i++) {
+        const last = i === n - 1, bt = ev.beats[i], sa = ev.a.steps[i], sb = ev.b.steps[i];
+        const pat = last && n > 1 ? PAT[2] : PAT[i % 2];
+        const contact = { x: P.x, y: hy + pat.dy };
+        // 1. preparação (quem perdeu terreno na batida anterior arma um golpe maior para recuperar)
+        const prep = [];
+        for (const [v, st, isA] of [[A, sa, true], [B, sb, false]]) {
+          const d = dirOf(v), wasBehind = lastLead && lastLead !== (isA ? 'a' : 'b');
+          if (st.imp == null) prep.push(this.tween(v, { crouch: 0.14, guard: 1, lean: 0.1, arm: -0.4 }, 80, 'out'));   // sustenta a guarda
+          else prep.push(this.tween(v, Object.assign({}, pat.wind, { x: v.x - d * (8 + (wasBehind ? 8 : 0)) }), last ? 95 : 70, 'out'));
         }
-        await Promise.all(moves);
-        // 2. golpe e contato (no instante do choque: som, faísca, micro pausa)
-        for (const [v, st] of [[A, sa], [B, sb]]) { if (st.imp != null) { const d = dirOf(v); this.tween(v, { lean: 0.28, arm: i % 2 ? -0.9 : 1.2, x: v.x + d * 14 }, 60, 'in'); } }
-        await this.wait(55);
-        SFX(beatSfx(i), { vol: last ? 1 : 0.8, pitch: 1 + i * 0.06 });
-        this.hitStop(last ? 55 : 30);
-        if (magic) this.addFx({ kind: 'ring', dur: 260, x: P.x, y: hy, color: '#c8a0ff', r: 34 + i * 8 });
-        else this.addFx({ kind: 'star', dur: 220, x: P.x, y: hy - i * 6, color: '#fff2a8' });
-        this.sparks(P.x, hy, magic ? '#c8a0ff' : '#ffe28a', 8 + i * 3, 0.45);
-        this.hurtShake(last ? 4 : 2, 0);
-        // 3. impulso aparece pequeno e é "absorvido" pelo número principal
-        const upd = [];
-        for (const [pl, st] of [[pa, sa], [pb, sb]]) {
-          pl.hold = st.imp == null;
+        await Promise.all(prep);
+        // 2. golpe/disparo até o contato
+        if (ranged) {
+          for (const [v, st] of [[A, sa], [B, sb]]) {
+            if (st.imp == null) continue;
+            const arrow = (v === A ? skA : skB).tags.includes('ranged'), magic = (v === A ? skA : skB).tags.includes('magic');
+            if (arrow || magic) this.addFx({ kind: arrow ? 'arrow' : 'proj', dur: 130, x0: v.x + dirOf(v) * 30, y0: v.y - 110, x1: contact.x, y1: contact.y, color: magic ? (v.side === 'ally' ? '#8fd3ff' : '#c86bff') : '#e8dcc0', arc: 6 });
+            this.tween(v, Object.assign({}, pat.strike, { x: v.x + dirOf(v) * (arrow || magic ? 4 : pat.step) }), 70, 'in');
+          }
+          await this.wait(130);
+        } else {
+          for (const [v, st] of [[A, sa], [B, sb]]) if (st.imp != null) this.tween(v, Object.assign({}, pat.strike, { x: v.x + dirOf(v) * pat.step }), 60, 'in');
+          await this.wait(55);
+        }
+        // 3. CONTATO: impacto + som + micro-pausa (mais forte na última batida)
+        SFX(last && n > 1 ? 'beatFinal' : ({ magic: 'beatMagic', body: 'beatThud', pierce: 'beatPierce', shield: 'beatShield' }[mat] || (i % 2 ? 'beatClang' : 'beatTin')), { vol: last ? 1 : 0.8, pitch: 1 + i * 0.07 });
+        this.hitStop(last ? 60 : 28);
+        const leadSide = bt.lead === 'a' ? A : bt.lead === 'b' ? B : null;
+        const ang = leadSide ? (dirOf(leadSide) > 0 ? 0 : Math.PI) : -Math.PI / 2;
+        this._impactBurst(contact.x, contact.y, ang, mat === 'magic' ? '#c8a0ff' : mat === 'body' ? '#ffe2c0' : '#fff2c0', last ? 1.2 : 0.8, mat);
+        this.hurtShake(last ? 5 : 2, leadSide ? dirOf(leadSide) : 0);
+        // 4. revelação do impulso (pequeno, acima do emblema) e atualização rápida do número
+        await this.wait(40);
+        let maxImp = 0;
+        for (const [bd, st] of [[pa, sa], [pb, sb]]) {
+          bd.hold = st.imp == null;
           if (st.imp == null) continue;
-          pl.imp = `+${st.imp}`; pl.impA = 1; pl.impY = 0;
-          upd.push(this.tween(pl, { impY: 1 }, 110, 'out').then(() => { pl.impA = 0; pl.val = st.total; return this.tween(pl, { disp: st.total }, 90, 'out'); }));
+          bd.used = i + 1; bd.imp = `+${st.imp}`; bd.impA = 1; bd.impY = 0; maxImp = Math.max(maxImp, st.imp);
+          this.tween(bd, { impY: 1 }, 90, 'out').then(() => { bd.val = st.total; bd.pulse = 1; return this.tween(bd, { disp: st.total }, 70, 'out'); }).then(() => this.tween(bd, { impA: 0 }, 140));
         }
-        await this.wait(70);
-        SFX('tick', { vol: 0.6, pitch: 1 + i * 0.08 });
-        await Promise.all(upd);
-        // 4. domínio parcial: quem lidera empurra, o outro perde terreno (sem dano nem Postura)
-        const lead = bt.lead;
-        pa.lead = lead === 'a' ? 1 : 0; pb.lead = lead === 'b' ? 1 : 0;
+        SFX('reveal', { vol: 0.55, pitch: 1 + maxImp * 0.12 });
+        await this.wait(95);
+        SFX('tick', { vol: 0.45, pitch: 1.1 + i * 0.08 });
+        // 5. domínio parcial: quem lidera pressiona; quem perde recua e a guarda sofre (sem dano nem Postura)
+        const lead = bt.lead, margin = Math.abs(bt.a - bt.b);
+        pa.lead = lead === 'a' ? 1 : lead ? -1 : 0; pb.lead = lead === 'b' ? 1 : lead ? -1 : 0;
         if (lead && lastLead && lead !== lastLead) { SFX('leadSwap', { vol: 0.7 }); (lead === 'a' ? pa : pb).flash = 1; }
-        lastLead = lead || lastLead;
         if (lead) {
-          const W = lead === 'a' ? A : B, Lz = lead === 'a' ? B : A, d = dirOf(W);
-          this.tween(W, { x: W.x + d * 10, lean: 0.32 }, 90, 'out');
-          this.tween(Lz, { x: clamp(Lz.x + d * 14, ARENA.minX, ARENA.maxX), lean: -0.2 }, 90, 'out');
-        } else { this.tween(A, { lean: 0.22 }, 80); this.tween(B, { lean: 0.22 }, 80); } // armas travadas
-        await this.wait(last ? 120 : 70);
+          const W = lead === 'a' ? A : B, Lz = lead === 'a' ? B : A, d = dirOf(W), push = Math.min(30, 8 + margin * 5);
+          this.tween(W, { x: W.x + d * push * 0.6, lean: 0.36 }, 90, 'out');
+          this.tween(Lz, { x: clamp(Lz.x + d * push, ARENA.minX, ARENA.maxX), lean: -0.22 - margin * 0.03, guard: Lz.art === 'knight' ? 0.5 : Lz.guard, crouch: 0.08 }, 100, 'out');
+          (lead === 'a' ? pb : pa).shake = 1;
+          if (margin >= 3) this.dust(Lz, 4);
+        } else {
+          // empate na batida: armas travadas, os dois fazem força
+          this.tween(A, { lean: 0.26 }, 70); this.tween(B, { lean: 0.26 }, 70);
+          this.sparks(contact.x, contact.y, '#ffe28a', 4, 0.25);
+        }
+        lastLead = lead || lastLead;
+        await this.wait(last ? 110 : 55);
       }
-      // conclusão: valor final decide (maior soma acumulada)
+      // conclusão: maior força acumulada vence (sem tela de resultado)
       SFX('clashFinal', { vol: ev.close ? 1 : 0.85 });
-      this.flashAt(P.x, hy, '#fff2c0', 70);
       if (ev.winner) {
-        const pw = ev.winner === A.id ? pa : pb, pl = pw === pa ? pb : pa;
-        pw.win = 1; pl.win = -1;
-        this.tween(pw, { s: 1.25 }, 140, 'back');
-        this.tween(pl, { s: 0.85 }, 140, 'out');
-      } else { pa.win = pb.win = 2; }
-      await this.wait(ev.winner ? 160 : 220);
-      return plates;
+        const bw = ev.winner === A.id ? pa : pb, bl = bw === pa ? pb : pa;
+        bw.win = 1; bl.win = -1; bw.flash = 1; bl.shake = 1;
+        this.tween(bw, { s: 1.22 }, 130, 'back'); this.tween(bl, { s: 0.86 }, 130, 'out');
+      } else { pa.win = pb.win = 2; this.sparks(P.x, hy, '#e8dccb', 10, 0.4); }
+      await this.wait(ev.winner ? 150 : 220);
+      return badges;
     }
+
+    // CombatImpactFX: clarão direcional + estilhaços em cone + (pesado) onda de choque e poeira
+    _impactBurst(x, y, ang, color, size = 1, kind = 'metal') {
+      if (this.skipping) return;
+      this.addFx({ kind: 'burst', dur: kind === 'magic' ? 220 : 150, x, y, ang, color, size, rays: kind === 'body' ? 6 : kind === 'magic' ? 10 : 8 });
+      const n = Math.round((kind === 'magic' ? 10 : 12) * size);
+      for (let i = 0; i < n; i++) {
+        const a = ang + (Math.random() - 0.5) * (kind === 'magic' ? 3.2 : 1.3), sp = (0.35 + Math.random() * 0.55) * size;
+        this.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.1, g: kind === 'magic' ? -0.0002 : 0.0011, life: 180 + Math.random() * 220, color: kind === 'magic' ? color : (i % 3 ? '#ffe7b0' : '#ffffff'), r: 1.4 + Math.random() * 1.8 });
+      }
+      if (size >= 1.1) this.addFx({ kind: 'shock', dur: 260, x, y, r: 70 * size, color });
+    }
+
     _drawPlate(ctx, p) {
       if (p.a <= 0.01) return;
-      ctx.save(); ctx.globalAlpha = p.a * (p.win === -1 ? 0.55 : 1);
-      ctx.translate(p.x, p.y); ctx.scale(p.s, p.s);
-      const col = p.win === 1 ? '#ffd36a' : p.win === 2 ? '#c8c0b8' : p.side === 'ally' ? '#8fd3ff' : '#ff8a7a';
-      // placa de metal escuro com rebites
-      const g = ctx.createLinearGradient(0, -24, 0, 24); g.addColorStop(0, '#2c2530'); g.addColorStop(1, '#141017');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(-34, -24, 68, 48, 9); ctx.fill();
-      ctx.lineWidth = p.lead || p.win === 1 ? 3 : 1.6; ctx.strokeStyle = col;
-      if (p.lead || p.win === 1 || p.flash > 0.05) { ctx.shadowColor = col; ctx.shadowBlur = 10 + p.flash * 14; }
+      const ally = p.team === 'ally';
+      const C = p.win === 2 ? { main: '#c8c0b8', glow: '#e8dccb', dark: '#2a2628' } : ally ? { main: '#4fc8ff', glow: '#9fe8ff', dark: '#0e2433' } : { main: '#ff6a3c', glow: '#ffb070', dark: '#331208' };
+      const dim = p.win === -1 ? 0.5 : p.lead === -1 ? 0.78 : 1;
+      const sh = p.shake > 0.05 ? Math.sin(this.time * 0.09) * 4 * p.shake : 0;
+      ctx.save(); ctx.globalAlpha = p.a * dim;
+      ctx.translate(p.x + sh, p.y); const sc = p.s * (1 + p.pulse * 0.16); ctx.scale(sc, sc);
+      // faixa com o nome da habilidade (cresce para fora do confronto)
+      const d = p.dir || 1, rw = 138, rh = 21;
+      ctx.save(); ctx.transform(1, 0, d * -0.28, 1, 0, 0);
+      const rg = ctx.createLinearGradient(d * 20, 0, d * (20 + rw), 0);
+      rg.addColorStop(0, C.dark); rg.addColorStop(1, 'rgba(10,6,14,0.15)');
+      ctx.fillStyle = rg; ctx.fillRect(d > 0 ? 20 : -20 - rw, 6, rw, rh);
+      ctx.fillStyle = C.main; ctx.fillRect(d > 0 ? 20 : -20 - rw, 6, rw, 2);
+      ctx.restore();
+      ctx.font = '800 12px "Trebuchet MS", sans-serif'; ctx.textAlign = d > 0 ? 'left' : 'right';
+      ctx.fillStyle = '#fff1d0'; ctx.fillText(p.skill + (p.combo ? ' ⚔' : ''), d * 34, 21);
+      ctx.font = '700 9px "Trebuchet MS", sans-serif'; ctx.fillStyle = C.glow; ctx.fillText(p.name.toUpperCase(), d * 36, 38);
+      // emblema: anel octogonal metálico + disco com o número
+      const R = 30;
+      ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + Math.PI / 8; ctx.lineTo(Math.cos(a) * (R + 6), Math.sin(a) * (R + 6)); } ctx.closePath();
+      const mg = ctx.createLinearGradient(0, -R, 0, R); mg.addColorStop(0, '#5a5560'); mg.addColorStop(0.5, '#2a2530'); mg.addColorStop(1, '#4a4450');
+      ctx.fillStyle = mg; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.main;
+      if (p.lead === 1 || p.win === 1 || p.flash > 0.05) { ctx.shadowColor = p.win === 1 ? '#ffd36a' : C.glow; ctx.shadowBlur = 12 + p.flash * 18; }
       ctx.stroke(); ctx.shadowBlur = 0;
-      ctx.fillStyle = 'rgba(255,255,255,0.25)'; for (const [rx, ry] of [[-28, -18], [28, -18], [-28, 18], [28, 18]]) { ctx.beginPath(); ctx.arc(rx, ry, 1.6, 0, 7); ctx.fill(); }
-      ctx.textAlign = 'center';
-      ctx.font = '700 9px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#b8a8a0'; ctx.fillText(p.name.toUpperCase(), 0, -30);
-      ctx.font = '900 28px "Trebuchet MS", sans-serif'; ctx.fillStyle = p.win === 1 ? '#ffe9b0' : '#fff1d0';
-      ctx.fillText(String(Math.round(p.disp)), 0, 10);
-      if (p.hold && !p.win) { ctx.font = '700 9px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#9fb0c0'; ctx.fillText('SEGURA', 0, 36); }
-      if (p.win === 2) { ctx.font = '800 10px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#e8dccb'; ctx.fillText('EMPATE', 0, 36); }
-      // impulso: pequeno, sobe da lateral e entra no número
+      const dg = ctx.createRadialGradient(0, -6, 4, 0, 0, R); dg.addColorStop(0, C.main); dg.addColorStop(0.55, C.dark); dg.addColorStop(1, '#08060a');
+      ctx.fillStyle = dg; ctx.beginPath(); ctx.arc(0, 0, R - 2, 0, 7); ctx.fill();
+      ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.beginPath(); ctx.arc(0, 0, R - 6, 0, 7); ctx.stroke();
+      // número grande
+      ctx.textAlign = 'center'; ctx.font = '900 32px "Trebuchet MS", sans-serif';
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(5,3,8,0.9)'; ctx.strokeText(String(Math.round(p.disp)), 0, 11);
+      ctx.fillStyle = p.win === 1 ? '#ffe9a0' : '#ffffff'; ctx.shadowColor = C.glow; ctx.shadowBlur = 8 + p.pulse * 14;
+      ctx.fillText(String(Math.round(p.disp)), 0, 11); ctx.shadowBlur = 0;
+      // marcadores de batida (discretos; consumidos conforme as batidas acontecem)
+      for (let i = 0; i < p.pips; i++) {
+        const px = (i - (p.pips - 1) / 2) * 11, py = -R - 13, used = i < p.used;
+        ctx.save(); ctx.translate(px, py); ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = used ? 'rgba(120,110,120,0.5)' : C.main; ctx.strokeStyle = 'rgba(5,3,8,0.9)'; ctx.lineWidth = 1.5;
+        ctx.fillRect(-3.5, -3.5, 7, 7); ctx.strokeRect(-3.5, -3.5, 7, 7); ctx.restore();
+      }
+      if (p.hold && !p.win) { ctx.font = '800 9px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#9fb0c0'; ctx.fillText('SEGURA', 0, R + 16); }
+      if (p.win === 2) { ctx.font = '800 10px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#e8dccb'; ctx.fillText('EMPATE', 0, R + 17); }
+      // "+N": pequeno, surge acima do emblema e desce para dentro dele
       if (p.impA > 0.01 && p.imp) {
-        ctx.globalAlpha = p.a * p.impA; ctx.font = '800 15px "Trebuchet MS", sans-serif'; ctx.fillStyle = '#9fe8a8';
-        ctx.fillText(p.imp, 24 - p.impY * 18, -10 + p.impY * 8);
+        ctx.globalAlpha = p.a * p.impA; ctx.font = '900 17px "Trebuchet MS", sans-serif';
+        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(5,3,8,0.9)';
+        const iy = -R - 30 + p.impY * 12;
+        ctx.strokeText(p.imp, 0, iy); ctx.fillStyle = '#9fffb0'; ctx.fillText(p.imp, 0, iy);
       }
       ctx.restore();
-      p.flash = Math.max(0, p.flash - 0.04);
+      p.flash = Math.max(0, p.flash - 0.05); p.pulse = Math.max(0, p.pulse - 0.08); p.shake = Math.max(0, p.shake - 0.06);
     }
 
     // ------------------------------------------------------------ CLASH
@@ -2790,6 +2873,7 @@ body.resolving #panel { opacity:.6; }
       const pulse = preal < 0.25 && !v.broken ? 0.6 + 0.4 * Math.sin(this.time * 0.012) : 1;
       ctx.fillStyle = v.broken ? '#8a5a3a' : `rgba(217,184,92,${pulse})`;
       ctx.fillRect(x - w / 2, py, w * Math.min(pr, preal), 4);
+      if (v.postFlash > 0.02) { ctx.fillStyle = `rgba(255,240,180,${v.postFlash})`; ctx.fillRect(x - w / 2 - 2, py - 2, w + 4, 8); } // desgaste grande: a barra pisca
       if (v.broken) {
         // barra rompida + ícone de Quebra
         ctx.strokeStyle = '#ffd36a'; ctx.lineWidth = 1.5; ctx.beginPath();
@@ -2854,6 +2938,21 @@ body.resolving #panel { opacity:.6; }
           ctx.fillStyle = f.heavy ? '#ffe9b0' : '#e8eef5'; ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(4, -4); ctx.lineTo(4, 4); ctx.fill();
           ctx.fillStyle = '#c84a4a'; ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(-38, -5); ctx.lineTo(-24, 0); ctx.lineTo(-38, 5); ctx.fill();
           if (f.heavy) { ctx.shadowColor = '#ffe9b0'; ctx.shadowBlur = 14; ctx.fillRect(2, -1, 10, 2); }
+        } else if (f.kind === 'burst') {
+          // clarão direcional: raios alongados na direção do golpe + núcleo branco curto
+          const e = 1 - p, L = 60 * f.size;
+          ctx.translate(f.x, f.y); ctx.rotate(f.ang);
+          ctx.globalCompositeOperation = 'lighter';
+          for (let i = 0; i < f.rays; i++) {
+            const a = (i / f.rays) * Math.PI * 2, len = (i % 2 ? 0.45 : 1) * L * (0.6 + 0.6 * Math.abs(Math.cos(a))) * (0.6 + 0.4 * p);
+            ctx.globalAlpha = e * 0.9; ctx.fillStyle = f.color;
+            ctx.beginPath(); ctx.moveTo(Math.cos(a - 0.09) * 6, Math.sin(a - 0.09) * 6); ctx.lineTo(Math.cos(a) * len, Math.sin(a) * len); ctx.lineTo(Math.cos(a + 0.09) * 6, Math.sin(a + 0.09) * 6); ctx.fill();
+          }
+          ctx.globalAlpha = e; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, 0, 10 * f.size * e + 3, 0, 7); ctx.fill();
+        } else if (f.kind === 'shock') {
+          // onda de choque fina (pequena "distorção" no ponto de contato)
+          ctx.globalAlpha = (1 - p) * 0.6; ctx.strokeStyle = f.color; ctx.lineWidth = 3 * (1 - p) + 0.5;
+          ctx.beginPath(); ctx.ellipse(f.x, f.y, f.r * ease.out(p), f.r * 0.55 * ease.out(p), 0, 0, 7); ctx.stroke();
         } else if (f.kind === 'shatter') {
           // ruptura da guarda: estilhaços que se afastam do centro
           ctx.globalAlpha = 1 - p; ctx.strokeStyle = f.color; ctx.lineWidth = 3;

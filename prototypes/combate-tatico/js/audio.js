@@ -116,6 +116,10 @@
         case 'beatThud': T(0.12, { type: 'sine', f0: 170, f1: 70, peak: 0.45 }); N(0.04, { type: 'lowpass', f0: 1600, peak: 0.25 }); break;
         case 'beatMagic': T(0.18, { type: 'sine', f0: 700, f1: 1100, peak: 0.12 }); N(0.12, { f0: 1800, f1: 900, q: 5, peak: 0.14 }); break;
         case 'tick': T(0.05, { type: 'square', f0: 2400, peak: 0.04 }); break;
+        case 'reveal': T(0.07, { type: 'triangle', f0: 1320, f1: 1760, peak: 0.07 }); break;                        // revelação do impulso
+        case 'beatShield': T(0.2, { type: 'sine', f0: 140, f1: 80, peak: 0.4 }); [1, 2.3].forEach(m => T(0.18, { type: 'triangle', f0: 520 * m, peak: 0.06 })); N(0.05, { type: 'bandpass', f0: 1800, q: 2, peak: 0.25 }); break; // escudo × arma
+        case 'beatPierce': N(0.06, { type: 'highpass', f0: 3800, peak: 0.3 }); T(0.12, { type: 'triangle', f0: 900, f1: 1300, peak: 0.08 }); break;
+        case 'beatFinal': [1, 2.6, 4.2].forEach((m, i) => T(0.3, { type: 'triangle', f0: 560 * m, peak: 0.13 / (i + 1) })); N(0.08, { type: 'bandpass', f0: 2200, q: 1.5, peak: 0.4 }); T(0.25, { type: 'sine', f0: 110, f1: 55, peak: 0.45 }); break; // CLASH!
         case 'leadSwap': T(0.12, { type: 'triangle', f0: 520, f1: 880, peak: 0.1 }); break;
         case 'clashFinal': T(0.4, { type: 'sine', f0: 90, f1: 42, peak: 0.6 }); N(0.12, { type: 'lowpass', f0: 1200, f1: 300, peak: 0.4 }); [1, 2.7].forEach(m => T(0.35, { type: 'triangle', f0: 420 * m, peak: 0.06 })); break;
         // raios do Clash (não usados mais)
